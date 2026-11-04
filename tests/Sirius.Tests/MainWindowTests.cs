@@ -334,6 +334,156 @@ public class MainWindowTests
         Assert.Empty(window.SearchRows);
     }
 
+    private static void Answer(MainWindow window, string text)
+    {
+        Dispatcher.UIThread.RunJobs();
+        window.KeyTextInput(text);
+        Dispatcher.UIThread.RunJobs();
+        window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public async Task Criar_arquivo_grava_abre_e_aparece_na_arvore()
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp);
+
+        var creating = window.CreateFileAsync(temp.Path);
+        Answer(window, "novo.cs");
+        await creating;
+
+        Assert.True(File.Exists(Path.Combine(temp.Path, "novo.cs")));
+        Assert.Equal("novo.cs", window.ActiveDocument?.Name);
+        Assert.Contains(window.TreeRows, r => r.Name == "novo.cs");
+    }
+
+    [AvaloniaFact]
+    public async Task Nome_que_ja_existe_mostra_erro_e_nao_sobrescreve()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.cs", "importante");
+        var window = Open(temp);
+
+        var creating = window.CreateFileAsync(temp.Path);
+        Answer(window, "a.cs");
+
+        Assert.True(window.IsDialogOpen);
+        Assert.False(creating.IsCompleted);
+
+        window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+        await creating;
+
+        Assert.False(window.IsDialogOpen);
+        Assert.Equal("importante", File.ReadAllText(path));
+    }
+
+    [AvaloniaFact]
+    public async Task Criar_pasta_aparece_aberta_na_arvore()
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp);
+
+        var creating = window.CreateFolderAsync(temp.Path);
+        Answer(window, "pasta");
+        await creating;
+
+        Assert.True(Directory.Exists(Path.Combine(temp.Path, "pasta")));
+        Assert.Contains(window.TreeRows, r => r.Name == "pasta" && r.IsFolder);
+    }
+
+    private static List<string> FakeTrash(MainWindow window)
+    {
+        var trashed = new List<string>();
+        window.MoveToTrash = path =>
+        {
+            trashed.Add(path);
+            if (Directory.Exists(path))
+                Directory.Delete(path, true);
+            else
+                File.Delete(path);
+        };
+        return trashed;
+    }
+
+    [AvaloniaFact]
+    public async Task Excluir_pergunta_e_cancelar_nao_mexe_em_nada()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.cs", "x");
+        var window = Open(temp);
+        var trashed = FakeTrash(window);
+
+        var deleting = window.DeleteAsync(path);
+        Assert.True(window.IsDialogOpen);
+        window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+        await deleting;
+
+        Assert.Empty(trashed);
+        Assert.True(File.Exists(path));
+    }
+
+    [AvaloniaFact]
+    public async Task Excluir_pasta_fecha_as_abas_de_dentro_e_mantem_as_outras()
+    {
+        using var temp = new TempFolder();
+        var inside = temp.File(Path.Combine("src", "a.cs"), "x");
+        var outside = temp.File("b.cs", "y");
+        var window = Open(temp);
+        var trashed = FakeTrash(window);
+        window.OpenFile(inside);
+        window.OpenFile(outside);
+        window.OpenFile(inside);
+
+        var folder = Path.Combine(temp.Path, "src");
+        var deleting = window.DeleteAsync(folder);
+        window.AnswerDialog(primary: true);
+        await deleting;
+
+        Assert.Equal([folder], trashed);
+        Assert.Equal("b.cs", Assert.Single(window.Documents).Name);
+        Assert.Equal("b.cs", window.ActiveDocument?.Name);
+        Assert.DoesNotContain(window.TreeRows, r => r.Name == "src");
+    }
+
+    [AvaloniaFact]
+    public void Barra_lateral_redimensiona_dentro_dos_limites()
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp);
+        var start = window.CurrentSidebarWidth;
+
+        window.ResizeSidebar(50);
+        Assert.Equal(start + 50, window.CurrentSidebarWidth);
+
+        window.ResizeSidebar(-5000);
+        Assert.Equal(160, window.CurrentSidebarWidth);
+
+        window.ResizeSidebar(5000);
+        Assert.True(window.CurrentSidebarWidth <= 640);
+    }
+
+    [AvaloniaFact]
+    public void Largura_guardada_e_usada_ao_abrir()
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp, new AppSettings { SidebarWidth = 300 });
+        Assert.Equal(300, window.CurrentSidebarWidth);
+    }
+
+    [AvaloniaFact]
+    public void Busca_devolve_a_largura_ao_fechar()
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp, new AppSettings { SidebarWidth = 200 });
+
+        window.OpenSearch();
+        Assert.True(window.CurrentSidebarWidth >= 300);
+
+        window.CloseSearch();
+        Assert.Equal(200, window.CurrentSidebarWidth);
+    }
+
     [AvaloniaFact]
     public void Trocar_tema_e_guardado_nas_preferencias()
     {

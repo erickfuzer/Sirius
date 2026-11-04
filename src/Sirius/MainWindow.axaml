@@ -13,128 +13,160 @@
         Background="{DynamicResource Ground}"
         Foreground="{DynamicResource Ink}"
         FontFamily="{DynamicResource UiFont}"
-        FontSize="14">
+        FontSize="13">
 
     <Panel Margin="{Binding $parent[Window].OffScreenMargin}">
-        <Grid RowDefinitions="60,*">
+        <Grid RowDefinitions="40,*">
 
             <!-- Barra de título -->
             <Grid x:Name="TitleBar" Grid.Row="0" Background="Transparent" ColumnDefinitions="*,Auto,*"
                   PointerPressed="OnTitleBarPressed">
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" Margin="22,0,0,0" VerticalAlignment="Center">
-                    <Path Width="16" Height="16" Fill="{DynamicResource Accent}" Stretch="Uniform"
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="14,0,0,0" VerticalAlignment="Center">
+                    <Path Width="13" Height="13" Fill="{DynamicResource Accent}" Stretch="Uniform"
                           Data="M8 0C8.7 4.6 10.4 7.3 16 8C10.4 8.7 8.7 11.4 8 16C7.3 11.4 5.6 8.7 0 8C5.6 7.3 7.3 4.6 8 0Z" />
-                    <TextBlock Text="Sirius" FontSize="15" FontWeight="SemiBold" LetterSpacing="-0.15" VerticalAlignment="Center" />
+                    <TextBlock Text="Sirius" FontWeight="SemiBold" VerticalAlignment="Center" />
                     <TextBlock x:Name="ProjectName" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
                 </StackPanel>
 
-                <Button Grid.Column="1" Classes="flat" Width="480" Height="44" CornerRadius="22"
+                <Button Grid.Column="1" Classes="flat" Width="400" Height="28" CornerRadius="14"
                         Background="{DynamicResource Tint}" Click="OnOpenPalette"
                         AutomationProperties.Name="Ir para arquivo ou comando">
-                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="16,0,8,0">
-                        <Path Grid.Column="0" Stroke="{DynamicResource Muted}" StrokeThickness="1.5" VerticalAlignment="Center"
-                              Data="M12 7A5 5 0 1 1 2 7A5 5 0 1 1 12 7M11 11L14.5 14.5" />
-                        <TextBlock Grid.Column="1" Text="Ir para arquivo ou comando" Foreground="{DynamicResource Muted}"
-                                   Margin="10,0" VerticalAlignment="Center" />
-                        <Border Grid.Column="2" Background="{DynamicResource Sheet}" CornerRadius="14" Padding="10,4">
-                            <TextBlock Text="Ctrl K" FontSize="12" FontWeight="Medium" Foreground="{DynamicResource Muted}" />
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="11,0,4,0">
+                        <Viewbox Grid.Column="0" Width="12" Height="12" VerticalAlignment="Center">
+                            <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.5"
+                                  Data="M12 7A5 5 0 1 1 2 7A5 5 0 1 1 12 7M11 11L14.5 14.5" />
+                        </Viewbox>
+                        <TextBlock Grid.Column="1" Text="Ir para arquivo ou comando" FontSize="12" Foreground="{DynamicResource Muted}"
+                                   Margin="8,0" VerticalAlignment="Center" />
+                        <Border Grid.Column="2" Background="{DynamicResource Sheet}" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
+                            <TextBlock Text="Ctrl K" FontSize="11" FontWeight="Medium" Foreground="{DynamicResource Muted}" />
                         </Border>
                     </Grid>
                 </Button>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0">
+                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0">
                     <Button Classes="flat chrome" Click="OnMinimize" AutomationProperties.Name="Minimizar janela">
-                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.2" Data="M1 6H11" />
+                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.1" Data="M1 6H11" />
                     </Button>
                     <Button Classes="flat chrome" Click="OnMaximize" AutomationProperties.Name="Maximizar janela">
-                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.2" Data="M3 1.5H9A1.5 1.5 0 0 1 10.5 3V9A1.5 1.5 0 0 1 9 10.5H3A1.5 1.5 0 0 1 1.5 9V3A1.5 1.5 0 0 1 3 1.5Z" />
+                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.1" Data="M3 1.5H9A1.5 1.5 0 0 1 10.5 3V9A1.5 1.5 0 0 1 9 10.5H3A1.5 1.5 0 0 1 1.5 9V3A1.5 1.5 0 0 1 3 1.5Z" />
                     </Button>
                     <Button Classes="flat chrome" Click="OnCloseWindow" AutomationProperties.Name="Fechar janela">
-                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.2" Data="M2 2L10 10M10 2L2 10" />
+                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.1" Data="M2 2L10 10M10 2L2 10" />
                     </Button>
                 </StackPanel>
             </Grid>
 
-            <Grid Grid.Row="1" ColumnDefinitions="Auto,*" Margin="12,0,12,12">
+            <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,*" Margin="8,0,8,8">
 
-                <!-- Árvore de arquivos -->
-                <Panel x:Name="Sidebar" Grid.Column="0" Width="232" Margin="0,0,8,0">
-                <ScrollViewer x:Name="TreeScroll">
-                    <ItemsControl x:Name="TreeList" Margin="0,8,8,16">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="s:TreeRow">
-                                <Button Classes="flat" Height="34" HorizontalAlignment="Stretch" Background="{Binding Background}"
-                                        Foreground="{Binding Foreground}" Click="OnTreeRowClick">
-                                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="{Binding Padding}">
-                                        <Path Grid.Column="0" Width="12" Margin="0,0,4,0" VerticalAlignment="Center"
-                                              Stroke="{DynamicResource Muted}" StrokeThickness="1.3" Data="{Binding Chevron}" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="{Binding Weight}"
-                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                        <Ellipse Grid.Column="2" Width="7" Height="7" Margin="8,0,12,0" Fill="{DynamicResource Accent}"
-                                                 IsVisible="{Binding IsDirty}" />
-                                    </Grid>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-
-                <!-- Busca no projeto -->
-                <Grid x:Name="SearchView" IsVisible="False" RowDefinitions="Auto,Auto,*" Margin="0,4,8,0">
-                    <Border Grid.Row="0" Height="44" CornerRadius="22" Background="{DynamicResource Tint}">
-                        <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="16,0,7,0">
-                            <TextBox x:Name="SearchInput" Grid.Column="0" Classes="bare" PlaceholderText="Buscar no projeto"
-                                     Foreground="{DynamicResource Ink}" AutomationProperties.Name="Buscar no projeto" />
-                            <Button x:Name="MatchCaseButton" Grid.Column="1" Classes="flat option" Content="Aa" Click="OnToggleMatchCase"
-                                    AutomationProperties.Name="Diferenciar maiúsculas" ToolTip.Tip="Diferenciar maiúsculas" />
-                            <Button x:Name="RegexButton" Grid.Column="2" Classes="flat option" Content=".*" Click="OnToggleRegex"
-                                    AutomationProperties.Name="Usar expressão regular" ToolTip.Tip="Usar expressão regular" />
-                            <Button Grid.Column="3" Classes="flat option" Click="OnCloseSearch" AutomationProperties.Name="Fechar busca" ToolTip.Tip="Fechar busca">
-                                <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.2" Data="M1 1L8 8M8 1L1 8" />
+                <Panel x:Name="Sidebar" Grid.Column="0" Width="232">
+                    <!-- Árvore de arquivos -->
+                    <Grid x:Name="TreeView" RowDefinitions="Auto,*">
+                        <Grid x:Name="TreeHeader" Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Height="28" Margin="6,0,0,0">
+                            <TextBlock Grid.Column="0" Text="Arquivos" FontSize="12" FontWeight="Medium" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Classes="flat tool" Click="OnNewFile" ToolTip.Tip="Novo arquivo" AutomationProperties.Name="Novo arquivo">
+                                <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.2"
+                                      Data="M3 1.5H8.5L11.5 4.5V12.5H3ZM8.5 1.5V4.5H11.5M5.5 8.5H9M7.25 6.75V10.25" />
+                            </Button>
+                            <Button Grid.Column="2" Classes="flat tool" Click="OnNewFolder" ToolTip.Tip="Nova pasta" AutomationProperties.Name="Nova pasta">
+                                <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.2"
+                                      Data="M1.5 3H5.5L7 4.5H12.5V11.5H1.5ZM5.25 8H8.75M7 6.25V9.75" />
                             </Button>
                         </Grid>
-                    </Border>
-                    <TextBlock x:Name="SearchStatus" Grid.Row="1" Margin="10,10,10,6" FontSize="13" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
-                    <ItemsControl x:Name="SearchList" Grid.Row="2">
-                        <ItemsControl.Template>
-                            <ControlTemplate TargetType="ItemsControl">
-                                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-                                    <ItemsPresenter Name="PART_ItemsPresenter" />
-                                </ScrollViewer>
-                            </ControlTemplate>
-                        </ItemsControl.Template>
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <VirtualizingStackPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="s:SearchRow">
-                                <Button Classes="flat" Height="30" CornerRadius="8" HorizontalAlignment="Stretch"
-                                        Background="{Binding Background}" Click="OnSearchRowClick">
-                                    <Panel Margin="10,0">
-                                        <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsFile}">
-                                            <TextBlock Grid.Column="0" Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Hint}" Margin="8,0,0,0" FontSize="12" Foreground="{DynamicResource Muted}"
-                                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                        </Grid>
-                                        <Grid ColumnDefinitions="38,*" IsVisible="{Binding IsHit}">
-                                            <TextBlock Grid.Column="0" Text="{Binding Line}" FontFamily="{DynamicResource CodeFont}" FontSize="11.5"
-                                                       Foreground="{DynamicResource Faint}" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" FontFamily="{DynamicResource CodeFont}" FontSize="12.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"><Run Text="{Binding Before}" Foreground="{DynamicResource Muted}" /><Run Text="{Binding Match}" Foreground="{DynamicResource Accent}" FontWeight="SemiBold" /><Run Text="{Binding After}" Foreground="{DynamicResource Muted}" /></TextBlock>
-                                        </Grid>
-                                    </Panel>
+                        <ScrollViewer x:Name="TreeScroll" Grid.Row="1" Background="Transparent">
+                            <ScrollViewer.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Novo arquivo" Click="OnNewFileAtRoot" />
+                                    <MenuItem Header="Nova pasta" Click="OnNewFolderAtRoot" />
+                                </ContextMenu>
+                            </ScrollViewer.ContextMenu>
+                            <ItemsControl x:Name="TreeList" Margin="0,0,0,12">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="s:TreeRow">
+                                        <Button Classes="flat" Height="26" HorizontalAlignment="Stretch" Background="{Binding Background}"
+                                                Foreground="{Binding Foreground}" Click="OnTreeRowClick">
+                                            <Button.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Novo arquivo" Click="OnTreeNewFile" />
+                                                    <MenuItem Header="Nova pasta" Click="OnTreeNewFolder" />
+                                                    <Separator />
+                                                    <MenuItem Header="Excluir" Click="OnTreeDelete" />
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
+                                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="{Binding Padding}">
+                                                <Path Grid.Column="0" Width="12" Margin="0,0,3,0" VerticalAlignment="Center"
+                                                      Stroke="{DynamicResource Muted}" StrokeThickness="1.2" Data="{Binding Chevron}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="{Binding Weight}"
+                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                <Ellipse Grid.Column="2" Width="6" Height="6" Margin="6,0,10,0" Fill="{DynamicResource Accent}"
+                                                         IsVisible="{Binding IsDirty}" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <!-- Busca no projeto -->
+                    <Grid x:Name="SearchView" IsVisible="False" RowDefinitions="Auto,Auto,*" Margin="0,2,0,0">
+                        <Border Grid.Row="0" Height="30" CornerRadius="15" Background="{DynamicResource Tint}">
+                            <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="12,0,4,0">
+                                <TextBox x:Name="SearchInput" Grid.Column="0" Classes="bare" PlaceholderText="Buscar no projeto" FontSize="13"
+                                         Foreground="{DynamicResource Ink}" AutomationProperties.Name="Buscar no projeto" />
+                                <Button x:Name="MatchCaseButton" Grid.Column="1" Classes="flat option" Content="Aa" Click="OnToggleMatchCase"
+                                        AutomationProperties.Name="Diferenciar maiúsculas" ToolTip.Tip="Diferenciar maiúsculas" />
+                                <Button x:Name="RegexButton" Grid.Column="2" Classes="flat option" Content=".*" Click="OnToggleRegex"
+                                        AutomationProperties.Name="Usar expressão regular" ToolTip.Tip="Usar expressão regular" />
+                                <Button Grid.Column="3" Classes="flat option" Click="OnCloseSearch" AutomationProperties.Name="Fechar busca" ToolTip.Tip="Fechar busca">
+                                    <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M1 1L8 8M8 1L1 8" />
                                 </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </Grid>
+                            </Grid>
+                        </Border>
+                        <TextBlock x:Name="SearchStatus" Grid.Row="1" Margin="8,8,8,4" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                        <ItemsControl x:Name="SearchList" Grid.Row="2">
+                            <ItemsControl.Template>
+                                <ControlTemplate TargetType="ItemsControl">
+                                    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                        <ItemsPresenter Name="PART_ItemsPresenter" />
+                                    </ScrollViewer>
+                                </ControlTemplate>
+                            </ItemsControl.Template>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="s:SearchRow">
+                                    <Button Classes="flat" Height="24" CornerRadius="6" HorizontalAlignment="Stretch"
+                                            Background="{Binding Background}" Click="OnSearchRowClick">
+                                        <Panel Margin="8,0">
+                                            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsFile}">
+                                                <TextBlock Grid.Column="0" Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Hint}" Margin="6,0,0,0" FontSize="11" Foreground="{DynamicResource Muted}"
+                                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                            </Grid>
+                                            <Grid ColumnDefinitions="32,*" IsVisible="{Binding IsHit}">
+                                                <TextBlock Grid.Column="0" Text="{Binding Line}" FontFamily="{DynamicResource CodeFont}" FontSize="11"
+                                                           Foreground="{DynamicResource Faint}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" FontFamily="{DynamicResource CodeFont}" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"><Run Text="{Binding Before}" Foreground="{DynamicResource Muted}" /><Run Text="{Binding Match}" Foreground="{DynamicResource Accent}" FontWeight="SemiBold" /><Run Text="{Binding After}" Foreground="{DynamicResource Muted}" /></TextBlock>
+                                            </Grid>
+                                        </Panel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
                 </Panel>
 
+                <Thumb x:Name="SidebarSplitter" Grid.Column="1" Classes="splitter" DragDelta="OnSidebarDrag" DragCompleted="OnSidebarDragDone"
+                       AutomationProperties.Name="Redimensionar barra lateral" />
+
                 <!-- Folha do editor -->
-                <Border x:Name="SheetBorder" Grid.Column="1" Background="{DynamicResource Sheet}" CornerRadius="20" ClipToBounds="True">
+                <Border x:Name="SheetBorder" Grid.Column="2" Background="{DynamicResource Sheet}" CornerRadius="12" ClipToBounds="True">
                     <Grid RowDefinitions="Auto,*">
-                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" MinHeight="52" Margin="12,8,20,0">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" MinHeight="34" Margin="6,2,14,0">
                             <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                                 <ItemsControl x:Name="TabList">
                                     <ItemsControl.ItemsPanel>
@@ -144,14 +176,14 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="s:TabRow">
-                                            <Button Classes="flat" Height="44" Foreground="{Binding Foreground}" Click="OnTabClick"
+                                            <Button Classes="flat" Height="28" Foreground="{Binding Foreground}" Click="OnTabClick"
                                                     PointerPressed="OnTabPointerPressed">
-                                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="14,0,6,0">
+                                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="10,0,4,0">
                                                     <TextBlock Text="{Binding Name}" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
-                                                    <Ellipse Width="7" Height="7" Fill="{DynamicResource Accent}" IsVisible="{Binding IsDirty}" />
-                                                    <Button Classes="flat" Width="24" Height="24" Click="OnTabClose" CornerRadius="12"
+                                                    <Ellipse Width="6" Height="6" Fill="{DynamicResource Accent}" IsVisible="{Binding IsDirty}" />
+                                                    <Button Classes="flat" Width="18" Height="18" Click="OnTabClose" CornerRadius="9"
                                                             HorizontalContentAlignment="Center" AutomationProperties.Name="Fechar aba">
-                                                        <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.2" Data="M1 1L8 8M8 1L1 8" />
+                                                        <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M1 1L7 7M7 1L1 7" />
                                                     </Button>
                                                 </StackPanel>
                                             </Button>
@@ -159,40 +191,46 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </ScrollViewer>
-                            <TextBlock x:Name="Breadcrumb" Grid.Column="1" Margin="16,0,0,0" FontSize="13" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
+                            <TextBlock x:Name="Breadcrumb" Grid.Column="1" Margin="12,0,0,0" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
                         </Grid>
 
                         <Panel Grid.Row="1">
                             <ae:TextEditor x:Name="CodeEditor" IsVisible="False" Background="Transparent" BorderThickness="0"
-                                           Foreground="{DynamicResource Ink}" FontFamily="{DynamicResource CodeFont}" FontSize="14.5"
-                                           Padding="0,20,0,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+                                           Foreground="{DynamicResource Ink}" FontFamily="{DynamicResource CodeFont}" FontSize="13.5"
+                                           Padding="0,8,0,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
 
-                            <StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
-                                <TextBlock x:Name="EmptyTitle" FontSize="24" FontWeight="SemiBold" LetterSpacing="-0.3" HorizontalAlignment="Center" />
+                            <StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+                                <TextBlock x:Name="EmptyTitle" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" />
                                 <TextBlock x:Name="EmptyHint" Foreground="{DynamicResource Muted}" HorizontalAlignment="Center" />
                                 <Button x:Name="EmptyOpenFolder" Classes="primary" Content="Abrir pasta" HorizontalAlignment="Center" Click="OnOpenFolder" />
                             </StackPanel>
 
                             <!-- Cápsula -->
-                            <Border x:Name="Capsule" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="16,0,16,16"
-                                    Height="56" CornerRadius="28" Background="{DynamicResource CapsuleBackground}">
-                                <StackPanel Orientation="Horizontal" Margin="16,6,6,6" Spacing="2">
-                                    <StackPanel x:Name="BranchPanel" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center" Margin="0,0,14,0">
-                                        <Path Stroke="{DynamicResource CapsuleMuted}" StrokeThickness="1.4" VerticalAlignment="Center"
-                                              Data="M5.8 3.5A1.8 1.8 0 1 1 2.2 3.5A1.8 1.8 0 1 1 5.8 3.5M5.8 12.5A1.8 1.8 0 1 1 2.2 12.5A1.8 1.8 0 1 1 5.8 12.5M13.8 5A1.8 1.8 0 1 1 10.2 5A1.8 1.8 0 1 1 13.8 5M4 5.3V10.7M12 6.8C12 9.8 4 8.3 4 10.8" />
-                                        <TextBlock x:Name="BranchName" Foreground="{DynamicResource CapsuleMuted}" VerticalAlignment="Center" />
+                            <Border x:Name="Capsule" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="12,0,12,12"
+                                    Height="40" CornerRadius="20" Background="{DynamicResource CapsuleBackground}">
+                                <StackPanel Orientation="Horizontal" Margin="12,4,4,4" Spacing="2">
+                                    <StackPanel x:Name="BranchPanel" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="0,0,10,0">
+                                        <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                                            <Path Stroke="{DynamicResource CapsuleMuted}" StrokeThickness="1.4"
+                                                  Data="M5.8 3.5A1.8 1.8 0 1 1 2.2 3.5A1.8 1.8 0 1 1 5.8 3.5M5.8 12.5A1.8 1.8 0 1 1 2.2 12.5A1.8 1.8 0 1 1 5.8 12.5M13.8 5A1.8 1.8 0 1 1 10.2 5A1.8 1.8 0 1 1 13.8 5M4 5.3V10.7M12 6.8C12 9.8 4 8.3 4 10.8" />
+                                        </Viewbox>
+                                        <TextBlock x:Name="BranchName" FontSize="12" Foreground="{DynamicResource CapsuleMuted}" VerticalAlignment="Center" />
                                     </StackPanel>
-                                    <TextBlock x:Name="CapsuleStatus" Foreground="{DynamicResource CapsuleMuted}" VerticalAlignment="Center" Margin="0,0,14,0" />
-                                    <TextBlock x:Name="CaretPosition" Foreground="{DynamicResource CapsuleMuted}" FontFamily="{DynamicResource CodeFont}" FontSize="12.5"
-                                               VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <TextBlock x:Name="CapsuleStatus" FontSize="12" Foreground="{DynamicResource CapsuleMuted}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <TextBlock x:Name="CaretPosition" Foreground="{DynamicResource CapsuleMuted}" FontFamily="{DynamicResource CodeFont}" FontSize="11.5"
+                                               VerticalAlignment="Center" Margin="0,0,6,0" />
                                     <Button x:Name="FocusButton" Classes="flat capsule" Click="OnToggleFocus" AutomationProperties.Name="Modo foco" ToolTip.Tip="Modo foco">
-                                        <Path Stroke="{DynamicResource CapsuleInk}" StrokeThickness="1.5" Data="M2 5.5V2H5.5M10.5 2H14V5.5M14 10.5V14H10.5M5.5 14H2V10.5" />
+                                        <Viewbox Width="13" Height="13">
+                                            <Path Stroke="{DynamicResource CapsuleInk}" StrokeThickness="1.5" Data="M2 5.5V2H5.5M10.5 2H14V5.5M14 10.5V14H10.5M5.5 14H2V10.5" />
+                                        </Viewbox>
                                     </Button>
                                     <Button Classes="flat capsule" Click="OnToggleTheme" AutomationProperties.Name="Trocar tema" ToolTip.Tip="Trocar tema">
-                                        <Panel Width="16" Height="16">
-                                            <Path Stroke="{DynamicResource CapsuleInk}" StrokeThickness="1.5" Data="M8 2A6 6 0 0 1 8 14A6 6 0 0 1 8 2Z" />
-                                            <Path Fill="{DynamicResource CapsuleInk}" Data="M8 2A6 6 0 0 1 8 14Z" />
-                                        </Panel>
+                                        <Viewbox Width="13" Height="13">
+                                            <Panel Width="16" Height="16">
+                                                <Path Stroke="{DynamicResource CapsuleInk}" StrokeThickness="1.5" Data="M8 2A6 6 0 0 1 8 14A6 6 0 0 1 8 2Z" />
+                                                <Path Fill="{DynamicResource CapsuleInk}" Data="M8 2A6 6 0 0 1 8 14Z" />
+                                            </Panel>
+                                        </Viewbox>
                                     </Button>
                                 </StackPanel>
                             </Border>
@@ -205,31 +243,31 @@
         <!-- Barra de comando -->
         <Panel x:Name="PaletteOverlay" IsVisible="False">
             <Border Background="{DynamicResource Veil}" PointerPressed="OnOverlayPressed" />
-            <Border x:Name="PaletteCard" Width="640" MaxWidth="9999" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="16,64,16,16"
-                    Padding="8" CornerRadius="22" Background="{DynamicResource Pop}">
+            <Border x:Name="PaletteCard" Width="560" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="16,44,16,16"
+                    Padding="6" CornerRadius="14" Background="{DynamicResource Pop}">
                 <StackPanel>
-                    <Grid ColumnDefinitions="Auto,*" Height="56" Margin="14,0">
-                        <Path Grid.Column="0" Stroke="{DynamicResource Muted}" StrokeThickness="1.5" VerticalAlignment="Center" Margin="0,0,12,0"
+                    <Grid ColumnDefinitions="Auto,*" Height="38" Margin="10,0">
+                        <Path Grid.Column="0" Stroke="{DynamicResource Muted}" StrokeThickness="1.5" VerticalAlignment="Center" Margin="0,0,10,0"
                               Data="M12 7A5 5 0 1 1 2 7A5 5 0 1 1 12 7M11 11L14.5 14.5" />
-                        <TextBox x:Name="PaletteInput" Grid.Column="1" Classes="bare" FontSize="20" FontWeight="Medium"
+                        <TextBox x:Name="PaletteInput" Grid.Column="1" Classes="bare" FontSize="15" FontWeight="Medium"
                                  PlaceholderText="O que você quer fazer?" Foreground="{DynamicResource Ink}"
                                  AutomationProperties.Name="Buscar arquivo ou comando" />
                     </Grid>
-                    <ScrollViewer MaxHeight="400">
+                    <ScrollViewer MaxHeight="360">
                         <ItemsControl x:Name="PaletteList">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="s:CommandRow">
-                                    <Button Classes="flat" Height="44" CornerRadius="12" HorizontalAlignment="Stretch" Background="{Binding Background}" Click="OnCommandClick">
-                                        <Grid ColumnDefinitions="*,Auto" Margin="14,0">
+                                    <Button Classes="flat" Height="30" CornerRadius="8" HorizontalAlignment="Stretch" Background="{Binding Background}" Click="OnCommandClick">
+                                        <Grid ColumnDefinitions="*,Auto" Margin="10,0">
                                             <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="Medium" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Hint}" Margin="16,0,0,0" FontSize="13" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Hint}" Margin="14,0,0,0" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
                                         </Grid>
                                     </Button>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
-                    <TextBlock x:Name="PaletteEmpty" Text="Nada encontrado." Foreground="{DynamicResource Muted}" Margin="14,12" IsVisible="False" />
+                    <TextBlock x:Name="PaletteEmpty" Text="Nada encontrado." Foreground="{DynamicResource Muted}" Margin="10,8" IsVisible="False" />
                 </StackPanel>
             </Border>
         </Panel>
@@ -237,12 +275,16 @@
         <!-- Confirmação -->
         <Panel x:Name="DialogOverlay" IsVisible="False">
             <Border Background="{DynamicResource Veil}" />
-            <Border x:Name="DialogCard" Width="440" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16"
-                    Padding="24" CornerRadius="22" Background="{DynamicResource Pop}">
-                <StackPanel Spacing="8">
-                    <TextBlock x:Name="DialogTitle" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <Border x:Name="DialogCard" Width="400" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16"
+                    Padding="18" CornerRadius="14" Background="{DynamicResource Pop}">
+                <StackPanel Spacing="6">
+                    <TextBlock x:Name="DialogTitle" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
                     <TextBlock x:Name="DialogBody" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,16,0,0">
+                    <Border x:Name="DialogInputBox" Height="32" Margin="0,6,0,0" Padding="10,0" CornerRadius="8" Background="{DynamicResource Tint}" IsVisible="False">
+                        <TextBox x:Name="DialogInput" Classes="bare" Foreground="{DynamicResource Ink}" AutomationProperties.Name="Nome" />
+                    </Border>
+                    <TextBlock x:Name="DialogError" FontSize="12" Foreground="{DynamicResource Accent}" TextWrapping="Wrap" IsVisible="False" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6" Margin="0,10,0,0">
                         <Button x:Name="DialogCancel" Classes="secondary" Content="Cancelar" Click="OnDialogCancel" />
                         <Button x:Name="DialogSecondary" Classes="secondary" Click="OnDialogSecondary" />
                         <Button x:Name="DialogPrimary" Classes="primary" Click="OnDialogPrimary" />

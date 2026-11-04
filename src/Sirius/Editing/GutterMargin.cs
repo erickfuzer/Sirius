@@ -13,11 +13,12 @@ namespace Sirius.Editing;
 // Números das linhas e o fio: a linha laranja que desce do topo até onde você está.
 public sealed class GutterMargin : AbstractMargin
 {
-    private const double NumberRight = 52;
-    private const double ThreadX = 70;
-    private const double GutterWidth = 88;
-    private const double BobWidth = 12;
-    private const double BobHeight = 14;
+    private const double NumberRight = 40;
+    private const double ThreadX = 52;
+    private const double GutterWidth = 66;
+    private const double NumberSize = 11.5;
+    private const double BobWidth = 10;
+    private const double BobHeight = 12;
 
     private static readonly Typeface NumberFace = new("avares://Sirius/Assets/Fonts#Geist Mono");
     private static readonly Typeface ActiveFace = new(new FontFamily("avares://Sirius/Assets/Fonts#Geist Mono"), FontStyle.Normal, FontWeight.SemiBold);
@@ -90,7 +91,7 @@ public sealed class GutterMargin : AbstractMargin
             var active = number == caretLine;
             var text = new FormattedText(
                 number.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                active ? ActiveFace : NumberFace, 12.5, active ? palette.Accent : palette.Faint);
+                active ? ActiveFace : NumberFace, NumberSize, active ? palette.Accent : palette.Faint);
             var y = line.VisualTop - view.VerticalOffset + (line.Height - text.Height) / 2;
             context.DrawText(text, new Point(NumberRight - text.Width, y));
         }

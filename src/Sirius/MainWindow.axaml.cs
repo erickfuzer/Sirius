@@ -20,8 +20,10 @@ public partial class MainWindow : Window
     private static readonly Geometry ChevronClosed = Geometry.Parse("M4 2L8 6L4 10");
     private static readonly Geometry ChevronOpen = Geometry.Parse("M2 4L6 8L10 4");
     private const int PaletteFileLimit = 50;
-    private const double SidebarWidth = 232;
-    private const double SearchSidebarWidth = 360;
+    private const double SidebarMinWidth = 160;
+    private const double SidebarMaxWidth = 640;
+    private const double EditorMinWidth = 320;
+    private const double SearchMinWidth = 300;
 
     private readonly ObservableCollection<TreeRow> _treeRows = new();
     private readonly ObservableCollection<TabRow> _tabRows = new();
@@ -42,6 +44,9 @@ public partial class MainWindow : Window
     private bool _matchCase;
     private bool _useRegex;
     private int _searchIndex = -1;
+    private double _searchWidth = 340;
+    private string? _lastFolderClicked;
+    private Func<string, string?>? _dialogValidator;
     private List<string> _projectFiles = new();
     private List<CommandRow> _filteredCommands = new();
     private TaskCompletionSource<DialogChoice>? _dialog;
@@ -94,6 +99,10 @@ public partial class MainWindow : Window
 
         _statusTimer =new DispatcherTimer(TimeSpan.FromSeconds(4), DispatcherPriority.Normal, (_, _) => ClearStatus());
 
+        DialogInput.AddHandler(KeyDownEvent, OnDialogInputKeyDown, RoutingStrategies.Tunnel);
+        Sidebar.Width = Math.Clamp(_settings.SidebarWidth, SidebarMinWidth, SidebarMaxWidth);
+        TreeHeader.IsVisible = false;
+
         ApplyTheme(_settings.Theme);
         UpdateEmptyState();
         UpdateCaretPosition();
@@ -117,6 +126,10 @@ public partial class MainWindow : Window
     public bool IsPaletteOpen => PaletteOverlay.IsVisible;
     public bool IsDialogOpen => DialogOverlay.IsVisible;
     public bool IsFocusMode => !Sidebar.IsVisible;
+    public double CurrentSidebarWidth => Sidebar.Width;
+
+    // Os testes trocam a Lixeira real por uma falsa.
+    public Action<string> MoveToTrash { get; set; } = FileOperations.MoveToTrash;
     public string ThemeName => Palette.Current.Name;
     public bool IsSearchOpen => SearchView.IsVisible;
     public IReadOnlyList<SearchRow> SearchRows => _searchRows;
@@ -133,6 +146,8 @@ public partial class MainWindow : Window
         _settings.Save(_settingsPath);
         _expanded.Clear();
         _projectFiles = new List<string>();
+        _lastFolderClicked = null;
+        TreeHeader.IsVisible = true;
         CloseSearch();
         ClearSearchResults();
 
@@ -144,7 +159,13 @@ public partial class MainWindow : Window
         RefreshTree();
         UpdateEmptyState();
 
-        var root = RootFolder;
+        ReindexProject();
+    }
+
+    private void ReindexProject()
+    {
+        if (RootFolder is not { } root)
+            return;
         ProjectIndexed = Task.Run(() => ProjectTree.FindFiles(root)).ContinueWith(
             t => { if (RootFolder == root) _projectFiles = t.Result; },
             TaskScheduler.FromCurrentSynchronizationContext());
@@ -167,7 +188,7 @@ public partial class MainWindow : Window
             var document = _documents.Find(d => string.Equals(d.FullPath, entry.FullPath, StringComparison.OrdinalIgnoreCase));
             _treeRows.Add(new TreeRow(
                 entry.Name, entry.FullPath, entry.IsFolder,
-                new Thickness(10 + depth * 14, 0, 0, 0),
+                new Thickness(6 + depth * 12, 0, 0, 0),
                 entry.IsFolder ? (expanded ? ChevronOpen : ChevronClosed) : null,
                 active ? FontWeight.SemiBold : FontWeight.Normal,
                 active ? palette.Tint : Brushes.Transparent,
@@ -184,14 +205,184 @@ public partial class MainWindow : Window
             return;
         if (row.IsFolder)
         {
+            _lastFolderClicked = row.FullPath;
             if (!_expanded.Remove(row.FullPath))
                 _expanded.Add(row.FullPath);
             RefreshTree();
         }
         else
         {
+            _lastFolderClicked = Path.GetDirectoryName(row.FullPath);
             OpenFile(row.FullPath);
         }
+    }
+
+    // Criar e excluir na árvore
+
+    // Onde os botões do topo criam: a última pasta usada, a pasta do arquivo aberto ou a raiz.
+    private string? DefaultTargetFolder()
+    {
+        if (_lastFolderClicked is not null && Directory.Exists(_lastFolderClicked))
+            return _lastFolderClicked;
+        if (ActiveDocument is { } document)
+            return Path.GetDirectoryName(document.FullPath);
+        return RootFolder;
+    }
+
+    private static string FolderOf(TreeRow row) =>
+        row.IsFolder ? row.FullPath : Path.GetDirectoryName(row.FullPath)!;
+
+    private void OnNewFile(object? sender, RoutedEventArgs e) => _ = CreateFileAsync(DefaultTargetFolder());
+    private void OnNewFolder(object? sender, RoutedEventArgs e) => _ = CreateFolderAsync(DefaultTargetFolder());
+    private void OnNewFileAtRoot(object? sender, RoutedEventArgs e) => _ = CreateFileAsync(RootFolder);
+    private void OnNewFolderAtRoot(object? sender, RoutedEventArgs e) => _ = CreateFolderAsync(RootFolder);
+
+    private void OnTreeNewFile(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is TreeRow row)
+            _ = CreateFileAsync(FolderOf(row));
+    }
+
+    private void OnTreeNewFolder(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is TreeRow row)
+            _ = CreateFolderAsync(FolderOf(row));
+    }
+
+    private void OnTreeDelete(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is TreeRow row)
+            _ = DeleteAsync(row.FullPath);
+    }
+
+    private string DescribeFolder(string folder)
+    {
+        var relative = Path.GetRelativePath(RootFolder!, folder);
+        return relative == "." ? "na raiz do projeto" : "em " + relative.Replace(Path.DirectorySeparatorChar, '/');
+    }
+
+    private string? ValidateNewName(string folder, string name)
+    {
+        var problem = FileOperations.ValidateName(name);
+        if (problem is not null)
+            return problem;
+        return FileOperations.Exists(Path.Combine(folder, name)) ? "Já existe um item com este nome." : null;
+    }
+
+    public async Task CreateFileAsync(string? folder)
+    {
+        if (folder is null || RootFolder is null)
+            return;
+        var name = await AskTextAsync("Novo arquivo", $"O arquivo será criado {DescribeFolder(folder)}.", "Criar", n => ValidateNewName(folder, n));
+        if (name is null)
+            return;
+
+        try
+        {
+            var path = FileOperations.CreateFile(folder, name);
+            _lastFolderClicked = folder;
+            _expanded.Add(folder);
+            ReindexProject();
+            OpenFile(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            ShowStatus("Não foi possível criar o arquivo.");
+        }
+    }
+
+    public async Task CreateFolderAsync(string? folder)
+    {
+        if (folder is null || RootFolder is null)
+            return;
+        var name = await AskTextAsync("Nova pasta", $"A pasta será criada {DescribeFolder(folder)}.", "Criar", n => ValidateNewName(folder, n));
+        if (name is null)
+            return;
+
+        try
+        {
+            var path = FileOperations.CreateFolder(folder, name);
+            _lastFolderClicked = path;
+            _expanded.Add(folder);
+            _expanded.Add(path);
+            RefreshTree();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            ShowStatus("Não foi possível criar a pasta.");
+        }
+    }
+
+    public async Task DeleteAsync(string path)
+    {
+        var affected = _documents.Where(d => FileOperations.IsInside(d.FullPath, path)).ToList();
+        var body = "Você poderá recuperar pela Lixeira do Windows.";
+        if (affected.Any(d => d.IsDirty))
+            body += " Há alterações não salvas aqui, e elas serão perdidas.";
+
+        var choice = await AskAsync($"Mover {Path.GetFileName(path)} para a Lixeira?", body, "Mover para a Lixeira", null);
+        if (choice != DialogChoice.Primary)
+            return;
+
+        try
+        {
+            MoveToTrash(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or OperationCanceledException)
+        {
+            ShowStatus("Não foi possível excluir.");
+            return;
+        }
+
+        foreach (var document in affected)
+            Forget(document);
+        if (_lastFolderClicked is not null && FileOperations.IsInside(_lastFolderClicked, path))
+            _lastFolderClicked = null;
+        _expanded.RemoveWhere(folder => FileOperations.IsInside(folder, path));
+        ReindexProject();
+        RefreshTabs();
+        RefreshTree();
+        ShowStatus("Movido para a Lixeira");
+    }
+
+    // Tira a aba sem perguntar nada. Quem chama já cuidou das alterações.
+    private void Forget(OpenDocument document)
+    {
+        var index = _documents.IndexOf(document);
+        _documents.RemoveAt(index);
+        if (ActiveDocument == document)
+        {
+            ActiveDocument = null;
+            Activate(_documents.Count == 0 ? null : _documents[Math.Min(index, _documents.Count - 1)]);
+        }
+    }
+
+    // Barra lateral
+
+    private void OnSidebarDrag(object? sender, VectorEventArgs e) => ResizeSidebar(e.Vector.X);
+
+    private void OnSidebarDragDone(object? sender, VectorEventArgs e)
+    {
+        if (!IsSearchOpen)
+        {
+            _settings.SidebarWidth = Sidebar.Width;
+            _settings.Save(_settingsPath);
+        }
+    }
+
+    public void ResizeSidebar(double delta)
+    {
+        var limit = Math.Max(SidebarMinWidth, Math.Min(SidebarMaxWidth, Bounds.Width - EditorMinWidth));
+        Sidebar.Width = Math.Clamp(Sidebar.Width + delta, SidebarMinWidth, limit);
+        if (IsSearchOpen)
+            _searchWidth = Sidebar.Width;
+    }
+
+    private void SetSidebarVisible(bool visible)
+    {
+        Sidebar.IsVisible = visible;
+        SidebarSplitter.IsVisible = visible;
+        FocusButton.Classes.Set("on", !visible);
     }
 
     private async void OnOpenFolder(object? sender, RoutedEventArgs e) => await PickFolderAsync();
@@ -334,18 +525,9 @@ public partial class MainWindow : Window
                 return false;
         }
 
-        var index = _documents.IndexOf(document);
-        _documents.RemoveAt(index);
-        if (ActiveDocument == document)
-        {
-            ActiveDocument = null;
-            Activate(_documents.Count == 0 ? null : _documents[Math.Min(index, _documents.Count - 1)]);
-        }
-        else
-        {
-            RefreshTabs();
-            RefreshTree();
-        }
+        Forget(document);
+        RefreshTabs();
+        RefreshTree();
         return true;
     }
 
@@ -485,7 +667,11 @@ public partial class MainWindow : Window
             ("Modo foco", "Ctrl .", ToggleFocus),
         };
         if (RootFolder is not null)
+        {
             actions.Insert(0, ("Buscar no projeto", "Ctrl Shift F", OpenSearch));
+            actions.Add(("Novo arquivo", "", () => _ = CreateFileAsync(DefaultTargetFolder())));
+            actions.Add(("Nova pasta", "", () => _ = CreateFolderAsync(DefaultTargetFolder())));
+        }
         if (ActiveDocument is { } active)
         {
             actions.Insert(0, ("Salvar arquivo", "Ctrl S", () => _ = SaveAsync(active)));
@@ -548,10 +734,13 @@ public partial class MainWindow : Window
     public void OpenSearch()
     {
         var seed = CodeEditor.IsVisible ? CodeEditor.SelectedText : "";
-        Sidebar.IsVisible = true;
-        FocusButton.Classes.Set("on", false);
-        Sidebar.Width = SearchSidebarWidth;
-        TreeScroll.IsVisible = false;
+        SetSidebarVisible(true);
+        if (!IsSearchOpen)
+        {
+            _settings.SidebarWidth = Sidebar.Width;
+            Sidebar.Width = Math.Max(_searchWidth, SearchMinWidth);
+        }
+        TreeView.IsVisible = false;
         SearchView.IsVisible = true;
         if (seed.Length > 0 && !seed.Contains('\n') && !seed.Contains('\r'))
             SearchInput.Text = seed;
@@ -565,9 +754,10 @@ public partial class MainWindow : Window
     public void CloseSearch()
     {
         _searchDelay?.Stop();
-        Sidebar.Width = SidebarWidth;
+        if (IsSearchOpen)
+            Sidebar.Width = _settings.SidebarWidth;
         SearchView.IsVisible = false;
-        TreeScroll.IsVisible = true;
+        TreeView.IsVisible = true;
         if (ActiveDocument is not null)
             CodeEditor.TextArea.Focus();
     }
@@ -775,8 +965,7 @@ public partial class MainWindow : Window
 
     public void ToggleFocus()
     {
-        Sidebar.IsVisible = !Sidebar.IsVisible;
-        FocusButton.Classes.Set("on", !Sidebar.IsVisible);
+        SetSidebarVisible(!Sidebar.IsVisible);
     }
 
     private void UpdateCaretPosition()
@@ -813,23 +1002,63 @@ public partial class MainWindow : Window
 
     private Task<DialogChoice> AskAsync(string title, string body, string primary, string? secondary)
     {
+        ShowDialog(title, body, primary, secondary);
+        DialogInputBox.IsVisible = false;
+        _dialogValidator = null;
+        Dispatcher.UIThread.Post(() => DialogPrimary.Focus());
+        return _dialog!.Task;
+    }
+
+    // Pede um texto e devolve null se a pessoa cancelar.
+    private async Task<string?> AskTextAsync(string title, string body, string primary, Func<string, string?> validator, string initial = "")
+    {
+        ShowDialog(title, body, primary, null);
+        DialogInputBox.IsVisible = true;
+        DialogInput.Text = initial;
+        _dialogValidator = validator;
+        Dispatcher.UIThread.Post(() =>
+        {
+            DialogInput.Focus();
+            DialogInput.SelectAll();
+        });
+        var choice = await _dialog!.Task;
+        return choice == DialogChoice.Primary ? (DialogInput.Text ?? "") : null;
+    }
+
+    private void ShowDialog(string title, string body, string primary, string? secondary)
+    {
         DialogTitle.Text = title;
         DialogBody.Text = body;
         DialogPrimary.Content = primary;
         DialogSecondary.Content = secondary;
         DialogSecondary.IsVisible = secondary is not null;
+        DialogError.IsVisible = false;
         DialogOverlay.IsVisible = true;
         _dialog = new TaskCompletionSource<DialogChoice>();
-        Dispatcher.UIThread.Post(() => DialogPrimary.Focus());
-        return _dialog.Task;
     }
 
     private void FinishDialog(DialogChoice choice)
     {
+        if (choice == DialogChoice.Primary && _dialogValidator?.Invoke(DialogInput.Text ?? "") is { } problem)
+        {
+            DialogError.Text = problem;
+            DialogError.IsVisible = true;
+            return;
+        }
+
         DialogOverlay.IsVisible = false;
         var dialog = _dialog;
         _dialog = null;
         dialog?.TrySetResult(choice);
+    }
+
+    private void OnDialogInputKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            FinishDialog(DialogChoice.Primary);
+        }
     }
 
     private void OnDialogPrimary(object? sender, RoutedEventArgs e) => FinishDialog(DialogChoice.Primary);

@@ -6,7 +6,7 @@ using Sirius.Theming;
 
 namespace Sirius.Editing;
 
-// A assinatura da Sirius: o código é quase monocromático e o destaque vem do peso da fonte.
+// Cada tipo de código tem sua cor, e o peso da fonte reforça o que é estrutura.
 public sealed class TypographicColorizer : DocumentColorizingTransformer
 {
     private static readonly FontFamily Mono = new("avares://Sirius/Assets/Fonts#Geist Mono");
@@ -33,13 +33,22 @@ public sealed class TypographicColorizer : DocumentColorizingTransformer
                 switch (token.Kind)
                 {
                     case TokenKind.Keyword:
+                        run.SetForegroundBrush(palette.Keyword);
                         run.SetTypeface(new Typeface(Mono, FontStyle.Normal, FontWeight.SemiBold));
                         break;
-                    case TokenKind.Name:
+                    case TokenKind.Type:
+                        run.SetForegroundBrush(palette.Type);
                         run.SetTypeface(new Typeface(Mono, FontStyle.Normal, FontWeight.Medium));
                         break;
-                    case TokenKind.Literal:
+                    case TokenKind.Function:
+                        run.SetForegroundBrush(palette.Function);
+                        run.SetTypeface(new Typeface(Mono, FontStyle.Normal, FontWeight.Medium));
+                        break;
+                    case TokenKind.String:
                         run.SetForegroundBrush(palette.String);
+                        break;
+                    case TokenKind.Number:
+                        run.SetForegroundBrush(palette.Number);
                         break;
                     case TokenKind.Comment:
                         run.SetForegroundBrush(palette.Muted);

@@ -8,6 +8,7 @@ public sealed class AppSettings
 
     public string Theme { get; set; } = "claro";
     public string? LastFolder { get; set; }
+    public double SidebarWidth { get; set; } = 232;
 
     public static string DefaultPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Sirius", "settings.json");

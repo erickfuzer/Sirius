@@ -115,7 +115,7 @@ public class SyntaxHighlighterTests
         var tokens = Tokens(document, highlighter, 1);
         Assert.Contains(("public", TokenKind.Keyword), tokens);
         Assert.Contains(("class", TokenKind.Keyword), tokens);
-        Assert.Contains(("Buffer", TokenKind.Name), tokens);
+        Assert.Contains(("Buffer", TokenKind.Type), tokens);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class SyntaxHighlighterTests
     {
         var (document, highlighter) = Open("a.cs", "var u = \"http://site\";");
         var tokens = Tokens(document, highlighter, 1);
-        Assert.Contains(tokens, t => t.Kind == TokenKind.Literal && t.Text.Contains("http"));
+        Assert.Contains(tokens, t => t.Kind == TokenKind.String && t.Text.Contains("http"));
         Assert.DoesNotContain(tokens, t => t.Kind == TokenKind.Comment);
     }
 
@@ -177,7 +177,7 @@ public class SyntaxHighlighterTests
         var (document, highlighter) = Open("a.py", "coração = 1 # ação");
         var tokens = Tokens(document, highlighter, 1);
         Assert.Contains(tokens, t => t.Kind == TokenKind.Comment && t.Text.Contains("ação"));
-        Assert.Contains(("1", TokenKind.Literal), tokens);
+        Assert.Contains(("1", TokenKind.Number), tokens);
     }
 
     [Theory]
@@ -236,10 +236,83 @@ public class SyntaxScopesTests
         Assert.Null(SyntaxScopes.Classify(["source.cs", "entity.name.variable.parameter"]));
     }
 
+    [Theory]
+    [InlineData("entity.name.function.cs", TokenKind.Function)]
+    [InlineData("support.function.python", TokenKind.Function)]
+    [InlineData("entity.name.type.class.cs", TokenKind.Type)]
+    [InlineData("entity.name.tag.html", TokenKind.Type)]
+    [InlineData("support.class.js", TokenKind.Type)]
+    [InlineData("constant.numeric.decimal", TokenKind.Number)]
+    [InlineData("string.quoted.double", TokenKind.String)]
+    [InlineData("constant.character.escape", TokenKind.String)]
+    public void Cada_tipo_de_codigo_recebe_sua_cor(string scope, TokenKind expected)
+    {
+        Assert.Equal(expected, SyntaxScopes.Classify(["source", scope]));
+    }
+
     [Fact]
     public void Prefixo_precisa_ser_um_escopo_inteiro()
     {
         Assert.Null(SyntaxScopes.Classify(["source.cs", "commentary"]));
+    }
+}
+
+public class FileOperationsTests
+{
+    [Theory]
+    [InlineData("a.cs")]
+    [InlineData(".gitignore")]
+    [InlineData("coração.txt")]
+    [InlineData("sem extensao")]
+    public void Nomes_validos(string name)
+    {
+        Assert.Null(FileOperations.ValidateName(name));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("a/b.cs")]
+    [InlineData("a\\b.cs")]
+    [InlineData("..")]
+    [InlineData("..\\fora.txt")]
+    [InlineData("a?.cs")]
+    [InlineData("termina.")]
+    [InlineData("termina ")]
+    [InlineData("CON")]
+    [InlineData("nul.txt")]
+    public void Nomes_invalidos(string name)
+    {
+        Assert.NotNull(FileOperations.ValidateName(name));
+    }
+
+    [Fact]
+    public void Criar_arquivo_nunca_sobrescreve()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.txt", "importante");
+
+        Assert.Throws<IOException>(() => FileOperations.CreateFile(temp.Path, "a.txt"));
+
+        Assert.Equal("importante", File.ReadAllText(path));
+    }
+
+    [Fact]
+    public void Criar_pasta_com_nome_de_arquivo_existente_falha()
+    {
+        using var temp = new TempFolder();
+        temp.File("a", "x");
+        Assert.Throws<IOException>(() => FileOperations.CreateFolder(temp.Path, "a"));
+    }
+
+    [Theory]
+    [InlineData(@"C:\p\a.cs", @"C:\p\a.cs", true)]
+    [InlineData(@"C:\p\src\a.cs", @"C:\p\src", true)]
+    [InlineData(@"C:\P\SRC\a.cs", @"c:\p\src", true)]
+    [InlineData(@"C:\p\src2\a.cs", @"C:\p\src", false)]
+    public void Reconhece_o_que_esta_dentro_de_uma_pasta(string path, string folder, bool expected)
+    {
+        Assert.Equal(expected, FileOperations.IsInside(path, folder));
     }
 }
 
