@@ -2,9 +2,17 @@
 
 IDE nativa para Windows, feita em C# com Avalonia, sem WebView nem Electron.
 
-## Como rodar
+## Como instalar
 
-Precisa do [SDK do .NET 10](https://dotnet.microsoft.com/download).
+Gere o instalador com o [SDK do .NET 10](https://dotnet.microsoft.com/download) e o [Inno Setup 6](https://jrsoftware.org/isinfo.php):
+
+```powershell
+.\installer\build.ps1
+```
+
+O arquivo sai em `artifacts\installer`. Ele instala só para o seu usuário, sem pedir administrador, e já leva o .NET junto. Como ainda não é assinado digitalmente, o Windows pode mostrar um aviso: clique em "Mais informações" e em "Executar assim mesmo".
+
+## Como rodar pelo código
 
 ```bash
 dotnet run --project src/Sirius
