@@ -24,6 +24,9 @@ public partial class MainWindow : Window
     private const double SidebarMaxWidth = 640;
     private const double EditorMinWidth = 320;
     private const double SearchMinWidth = 300;
+    private const double EditorDefaultFontSize = 13.5;
+    private const double EditorMinFontSize = 9;
+    private const double EditorMaxFontSize = 32;
 
     private readonly ObservableCollection<TreeRow> _treeRows = new();
     private readonly ObservableCollection<TabRow> _tabRows = new();
@@ -100,6 +103,8 @@ public partial class MainWindow : Window
         _statusTimer =new DispatcherTimer(TimeSpan.FromSeconds(4), DispatcherPriority.Normal, (_, _) => ClearStatus());
 
         InitializeTerminal();
+        CodeEditor.AddHandler(PointerWheelChangedEvent, OnEditorWheel, RoutingStrategies.Tunnel);
+        ApplyEditorFontSize(_settings.EditorFontSize);
         DialogInput.AddHandler(KeyDownEvent, OnDialogInputKeyDown, RoutingStrategies.Tunnel);
         Sidebar.Width = Math.Clamp(_settings.SidebarWidth, SidebarMinWidth, SidebarMaxWidth);
         TreeHeader.IsVisible = false;
@@ -128,6 +133,7 @@ public partial class MainWindow : Window
     public bool IsDialogOpen => DialogOverlay.IsVisible;
     public bool IsFocusMode => !Sidebar.IsVisible;
     public double CurrentSidebarWidth => Sidebar.Width;
+    public double EditorFontSize => CodeEditor.FontSize;
 
     // Os testes trocam a Lixeira real por uma falsa.
     public Action<string> MoveToTrash { get; set; } = FileOperations.MoveToTrash;
@@ -256,6 +262,69 @@ public partial class MainWindow : Window
         if ((sender as Control)?.DataContext is TreeRow row)
             _ = DeleteAsync(row.FullPath);
     }
+
+    private void OnTreeRename(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is TreeRow row)
+            _ = RenameAsync(row.FullPath);
+    }
+
+    private string? ValidateRename(string path, string name)
+    {
+        var problem = FileOperations.ValidateName(name);
+        if (problem is not null)
+            return problem;
+        var onlyCaseChanged = string.Equals(name, Path.GetFileName(path), StringComparison.OrdinalIgnoreCase);
+        return !onlyCaseChanged && FileOperations.Exists(Path.Combine(Path.GetDirectoryName(path)!, name))
+            ? "Já existe um item com este nome."
+            : null;
+    }
+
+    public async Task RenameAsync(string path)
+    {
+        var current = Path.GetFileName(path);
+        var nameLength = Directory.Exists(path) ? current.Length : Path.GetFileNameWithoutExtension(current).Length;
+        var name = await AskTextAsync($"Renomear {current}", "Digite o novo nome.", "Renomear", n => ValidateRename(path, n), current, nameLength);
+        if (name is null || name == current)
+            return;
+
+        string target;
+        try
+        {
+            target = FileOperations.Rename(path, name);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            ShowStatus("Não foi possível renomear. Algum programa pode estar usando este item.");
+            return;
+        }
+
+        // Abas, pastas abertas e resultados de busca apontavam para o nome antigo.
+        foreach (var document in _documents.Where(d => FileOperations.IsInside(d.FullPath, path)))
+            document.MoveTo(target + document.FullPath[path.Length..]);
+        foreach (var folder in _expanded.Where(f => FileOperations.IsInside(f, path)).ToList())
+        {
+            _expanded.Remove(folder);
+            _expanded.Add(target + folder[path.Length..]);
+        }
+        if (_lastFolderClicked is not null && FileOperations.IsInside(_lastFolderClicked, path))
+            _lastFolderClicked = target + _lastFolderClicked[path.Length..];
+        ClearSearchResults();
+
+        if (ActiveDocument is { } active)
+        {
+            _colorizer.Highlighter = active.Highlighter;
+            Breadcrumb.Text = BreadcrumbFor(active.FullPath);
+            CodeEditor.TextArea.TextView.Redraw();
+        }
+        ReindexProject();
+        RefreshTabs();
+        RefreshTree();
+        ShowStatus("Renomeado");
+    }
+
+    private TreeRow? FocusedTreeRow() =>
+        (FocusManager?.GetFocusedElement() as Control)?.DataContext as TreeRow;
 
     private string DescribeFolder(string folder)
     {
@@ -603,15 +672,35 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.Key == Key.F2 && FocusedTreeRow() is { } focusedRow)
+        {
+            e.Handled = true;
+            await RenameAsync(focusedRow.FullPath);
+            return;
+        }
+
         if (!e.KeyModifiers.HasFlag(KeyModifiers.Control))
             return;
 
         // No terminal, estas combinações pertencem ao programa que está rodando.
-        if (TerminalHost.IsFocused && e.Key is Key.S or Key.O or Key.W or Key.OemPeriod)
+        if (TerminalHost.IsFocused && e.Key is Key.S or Key.O or Key.W or Key.OemPeriod
+            or Key.OemPlus or Key.Add or Key.OemMinus or Key.Subtract or Key.D0 or Key.NumPad0)
             return;
 
         switch (e.Key)
         {
+            case Key.OemPlus or Key.Add:
+                e.Handled = true;
+                SetEditorFontSize(EditorFontSize + 1);
+                break;
+            case Key.OemMinus or Key.Subtract:
+                e.Handled = true;
+                SetEditorFontSize(EditorFontSize - 1);
+                break;
+            case Key.D0 or Key.NumPad0:
+                e.Handled = true;
+                SetEditorFontSize(EditorDefaultFontSize);
+                break;
             case Key.J:
                 e.Handled = true;
                 ToggleTerminal();
@@ -695,6 +784,10 @@ public partial class MainWindow : Window
         if (ActiveDocument is { } active)
         {
             actions.Insert(0, ("Salvar arquivo", "Ctrl S", () => _ = SaveAsync(active)));
+            actions.Add(("Renomear arquivo", "F2 na lista", () => _ = RenameAsync(active.FullPath)));
+            actions.Add(("Aumentar fonte do editor", "Ctrl +", () => SetEditorFontSize(EditorFontSize + 1)));
+            actions.Add(("Diminuir fonte do editor", "Ctrl -", () => SetEditorFontSize(EditorFontSize - 1)));
+            actions.Add(("Tamanho padrão da fonte", "Ctrl 0", () => SetEditorFontSize(EditorDefaultFontSize)));
             actions.Add(("Procurar no arquivo", "Ctrl F", () => _search.Open()));
             actions.Add(("Fechar aba", "Ctrl W", () => _ = CloseDocumentAsync(active)));
         }
@@ -952,6 +1045,31 @@ public partial class MainWindow : Window
         ActivateSearchRow(index, keepSearchFocus: true);
     }
 
+    // Tamanho da fonte do editor
+
+    private void OnEditorWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.Delta.Y == 0)
+            return;
+        e.Handled = true;
+        SetEditorFontSize(EditorFontSize + Math.Sign(e.Delta.Y));
+    }
+
+    public void SetEditorFontSize(double size)
+    {
+        ApplyEditorFontSize(size);
+        _settings.EditorFontSize = EditorFontSize;
+        _settings.Save(_settingsPath);
+        ShowStatus($"Fonte do editor: {EditorFontSize:0.#}");
+    }
+
+    private void ApplyEditorFontSize(double size)
+    {
+        var clamped = Math.Clamp(size, EditorMinFontSize, EditorMaxFontSize);
+        CodeEditor.FontSize = clamped;
+        _gutter.SetScale(clamped / EditorDefaultFontSize);
+    }
+
     // Tema, foco e status
 
     private void OnToggleTheme(object? sender, RoutedEventArgs e) => ToggleTheme();
@@ -1031,7 +1149,7 @@ public partial class MainWindow : Window
     }
 
     // Pede um texto e devolve null se a pessoa cancelar.
-    private async Task<string?> AskTextAsync(string title, string body, string primary, Func<string, string?> validator, string initial = "")
+    private async Task<string?> AskTextAsync(string title, string body, string primary, Func<string, string?> validator, string initial = "", int? selectLength = null)
     {
         ShowDialog(title, body, primary, null);
         DialogInputBox.IsVisible = true;
@@ -1040,7 +1158,8 @@ public partial class MainWindow : Window
         Dispatcher.UIThread.Post(() =>
         {
             DialogInput.Focus();
-            DialogInput.SelectAll();
+            DialogInput.SelectionStart = 0;
+            DialogInput.SelectionEnd = selectLength ?? initial.Length;
         });
         var choice = await _dialog!.Task;
         return choice == DialogChoice.Primary ? (DialogInput.Text ?? "") : null;

@@ -34,6 +34,8 @@ public sealed class SyntaxHighlighter
         return grammar is null ? null : new SyntaxHighlighter(grammar, document);
     }
 
+    public void Detach() => _document.Changed -= OnDocumentChanged;
+
     public IReadOnlyList<SyntaxToken> TokensFor(int lineNumber)
     {
         for (var n = _lines.Count + 1; n <= lineNumber; n++)

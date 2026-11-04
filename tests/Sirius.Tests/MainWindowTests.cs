@@ -448,6 +448,165 @@ public class MainWindowTests
         Assert.DoesNotContain(window.TreeRows, r => r.Name == "src");
     }
 
+    private static void AnswerReplacing(MainWindow window, string text)
+    {
+        Dispatcher.UIThread.RunJobs();
+        window.KeyPressQwerty(PhysicalKey.A, RawInputModifiers.Control);
+        Answer(window, text);
+    }
+
+    [AvaloniaFact]
+    public async Task Renomear_arquivo_aberto_atualiza_a_aba_e_salva_no_novo_nome()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.cs", "x");
+        var window = Open(temp);
+        window.OpenFile(path);
+        var document = window.ActiveDocument!;
+        document.Document.Insert(0, "// alterado\n");
+
+        var renaming = window.RenameAsync(path);
+        AnswerReplacing(window, "b.cs");
+        await renaming;
+
+        var target = Path.Combine(temp.Path, "b.cs");
+        Assert.False(File.Exists(path));
+        Assert.Equal(target, document.FullPath);
+        Assert.Equal("b.cs", document.Name);
+        Assert.True(document.IsDirty);
+        Assert.Contains(window.TreeRows, r => r.Name == "b.cs" && r.IsDirty);
+
+        Assert.True(await window.SaveAsync(document));
+        Assert.Equal("// alterado\nx", File.ReadAllText(target));
+        Assert.False(File.Exists(path));
+    }
+
+    [AvaloniaFact]
+    public async Task Sugestao_de_nome_seleciona_so_o_nome_sem_a_extensao()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("antigo.cs", "x");
+        var window = Open(temp);
+
+        var renaming = window.RenameAsync(path);
+        Answer(window, "novo");
+        await renaming;
+
+        Assert.True(File.Exists(Path.Combine(temp.Path, "novo.cs")));
+    }
+
+    [AvaloniaFact]
+    public async Task Trocar_a_extensao_troca_a_linguagem()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.txt", "class A { }");
+        var window = Open(temp);
+        window.OpenFile(path);
+        Assert.Null(window.ActiveDocument!.Highlighter);
+
+        var renaming = window.RenameAsync(path);
+        AnswerReplacing(window, "a.cs");
+        await renaming;
+
+        Assert.NotNull(window.ActiveDocument!.Highlighter);
+    }
+
+    [AvaloniaFact]
+    public async Task Renomear_pasta_atualiza_as_abas_de_dentro()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File(Path.Combine("src", "sub", "a.cs"), "x");
+        var window = Open(temp);
+        window.OpenFile(path);
+        var document = window.ActiveDocument!;
+
+        var renaming = window.RenameAsync(Path.Combine(temp.Path, "src"));
+        AnswerReplacing(window, "codigo");
+        await renaming;
+
+        Assert.Equal(Path.Combine(temp.Path, "codigo", "sub", "a.cs"), document.FullPath);
+        Assert.Contains(window.TreeRows, r => r.Name == "codigo");
+        Assert.Contains(window.TreeRows, r => r.Name == "a.cs");
+        Assert.True(File.Exists(document.FullPath));
+    }
+
+    [AvaloniaFact]
+    public async Task Renomear_para_nome_existente_mostra_erro()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.cs", "a");
+        var other = temp.File("b.cs", "importante");
+        var window = Open(temp);
+
+        var renaming = window.RenameAsync(path);
+        AnswerReplacing(window, "b.cs");
+
+        Assert.True(window.IsDialogOpen);
+        Assert.False(renaming.IsCompleted);
+        window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+        await renaming;
+
+        Assert.True(File.Exists(path));
+        Assert.Equal("importante", File.ReadAllText(other));
+    }
+
+    [AvaloniaFact]
+    public async Task Confirmar_o_mesmo_nome_nao_faz_nada()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.cs", "a");
+        var window = Open(temp);
+
+        var renaming = window.RenameAsync(path);
+        Dispatcher.UIThread.RunJobs();
+        window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+        await renaming;
+
+        Assert.True(File.Exists(path));
+    }
+
+    [AvaloniaFact]
+    public void Atalhos_mudam_a_fonte_do_editor_e_guardam_a_escolha()
+    {
+        using var temp = new TempFolder();
+        var settings = new AppSettings();
+        var window = Open(temp, settings);
+        var start = window.EditorFontSize;
+
+        window.KeyPressQwerty(PhysicalKey.Equal, RawInputModifiers.Control);
+        Assert.Equal(start + 1, window.EditorFontSize);
+
+        window.KeyPressQwerty(PhysicalKey.Minus, RawInputModifiers.Control);
+        window.KeyPressQwerty(PhysicalKey.Minus, RawInputModifiers.Control);
+        Assert.Equal(start - 1, window.EditorFontSize);
+        Assert.Equal(start - 1, settings.EditorFontSize);
+        Assert.Equal(start - 1, AppSettings.Load(Path.Combine(temp.Path, "settings.json")).EditorFontSize);
+
+        window.KeyPressQwerty(PhysicalKey.Digit0, RawInputModifiers.Control);
+        Assert.Equal(13.5, window.EditorFontSize);
+    }
+
+    [AvaloniaFact]
+    public void Fonte_do_editor_respeita_os_limites()
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp);
+
+        window.SetEditorFontSize(1000);
+        Assert.Equal(32, window.EditorFontSize);
+
+        window.SetEditorFontSize(1);
+        Assert.Equal(9, window.EditorFontSize);
+    }
+
+    [AvaloniaFact]
+    public void Fonte_guardada_e_usada_ao_abrir()
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp, new AppSettings { EditorFontSize = 18 });
+        Assert.Equal(18, window.EditorFontSize);
+    }
+
     [AvaloniaFact]
     public void Barra_lateral_redimensiona_dentro_dos_limites()
     {

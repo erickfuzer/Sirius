@@ -23,6 +23,8 @@ dotnet run --project src/Sirius
 | `Ctrl .` | Modo foco |
 | `F5` | Executar ou parar o projeto |
 | `Ctrl J` | Abrir ou fechar o terminal |
+| `Ctrl +` e `Ctrl -` | Aumentar ou diminuir a fonte do editor (`Ctrl 0` volta ao padrão) |
+| `F2` | Renomear o item selecionado na lista de arquivos |
 
 ## Testes
 
@@ -32,4 +34,4 @@ dotnet test
 
 ## Fontes
 
-Geist e Newsreader são distribuídas sob a licença SIL Open Font. As licenças estão em `src/Sirius/Assets/Fonts`.
+Geist e IBM Plex Mono são distribuídas sob a licença SIL Open Font. As licenças estão em `src/Sirius/Assets/Fonts`.

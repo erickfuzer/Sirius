@@ -46,6 +46,31 @@ public static class FileOperations
         return path;
     }
 
+    public static string Rename(string path, string newName)
+    {
+        var target = Path.Combine(Path.GetDirectoryName(path)!, newName);
+        var onlyCaseChanged = string.Equals(path, target, StringComparison.OrdinalIgnoreCase);
+        if (!onlyCaseChanged && Exists(target))
+            throw new IOException("Já existe um item com este nome.");
+
+        if (!Directory.Exists(path))
+        {
+            File.Move(path, target);
+        }
+        else if (onlyCaseChanged)
+        {
+            // O Windows não troca só maiúsculas de uma pasta de uma vez: passa por um nome temporário.
+            var temporary = target + ".sirius-tmp";
+            Directory.Move(path, temporary);
+            Directory.Move(temporary, target);
+        }
+        else
+        {
+            Directory.Move(path, target);
+        }
+        return target;
+    }
+
     public static void MoveToTrash(string path)
     {
         if (Directory.Exists(path))

@@ -305,6 +305,47 @@ public class FileOperationsTests
         Assert.Throws<IOException>(() => FileOperations.CreateFolder(temp.Path, "a"));
     }
 
+    [Fact]
+    public void Renomear_arquivo_mantem_o_conteudo()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.txt", "conteudo");
+
+        var target = FileOperations.Rename(path, "b.txt");
+
+        Assert.False(File.Exists(path));
+        Assert.Equal("conteudo", File.ReadAllText(target));
+    }
+
+    [Fact]
+    public void Renomear_nunca_sobrescreve()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.txt", "a");
+        var other = temp.File("b.txt", "importante");
+
+        Assert.Throws<IOException>(() => FileOperations.Rename(path, "b.txt"));
+
+        Assert.Equal("importante", File.ReadAllText(other));
+        Assert.True(File.Exists(path));
+    }
+
+    [Fact]
+    public void Renomear_so_as_maiusculas_funciona_em_arquivo_e_pasta()
+    {
+        using var temp = new TempFolder();
+        var file = temp.File("nota.txt", "x");
+        temp.File(Path.Combine("pasta", "dentro.txt"), "y");
+
+        FileOperations.Rename(file, "NOTA.txt");
+        FileOperations.Rename(Path.Combine(temp.Path, "pasta"), "PASTA");
+
+        var names = new DirectoryInfo(temp.Path).EnumerateFileSystemInfos().Select(i => i.Name).ToList();
+        Assert.Contains("NOTA.txt", names);
+        Assert.Contains("PASTA", names);
+        Assert.True(File.Exists(Path.Combine(temp.Path, "PASTA", "dentro.txt")));
+    }
+
     [Theory]
     [InlineData(@"C:\p\a.cs", @"C:\p\a.cs", true)]
     [InlineData(@"C:\p\src\a.cs", @"C:\p\src", true)]

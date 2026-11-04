@@ -91,6 +91,7 @@
                                                     <MenuItem Header="Novo arquivo" Click="OnTreeNewFile" />
                                                     <MenuItem Header="Nova pasta" Click="OnTreeNewFolder" />
                                                     <Separator />
+                                                    <MenuItem Header="Renomear" InputGesture="F2" Click="OnTreeRename" />
                                                     <MenuItem Header="Excluir" Click="OnTreeDelete" />
                                                 </ContextMenu>
                                             </Button.ContextMenu>

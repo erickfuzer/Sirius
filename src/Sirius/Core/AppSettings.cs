@@ -9,6 +9,7 @@ public sealed class AppSettings
     public string Theme { get; set; } = "claro";
     public string? LastFolder { get; set; }
     public double SidebarWidth { get; set; } = 232;
+    public double EditorFontSize { get; set; } = 13.5;
 
     // Comando de execução escolhido para cada pasta, guardado aqui e não no projeto:
     // abrir um repositório de terceiros nunca define o que o botão Executar faz.

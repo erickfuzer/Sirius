@@ -17,8 +17,8 @@ public sealed class OpenDocument
         Highlighter = SyntaxHighlighter.ForDocument(path, Document);
     }
 
-    public SyntaxHighlighter? Highlighter { get; }
-    public string FullPath { get; }
+    public SyntaxHighlighter? Highlighter { get; private set; }
+    public string FullPath { get; private set; }
     public string Name => Path.GetFileName(FullPath);
     public Encoding Encoding { get; }
     public TextDocument Document { get; }
@@ -31,6 +31,18 @@ public sealed class OpenDocument
         File.Exists(FullPath) && File.GetLastWriteTimeUtc(FullPath) != LastWriteUtc;
 
     public static OpenDocument Load(string path) => new(path, TextFile.Load(path));
+
+    // O arquivo mudou de nome ou de pasta. Uma extensão nova pode trazer outra linguagem.
+    public void MoveTo(string path)
+    {
+        var languageChanged = !string.Equals(Path.GetExtension(path), Path.GetExtension(FullPath), StringComparison.OrdinalIgnoreCase);
+        FullPath = path;
+        if (languageChanged)
+        {
+            Highlighter?.Detach();
+            Highlighter = SyntaxHighlighter.ForDocument(path, Document);
+        }
+    }
 
     public void Save()
     {

@@ -10,7 +10,7 @@ namespace Sirius.Editing;
 public sealed class TypographicColorizer : DocumentColorizingTransformer
 {
     private static readonly FontFamily Mono = new("avares://Sirius/Assets/Fonts#Geist Mono");
-    private static readonly FontFamily Serif = new("avares://Sirius/Assets/Fonts#Newsreader");
+    private static readonly FontFamily CommentFont = new("avares://Sirius/Assets/Fonts#IBM Plex Mono");
 
     public SyntaxHighlighter? Highlighter { get; set; }
 
@@ -52,7 +52,7 @@ public sealed class TypographicColorizer : DocumentColorizingTransformer
                         break;
                     case TokenKind.Comment:
                         run.SetForegroundBrush(palette.Muted);
-                        run.SetTypeface(new Typeface(Serif, FontStyle.Italic, FontWeight.Normal));
+                        run.SetTypeface(new Typeface(CommentFont, FontStyle.Italic, FontWeight.Normal));
                         break;
                     case TokenKind.Punctuation:
                         run.SetForegroundBrush(palette.Muted);

@@ -13,10 +13,10 @@ namespace Sirius.Editing;
 // Números das linhas e o fio: a linha laranja que desce do topo até onde você está.
 public sealed class GutterMargin : AbstractMargin
 {
-    private const double NumberRight = 40;
-    private const double ThreadX = 52;
-    private const double GutterWidth = 66;
-    private const double NumberSize = 11.5;
+    private const double BaseNumberRight = 40;
+    private const double BaseThreadX = 52;
+    private const double BaseGutterWidth = 66;
+    private const double BaseNumberSize = 11.5;
     private const double BobWidth = 10;
     private const double BobHeight = 12;
 
@@ -27,6 +27,20 @@ public sealed class GutterMargin : AbstractMargin
     private readonly DispatcherTimer _timer;
     private double _threadTop = double.NaN;
     private double _threadTarget;
+    private double _scale = 1;
+
+    private double NumberRight => BaseNumberRight * _scale;
+    private double ThreadX => BaseThreadX * _scale;
+    private double NumberSize => BaseNumberSize * _scale;
+
+    // Acompanha o zoom do editor, para os números continuarem cabendo.
+    public void SetScale(double scale)
+    {
+        _scale = scale;
+        _threadTop = double.NaN;
+        InvalidateMeasure();
+        InvalidateVisual();
+    }
 
     public GutterMargin(TextArea area)
     {
@@ -42,7 +56,7 @@ public sealed class GutterMargin : AbstractMargin
         InvalidateVisual();
     }
 
-    protected override Size MeasureOverride(Size availableSize) => new(GutterWidth, 0);
+    protected override Size MeasureOverride(Size availableSize) => new(BaseGutterWidth * _scale, 0);
 
     protected override void OnTextViewChanged(TextView? oldTextView, TextView? newTextView)
     {
