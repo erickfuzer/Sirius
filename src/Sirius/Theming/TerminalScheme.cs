@@ -11,13 +11,18 @@ public sealed record TerminalScheme(IBrush Foreground, IBrush Background, IBrush
         "#5C5F67", "#FF6B6B", "#7EDC8A", "#F5C65B", "#7FB2FF", "#D79BFF", "#62D6D0", "#D8DADF",
         "#8E9198", "#FF8A8A", "#9BE8A5", "#FAD77F", "#A3C8FF", "#E4B8FF", "#8BE5E0", "#FFFFFF");
 
+    // Escuras o bastante para o tom da cápsula no tema grafite, medido em PaletteTests.
     private static readonly Color[] OnLight = Parse(
-        "#16171A", "#C62828", "#1B7F3B", "#8A6100", "#1F5FAF", "#8B2FC9", "#0B7A75", "#55585F",
-        "#3F4249", "#A81F1F", "#146B30", "#6F4E00", "#174B8C", "#6F22A3", "#085E5A", "#6F727A");
+        "#16171A", "#8F1414", "#0B4F22", "#5F4300", "#134586", "#68189E", "#064A47", "#3A3D44",
+        "#2B2E34", "#8A1212", "#0B4F22", "#513900", "#103B73", "#5A1589", "#064643", "#45484F");
+
+    // A cápsula do grafite é translúcida. O terminal não pinta o fundo normal, mas o texto invertido
+    // usa esta cor como tinta, e tinta transparente ficaria apagada.
+    private static readonly IBrush SolidOnLight = B("#B2B6BE");
 
     public static TerminalScheme For(Palette palette) =>
         palette == Palette.Grafite
-            ? new TerminalScheme(palette.CapsuleInk, palette.CapsuleBackground, palette.RunBackground, B("#403D5A85"), OnLight)
+            ? new TerminalScheme(palette.CapsuleInk, SolidOnLight, palette.RunBackground, B("#403D5A85"), OnLight)
             : new TerminalScheme(palette.CapsuleInk, palette.CapsuleBackground, palette.RunBackground, B("#599DB8E0"), OnDark);
 
     public Color Resolve(int color)

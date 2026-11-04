@@ -46,7 +46,8 @@ public sealed record Palette(
         B("#0D0F13"), B("#16181D"), B("#21242B"), B("#ECEEF2"), B("#A3A8B3"), B("#8A8F9A"),
         B("#14FFFFFF"), B("#C792EA"), B("#5FD1C4"), B("#82AAFF"), B("#9FD5A0"), B("#F5A97F"),
         B("#9DB8E0"), B("#409DB8E0"), B("#80000000"),
-        B("#ECEEF2"), B("#16181D"), B("#55585F"), B("#1A16181D"),
+        // A cápsula clara era forte demais no escuro: tom mais baixo, com leve transparência.
+        B("#E0C8CCD4"), B("#16181D"), B("#3F4249"), B("#1A16181D"),
         BoxShadows.Parse("0 0 0 1 #0DFFFFFF"),
         BoxShadows.Parse("0 18 48 0 #8C000000"))
     {
@@ -56,8 +57,8 @@ public sealed record Palette(
         Error = B("#FF6B6B"),
         DiffAdded = B("#3A9FD5A0"),
         DiffRemoved = B("#3AFF6B6B"),
-        TerminalError = B("#C62828"),
-        TerminalWarning = B("#8A6100"),
+        TerminalError = B("#8F1414"),
+        TerminalWarning = B("#5F4300"),
     };
 
     public static Palette Current { get; private set; } = Claro;

@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\sirius.ico</ApplicationIcon>
-    <Version>0.1.0-alpha.1</Version>
+    <Version>0.1.0-alpha.2</Version>
     <Product>Sirius</Product>
     <AssemblyTitle>Sirius</AssemblyTitle>
     <Description>IDE nativa para Windows</Description>
