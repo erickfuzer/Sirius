@@ -762,6 +762,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Aqui, antes da lista de sugestões, que também quer o Tab.
+        if (e.Key == Key.Tab && e.KeyModifiers == KeyModifiers.None && TryEmmetTab())
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.F5)
         {
             e.Handled = true;
