@@ -34,6 +34,12 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Pronta para ABNT2:** o <kbd>AltGr</kbd> nunca aciona um atalho, então `?` e `/` funcionam normalmente
 
 <details>
+<summary>Ver as cores do CSS</summary>
+<br>
+<img src="docs/screenshot-cores.png" alt="Arquivo CSS com um quadradinho na frente de cada cor e o seletor aberto, com o quadro de cor e as barras de tom e transparência" width="760">
+</details>
+
+<details>
 <summary>Ver o painel de Git</summary>
 <br>
 <img src="docs/screenshot-git.png" alt="Painel de Git com a lista de mudanças e a comparação lado a lado de um arquivo PHP" width="760">
