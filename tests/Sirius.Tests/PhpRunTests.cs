@@ -301,6 +301,7 @@ public class PhpRunTests
         var running = window.RunProjectAsync();
         await Until(() => window.IsDialogOpen);
 
+        Assert.DoesNotContain("XAMPP", window.PhpOfferText);
         Assert.Equal(warns, window.PhpOfferText.Contains("administrador"));
         Assert.Equal(hasVisualCpp, window.PhpOfferText.Contains("--skip-dependencies"));
         window.AnswerDialog(primary: false);

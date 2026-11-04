@@ -203,7 +203,7 @@ public partial class MainWindow
         var command = PhpInstallCommand ?? ToolPaths.PhpInstallCommand(HasVisualCpp);
         var admin = HasVisualCpp ? "" : "\n\nO Windows vai pedir permissão de administrador, para um componente da Microsoft de que o PHP precisa.";
         var choice = await AskAsync("Instalar o PHP?",
-            $"Este projeto precisa do PHP, que não está neste computador. O comando vai rodar no terminal:\n\n{command}{admin}\n\nPara usar banco de dados MySQL, prefira o XAMPP, que já traz tudo.",
+            $"Este projeto precisa do PHP, que não está neste computador. O comando vai rodar no terminal:\n\n{command}{admin}",
             "Instalar", null);
         if (choice != DialogChoice.Primary)
             return;

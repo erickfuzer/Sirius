@@ -25,7 +25,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Cores do CSS:** um quadradinho mostra cada cor no código, e clicar nele abre um seletor que altera o texto na hora. Funciona em CSS, SCSS, Sass e Less, e dentro de `<style>` e `style="..."` em HTML e PHP
 - **Barra de comando:** <kbd>Ctrl</kbd> + <kbd>K</kbd> encontra arquivos e executa ações sem tirar a mão do teclado
 - **Projeto:** árvore de arquivos para criar, renomear e excluir, com busca e substituição em todo o projeto
-- **Terminal integrado:** a cápsula flutuante se abre em um terminal completo. O botão Executar detecta o comando do projeto, e os erros da saída são clicáveis. Em PHP, ele sobe o servidor e oferece abrir o site no navegador, ou o arquivo em uso em pastas sem `index.php`. Usa o PHP do XAMPP, se houver, e oferece instalar o PHP se não encontrar nenhum
+- **Terminal integrado:** a cápsula flutuante se abre em um terminal completo. O botão Executar detecta o comando do projeto, e os erros da saída são clicáveis. Em PHP, ele sobe o servidor e oferece abrir o site no navegador, ou o arquivo em uso em pastas sem `index.php`. Se o computador não tiver PHP, oferece a instalação
 - **Inteligência de código:** autocompletar, erros no código, ir para a definição, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação
 - **Git:** mudanças na árvore e na margem, comparação lado a lado, commit por arquivo, descartar, enviar, receber e branches
 - **Sessão:** cada pasta reabre as suas abas, e a IDE acompanha o que outros programas mudam no disco
