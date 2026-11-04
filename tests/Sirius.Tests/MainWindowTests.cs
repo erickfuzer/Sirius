@@ -1,9 +1,11 @@
 using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Sirius.Core;
 using Sirius.Terminal;
 using Sirius.Theming;
@@ -665,6 +667,33 @@ public class MainWindowTests
         using var temp = new TempFolder();
         var window = Open(temp, new AppSettings { EditorFontSize = 18 });
         Assert.Equal(18, window.EditorFontSize);
+    }
+
+    [AvaloniaTheory]
+    [InlineData("Fechar aba")]
+    [InlineData("Fechar busca")]
+    [InlineData("Fechar Git")]
+    [InlineData("Fechar comparação")]
+    public void Xis_dos_botoes_fica_no_centro(string name)
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp);
+        window.OpenFile(temp.File("a.cs", "x"));
+        window.OpenSearch();
+        window.OpenGit();
+        Dispatcher.UIThread.RunJobs();
+
+        var button = window.GetVisualDescendants().OfType<Button>()
+            .First(b => AutomationProperties.GetName(b) == name);
+        button.GetVisualAncestors().OfType<Control>().Where(c => !c.IsVisible).ToList().ForEach(c => c.IsVisible = true);
+        window.UpdateLayout();
+        var path = button.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>().Single();
+        var glyph = path.RenderedGeometry!.Bounds;
+        var center = path.TranslatePoint(glyph.Center, button)!.Value;
+
+        Assert.InRange(center.X, button.Bounds.Width / 2 - 0.3, button.Bounds.Width / 2 + 0.3);
+        Assert.InRange(center.Y, button.Bounds.Height / 2 - 0.3, button.Bounds.Height / 2 + 0.3);
+        window.Close();
     }
 
     [AvaloniaFact]

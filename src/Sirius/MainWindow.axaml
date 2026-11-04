@@ -133,7 +133,7 @@
                                 <Button x:Name="RegexButton" Grid.Column="2" Classes="flat option" Content=".*" Click="OnToggleRegex"
                                         AutomationProperties.Name="Usar expressão regular" ToolTip.Tip="Usar expressão regular" />
                                 <Button Grid.Column="3" Classes="flat option" Click="OnCloseSearch" AutomationProperties.Name="Fechar busca" ToolTip.Tip="Fechar busca">
-                                    <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M1 1L8 8M8 1L1 8" />
+                                    <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M0 0L8 8M8 0L0 8" />
                                 </Button>
                             </Grid>
                         </Border>
@@ -199,7 +199,7 @@
                                 <Button x:Name="GitPushButton" Grid.Column="3" Classes="flat" Height="24" Padding="7,0" FontSize="11" Foreground="{DynamicResource Muted}"
                                         Content="Enviar" Click="OnPushClick" ToolTip.Tip="Enviar seus commits para o repositório remoto" />
                                 <Button Grid.Column="4" Classes="flat option" Click="OnCloseGit" AutomationProperties.Name="Fechar Git" ToolTip.Tip="Voltar aos arquivos">
-                                    <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M1 1L8 8M8 1L1 8" />
+                                    <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M0 0L8 8M8 0L0 8" />
                                 </Button>
                             </Grid>
                             <Border Grid.Row="1" MinHeight="54" Margin="0,4,0,0" Padding="10,6" CornerRadius="10" Background="{DynamicResource Tint}">
@@ -284,7 +284,7 @@
                                                     <Ellipse Width="6" Height="6" Fill="{DynamicResource Accent}" IsVisible="{Binding IsDirty}" />
                                                     <Button Classes="flat" Width="18" Height="18" Click="OnTabClose" CornerRadius="9"
                                                             HorizontalContentAlignment="Center" AutomationProperties.Name="Fechar aba">
-                                                        <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M1 1L7 7M7 1L1 7" />
+                                                        <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M0 0L8 8M8 0L0 8" />
                                                     </Button>
                                                 </StackPanel>
                                             </Button>
@@ -306,7 +306,7 @@
                                     <TextBlock x:Name="DiffTitle" Grid.Column="0" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                     <Button Grid.Column="1" Classes="flat" Height="24" Padding="8,0" FontSize="12" Foreground="{DynamicResource Muted}" Content="Abrir arquivo" Click="OnDiffOpenFile" />
                                     <Button Grid.Column="2" Classes="flat option" Click="OnCloseDiff" AutomationProperties.Name="Fechar comparação" ToolTip.Tip="Fechar (Esc)">
-                                        <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M1 1L8 8M8 1L1 8" />
+                                        <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M0 0L8 8M8 0L0 8" />
                                     </Button>
                                 </Grid>
                                 <Grid Grid.Row="1" RowDefinitions="Auto,*" ColumnDefinitions="*,1,*">

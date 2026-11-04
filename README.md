@@ -4,7 +4,9 @@ IDE nativa para Windows, feita em C# com Avalonia, sem WebView nem Electron.
 
 ## Como instalar
 
-Gere o instalador com o [SDK do .NET 10](https://dotnet.microsoft.com/download) e o [Inno Setup 6](https://jrsoftware.org/isinfo.php):
+Baixe o instalador em [Releases](https://github.com/erickfuzer/Sirius/releases). A Sirius está em Alpha, então espere arestas.
+
+Para gerar o instalador você mesmo, use o [SDK do .NET 10](https://dotnet.microsoft.com/download) e o [Inno Setup 6](https://jrsoftware.org/isinfo.php):
 
 ```powershell
 .\installer\build.ps1
