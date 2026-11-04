@@ -28,6 +28,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Inteligência de código:** autocompletar, erros no código, ir para a definição, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação
 - **Git:** mudanças na árvore e na margem, comparação lado a lado, commit por arquivo, descartar, enviar, receber e branches
 - **Sessão:** cada pasta reabre as suas abas, e a IDE acompanha o que outros programas mudam no disco
+- **Aviso de versão nova:** um aviso discreto na cápsula leva à página da versão, sem baixar nada sozinho. Dá para ignorar uma versão ou desligar o aviso pela barra de comando
 - **Cuidado com o seu trabalho:** salvar mantém a codificação original do arquivo e passa por um arquivo temporário, criar nunca sobrescreve e excluir vai para a Lixeira
 - **Pronta para ABNT2:** o <kbd>AltGr</kbd> nunca aciona um atalho, então `?` e `/` funcionam normalmente
 
@@ -60,6 +61,8 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 A interface é desenhada pelo [Avalonia](https://avaloniaui.net), sem navegador embutido, e o editor usa o [AvaloniaEdit](https://github.com/AvaloniaUI/AvaloniaEdit) com gramáticas TextMate para a sintaxe.
 
 O terminal roda no ConPTY, o mesmo mecanismo de terminal do próprio Windows. A inteligência de código conversa com servidores de linguagem pelo protocolo LSP: quando falta o servidor de um arquivo aberto, a cápsula oferece a instalação para C#, PHP, JavaScript, TypeScript e Python. Go, Rust e C++ funcionam se `gopls`, `rust-analyzer` ou `clangd` estiverem instalados. O Git é o seu próprio `git`, sem biblioteca no meio.
+
+A única consulta que a Sirius faz por conta própria é perguntar à API pública do GitHub qual é a última versão, no máximo uma vez por dia. Ela não envia nada do seu projeto e pode ser desligada em "Aviso de versão nova", na barra de comando.
 
 ## Como usar
 
@@ -113,7 +116,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 - Ainda não tem depuração nem histórico de commits dentro da IDE.
 - Conflitos de Git são resolvidos editando o arquivo.
 - Programas de tela cheia no terminal, como `vim`, não foram testados.
-- As atualizações ainda são manuais: baixe e instale a versão nova por cima.
+- As atualizações ainda são manuais: a IDE avisa, mas você baixa e instala a versão nova por cima.
 
 ## Estrutura
 

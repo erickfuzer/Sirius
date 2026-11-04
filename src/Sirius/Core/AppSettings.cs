@@ -24,6 +24,12 @@ public sealed class AppSettings
     public double SidebarWidth { get; set; } = 232;
     public double EditorFontSize { get; set; } = 13.5;
 
+    // Aviso de versão nova. A última versão fica guardada para o aviso aparecer mesmo sem internet.
+    public bool CheckForUpdates { get; set; } = true;
+    public DateTime? LastUpdateCheck { get; set; }
+    public string? LatestVersion { get; set; }
+    public string? DismissedVersion { get; set; }
+
     // Comando de execução escolhido para cada pasta, guardado aqui e não no projeto:
     // abrir um repositório de terceiros nunca define o que o botão Executar faz.
     public Dictionary<string, string> RunCommands { get; set; } = new(StringComparer.OrdinalIgnoreCase);

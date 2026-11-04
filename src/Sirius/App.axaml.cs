@@ -20,7 +20,9 @@ public partial class App : Application
         {
             var path = AppSettings.DefaultPath;
             var start = desktop.Args is { Length: > 0 } args ? args[0] : null;
-            desktop.MainWindow = new MainWindow(AppSettings.Load(path), path, start);
+            var window = new MainWindow(AppSettings.Load(path), path, start);
+            desktop.MainWindow = window;
+            window.StartUpdateChecks();
         }
 
         base.OnFrameworkInitializationCompleted();

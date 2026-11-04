@@ -87,6 +87,7 @@ public partial class MainWindow
             parts.Add(others == 1 ? "1 dica" : $"{others} dicas");
         ProblemsButton.Content = string.Join(", ", parts);
         ProblemsButton.IsVisible = parts.Count > 0;
+        RefreshUpdateNotice();
 
         CodeEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
     }
@@ -133,6 +134,7 @@ public partial class MainWindow
         InstallButton.IsVisible = canInstall;
         if (canInstall)
             InstallButton.Content = $"Instalar suporte a {_missingServer!.DisplayName}";
+        RefreshUpdateNotice();
     }
 
     private void OnInstallServer(object? sender, RoutedEventArgs e) => _ = InstallMissingServerAsync();
