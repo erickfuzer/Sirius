@@ -75,6 +75,9 @@ public sealed class SyntaxHighlighter
 
 internal static class GrammarCatalog
 {
+    private const string PhpCodeScope = "source.php";
+    private const string PhpPageScope = "text.html.php";
+
     private static readonly Dictionary<string, string> Aliases = new(StringComparer.OrdinalIgnoreCase)
     {
         [".axaml"] = ".xml", [".xaml"] = ".xml", [".csproj"] = ".xml", [".slnx"] = ".xml",
@@ -94,6 +97,12 @@ internal static class GrammarCatalog
         var scope = Options.GetScopeByExtension(Aliases.GetValueOrDefault(extension, extension));
         if (scope is null)
             return null;
+
+        // source.php lê o arquivo inteiro como código, e aí um #fff no CSS vira comentário.
+        // Um .php é HTML com trechos de PHP, e é isso que a outra gramática entende.
+        if (scope == PhpCodeScope)
+            scope = PhpPageScope;
+
         if (!Cache.TryGetValue(scope, out var grammar))
         {
             grammar = GrammarRegistry.LoadGrammar(scope);
