@@ -67,9 +67,10 @@ public sealed class LspConnection : IDisposable
 
     private static object? DefaultRequestHandler(string method, JsonElement parameters)
     {
-        // Sem configurações próprias: cada item pedido recebe null, e o servidor usa o padrão dele.
+        // Sem configurações próprias: cada item pedido recebe um objeto vazio, e o servidor usa o padrão.
+        // Com null, o servidor de CSS quebra ao validar, e os erros do arquivo nunca aparecem.
         if (method == "workspace/configuration" && parameters.TryGetProperty("items", out var items))
-            return new object?[items.GetArrayLength()];
+            return Enumerable.Range(0, items.GetArrayLength()).Select(_ => new { }).ToArray();
         return null;
     }
 

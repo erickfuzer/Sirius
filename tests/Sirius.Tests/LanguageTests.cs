@@ -70,9 +70,22 @@ public sealed class FakeLanguageServer : IDisposable
         _toServer.Writer.Complete();
     }
 
+    public JsonElement? InitializeParameters { get; private set; }
+
     private object? Handle(string method, JsonElement parameters) => method switch
     {
-        "initialize" => new
+        "initialize" => Initialize(parameters),
+        "textDocument/completion" => Completion(parameters),
+        "textDocument/definition" => Definition(parameters),
+        "textDocument/rename" => Rename(parameters),
+        "textDocument/hover" => Hover(parameters),
+        _ => null,
+    };
+
+    private object Initialize(JsonElement parameters)
+    {
+        InitializeParameters = parameters;
+        return new
         {
             capabilities = new
             {
@@ -82,13 +95,8 @@ public sealed class FakeLanguageServer : IDisposable
                 hoverProvider = true,
                 renameProvider = true,
             },
-        },
-        "textDocument/completion" => Completion(parameters),
-        "textDocument/definition" => Definition(parameters),
-        "textDocument/rename" => Rename(parameters),
-        "textDocument/hover" => Hover(parameters),
-        _ => null,
-    };
+        };
+    }
 }
 
 public class LspConnectionTests
@@ -166,6 +174,8 @@ public class LspConnectionTests
         var result = await server.RequestAsync("workspace/configuration", new { items = new[] { new { section = "a" }, new { section = "b" } } });
 
         Assert.Equal(2, result.GetArrayLength());
+        // Objeto vazio, e não null: o servidor de CSS real quebra ao validar com null.
+        Assert.All(result.EnumerateArray(), item => Assert.Equal(JsonValueKind.Object, item.ValueKind));
     }
 }
 

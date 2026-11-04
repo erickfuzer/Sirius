@@ -1,5 +1,5 @@
+using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using AvaloniaEdit.Document;
 
 namespace Sirius.Lsp;
@@ -8,7 +8,20 @@ public enum DiagnosticSeverity { Error = 1, Warning = 2, Information = 3, Hint =
 
 public sealed record LspDiagnostic(int Line, int Character, int EndLine, int EndCharacter, DiagnosticSeverity Severity, string Message);
 
-public sealed record CompletionEntry(string Label, string? Detail, string? Documentation, string InsertText, string? SortText);
+public sealed record CompletionEntry(string Label, string? Detail, string? Documentation, string InsertText, string? SortText)
+{
+    // O trecho que o servidor mandou substituir. Sem isto, valeria a palavra sob o cursor,
+    // e "background-co" viraria "background-background-color", porque o hífen separa palavras.
+    public LspRange? Edit { get; init; }
+
+    // Onde o cursor fica dentro do texto inserido, como entre as aspas de class="". Sem isto, no fim.
+    public int? CaretInInsertText { get; init; }
+
+    // Abrir a lista de novo ao escolher, como os valores depois de "color: ".
+    public bool SuggestAgain { get; init; }
+}
+
+public readonly record struct LspRange(int StartLine, int StartCharacter, int EndLine, int EndCharacter);
 
 public sealed record LspLocation(string Path, int Line, int Character);
 
@@ -17,9 +30,6 @@ public sealed record LspTextEdit(int StartLine, int StartCharacter, int EndLine,
 // Lê as respostas do servidor, que aceitam vários formatos pela especificação.
 public static partial class LspParsers
 {
-    [GeneratedRegex(@"\$\{\d+(?::([^}]*))?\}|\$\d+")]
-    private static partial Regex SnippetPlaceholder();
-
     public static string ToUri(string path) => new Uri(path).AbsoluteUri;
 
     public static string ToPath(string uri)
@@ -73,15 +83,109 @@ public static partial class LspParsers
                 continue;
 
             var insert = StringOf(item, "insertText") ?? label;
+            LspRange? range = null;
             if (item.TryGetProperty("textEdit", out var edit))
+            {
                 insert = StringOf(edit, "newText") ?? insert;
+                if (TryRange(edit, "range", out var textRange))
+                    range = new LspRange(textRange.StartLine, textRange.StartCharacter, textRange.EndLine, textRange.EndCharacter);
+            }
+
+            int? caret = null;
             if (item.TryGetProperty("insertTextFormat", out var format) && format.TryGetInt32(out var kind) && kind == 2)
-                insert = SnippetPlaceholder().Replace(insert, match => match.Groups[1].Value);
+                (insert, caret) = ExpandSnippet(insert);
+
+            var again = item.TryGetProperty("command", out var command)
+                && command.ValueKind == JsonValueKind.Object
+                && StringOf(command, "command") == "editor.action.triggerSuggest";
 
             var documentation = item.TryGetProperty("documentation", out var docs) ? TextOf(docs) : null;
-            entries.Add(new CompletionEntry(label, StringOf(item, "detail"), documentation, insert, StringOf(item, "sortText")));
+            entries.Add(new CompletionEntry(label, StringOf(item, "detail"), documentation, insert, StringOf(item, "sortText"))
+            {
+                Edit = range,
+                CaretInInsertText = caret,
+                SuggestAgain = again,
+            });
         }
         return entries;
+    }
+
+    // Transforma um modelo como class="$1" no texto final e diz onde o cursor fica: na primeira
+    // parada, ou em $0 se só houver ela. A Sirius não navega entre as paradas com Tab.
+    public static (string Text, int? Caret) ExpandSnippet(string snippet)
+    {
+        var text = new StringBuilder();
+        var stops = new Dictionary<int, int>();
+        Expand(snippet, 0, snippet.Length, text, stops);
+
+        var first = stops.Keys.Where(stop => stop > 0).DefaultIfEmpty(0).Min();
+        return (text.ToString(), stops.TryGetValue(first, out var caret) ? caret : null);
+    }
+
+    private static void Expand(string s, int start, int end, StringBuilder text, Dictionary<int, int> stops)
+    {
+        for (var i = start; i < end; i++)
+        {
+            var c = s[i];
+            if (c == '\\' && i + 1 < end && s[i + 1] is '$' or '}' or '\\')
+            {
+                text.Append(s[++i]);
+            }
+            else if (c == '$' && i + 1 < end && char.IsAsciiDigit(s[i + 1]))
+            {
+                var digits = i + 1;
+                while (digits < end && char.IsAsciiDigit(s[digits]))
+                    digits++;
+                stops.TryAdd(int.Parse(s[(i + 1)..digits]), text.Length);
+                i = digits - 1;
+            }
+            else if (c == '$' && i + 2 < end && s[i + 1] == '{' && char.IsAsciiDigit(s[i + 2]))
+            {
+                i = ExpandPlaceholder(s, i, end, text, stops);
+            }
+            else
+            {
+                text.Append(c);
+            }
+        }
+    }
+
+    // ${1:texto}, com texto que pode ter outras paradas, ou ${1|a,b|}, em que vale a primeira opção.
+    private static int ExpandPlaceholder(string s, int start, int end, StringBuilder text, Dictionary<int, int> stops)
+    {
+        var digits = start + 2;
+        while (digits < end && char.IsAsciiDigit(s[digits]))
+            digits++;
+
+        var close = digits;
+        var depth = 1;
+        for (; close < end; close++)
+        {
+            if (s[close] == '\\')
+                close++;
+            else if (s[close] == '{')
+                depth++;
+            else if (s[close] == '}' && --depth == 0)
+                break;
+        }
+        if (close >= end)
+        {
+            text.Append(s[start]);
+            return start;
+        }
+
+        stops.TryAdd(int.Parse(s[(start + 2)..digits]), text.Length);
+        if (s[digits] == ':')
+        {
+            Expand(s, digits + 1, close, text, stops);
+        }
+        else if (s[digits] == '|')
+        {
+            var comma = s.IndexOf(',', digits, close - digits);
+            var choice = comma > 0 ? comma : close - 1;
+            text.Append(s, digits + 1, choice - digits - 1);
+        }
+        return close;
     }
 
     public static LspLocation? Definition(JsonElement result)

@@ -131,7 +131,7 @@ public sealed class LanguageService : IDisposable
             client = new LanguageClient(connection);
             client.DiagnosticsPublished += (path, list) => _uiDispatcher.Post(() => Publish(path, list));
             client.Closed += () => _uiDispatcher.Post(() => OnServerClosed(server, root));
-            await client.InitializeAsync(root);
+            await client.InitializeAsync(root, server.InitializationOptions);
             return client;
         }
         catch (Exception e) when (e is LspException or OperationCanceledException or IOException or System.ComponentModel.Win32Exception or InvalidOperationException)

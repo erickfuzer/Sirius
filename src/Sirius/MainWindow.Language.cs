@@ -15,7 +15,7 @@ namespace Sirius;
 // Autocompletar, erros no código, ir para a definição e renomear símbolo.
 public partial class MainWindow
 {
-    private const int MaxCompletionItems = 300;
+    private const int MaxCompletionItems = 1000;
     private const int MaxHoverChars = 1500;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
 
@@ -159,7 +159,8 @@ public partial class MainWindow
         {
             if (code != 0)
                 return;
-            _language.Retry(_documents, server);
+            foreach (var installed in LanguageServerCatalog.InstalledTogetherWith(server))
+                _language.Retry(_documents, installed);
             UpdateServerHint();
             ShowStatus($"Suporte a {server.DisplayName} instalado");
         });
@@ -226,7 +227,15 @@ public partial class MainWindow
 
     private void ShowCompletion(OpenDocument document, List<CompletionEntry> entries, int caret)
     {
-        var start = WordStart(document.Document, caret);
+        var text = document.Document;
+        var caretLine = text.GetLineByOffset(caret);
+        int? EditStart(CompletionEntry entry) =>
+            entry.Edit is { } edit && edit.StartLine == caretLine.LineNumber - 1 && caretLine.Offset + edit.StartCharacter <= caret
+                ? caretLine.Offset + edit.StartCharacter
+                : null;
+
+        // O filtro da lista começa onde o servidor disse que a palavra começa, se ele disse.
+        var start = entries.Select(EditStart).FirstOrDefault(offset => offset is not null) ?? WordStart(text, caret);
         var window = new CompletionWindow(CodeEditor.TextArea)
         {
             StartOffset = start,
@@ -234,9 +243,21 @@ public partial class MainWindow
             CloseWhenCaretAtBeginning = true,
         };
 
+        // Filtra pelo que já foi digitado antes de cortar: o CSS tem centenas de propriedades,
+        // e cortar primeiro faria z-index nunca aparecer, mesmo digitando "z".
+        var typed = text.GetText(start, caret - start);
+        var matching = entries.Where(entry => entry.Label.Contains(typed, StringComparison.OrdinalIgnoreCase)).ToList();
+        var candidates = matching.Count > 0 ? matching : entries;
+
         var items = window.CompletionList.CompletionData;
-        foreach (var entry in entries.OrderBy(e => e.SortText ?? e.Label, StringComparer.OrdinalIgnoreCase).Take(MaxCompletionItems))
-            items.Add(new CompletionItem(entry));
+        foreach (var entry in candidates.OrderBy(e => e.SortText ?? e.Label, StringComparer.OrdinalIgnoreCase).Take(MaxCompletionItems))
+        {
+            // O que o servidor quer trocar depois do cursor, como o resto de uma palavra.
+            var after = entry.Edit is { } edit && edit.EndLine == caretLine.LineNumber - 1
+                ? Math.Max(0, Math.Min(caretLine.EndOffset, caretLine.Offset + edit.EndCharacter) - caret)
+                : 0;
+            items.Add(new CompletionItem(entry, EditStart(entry), after, SuggestAgainSoon));
+        }
 
         window.Closed += (_, _) =>
         {
@@ -248,7 +269,25 @@ public partial class MainWindow
         window.CompletionList.SelectItem(document.Document.GetText(start, caret - start));
     }
 
-    private void CloseCompletion()
+    // Depois que a lista atual fechar: só cabe uma aberta por vez.
+    private void SuggestAgainSoon() => Dispatcher.UIThread.Post(() => _ = RequestCompletionAsync());
+
+    public void SetCaretOffset(int offset) => CodeEditor.TextArea.Caret.Offset = offset;
+
+    // Usado pelos testes, para escolher como quem aperta Enter na lista.
+    public bool AcceptCompletion(string label)
+    {
+        if (_completion is not { } window)
+            return false;
+        var item = window.CompletionList.CompletionData.FirstOrDefault(data => data.Text == label);
+        if (item is null)
+            return false;
+        window.CompletionList.SelectedItem = item;
+        window.CompletionList.RequestInsertion(EventArgs.Empty);
+        return true;
+    }
+
+    public void CloseCompletion()
     {
         _completionCancel?.Cancel();
         _completion?.Close();

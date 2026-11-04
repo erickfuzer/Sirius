@@ -4,7 +4,11 @@ using Sirius.Core;
 namespace Sirius.Lsp;
 
 // Um servidor de linguagem conhecido e como obtê-lo.
-public sealed record ServerSpec(string Id, string DisplayName, string Executable, string[] Arguments, ServerInstaller Installer);
+public sealed record ServerSpec(string Id, string DisplayName, string Executable, string[] Arguments, ServerInstaller Installer)
+{
+    // Enviadas ao iniciar: alguns servidores só ativam recursos quando recebem isto.
+    public object? InitializationOptions { get; init; }
+}
 
 public enum ServerInstaller { DotNetTool, Npm, Manual }
 
@@ -17,6 +21,14 @@ public static class LanguageServerCatalog
     private static readonly ServerSpec Php = new("php", "PHP", "intelephense", ["--stdio"], ServerInstaller.Npm);
     private static readonly ServerSpec TypeScript = new("typescript", "JavaScript e TypeScript", "typescript-language-server", ["--stdio"], ServerInstaller.Npm);
     private static readonly ServerSpec Python = new("python", "Python", "pyright-langserver", ["--stdio"], ServerInstaller.Npm);
+
+    // O servidor de HTML só entende <style> e <script> se for avisado de que deve olhar para eles.
+    private static readonly ServerSpec Html = new("html", "HTML", "vscode-html-language-server", ["--stdio"], ServerInstaller.Npm)
+    {
+        InitializationOptions = new { embeddedLanguages = new { css = true, javascript = true }, configurationSection = new[] { "html", "css", "javascript" } },
+    };
+    private static readonly ServerSpec Css = new("css", "CSS", "vscode-css-language-server", ["--stdio"], ServerInstaller.Npm);
+
     private static readonly ServerSpec Go = new("go", "Go", "gopls", [], ServerInstaller.Manual);
     private static readonly ServerSpec Rust = new("rust", "Rust", "rust-analyzer", [], ServerInstaller.Manual);
     private static readonly ServerSpec Cpp = new("cpp", "C e C++", "clangd", [], ServerInstaller.Manual);
@@ -25,6 +37,11 @@ public static class LanguageServerCatalog
     {
         [".cs"] = (CSharp, "csharp"),
         [".php"] = (Php, "php"),
+        [".html"] = (Html, "html"),
+        [".htm"] = (Html, "html"),
+        [".css"] = (Css, "css"),
+        [".scss"] = (Css, "scss"),
+        [".less"] = (Css, "less"),
         [".ts"] = (TypeScript, "typescript"),
         [".tsx"] = (TypeScript, "typescriptreact"),
         [".js"] = (TypeScript, "javascript"),
@@ -60,6 +77,12 @@ public static class LanguageServerCatalog
         return null;
     }
 
+    private const string SharedWebPackage = "vscode-langservers-extracted";
+
+    // Os servidores que uma instalação traz: o pacote de HTML também traz o de CSS.
+    public static IEnumerable<ServerSpec> InstalledTogetherWith(ServerSpec server) =>
+        server.Id is "html" or "css" ? [Html, Css] : [server];
+
     // O comando que instala o servidor, ou null quando a instalação é manual.
     public static string? InstallCommand(ServerSpec server)
     {
@@ -72,6 +95,7 @@ public static class LanguageServerCatalog
                 {
                     "typescript" => "typescript typescript-language-server",
                     "python" => "pyright",
+                    "html" or "css" => SharedWebPackage,
                     _ => server.Executable,
                 };
                 var nodeFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "nodejs");

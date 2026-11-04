@@ -28,7 +28,7 @@ public sealed class LanguageClient : IDisposable
     public event Action<string, List<LspDiagnostic>>? DiagnosticsPublished;
     public event Action? Closed;
 
-    public async Task InitializeAsync(string root)
+    public async Task InitializeAsync(string root, object? initializationOptions = null)
     {
         _connection.Start();
         var parameters = new Dictionary<string, object?>
@@ -37,13 +37,14 @@ public sealed class LanguageClient : IDisposable
             ["rootUri"] = LspParsers.ToUri(root),
             ["rootPath"] = root,
             ["workspaceFolders"] = new[] { new { uri = LspParsers.ToUri(root), name = Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar)) } },
+            ["initializationOptions"] = initializationOptions,
             ["capabilities"] = new
             {
                 textDocument = new
                 {
                     synchronization = new { didSave = true },
                     publishDiagnostics = new { relatedInformation = false },
-                    completion = new { completionItem = new { snippetSupport = false, documentationFormat = new[] { "plaintext", "markdown" } } },
+                    completion = new { completionItem = new { snippetSupport = true, documentationFormat = new[] { "plaintext", "markdown" } } },
                     hover = new { contentFormat = new[] { "plaintext", "markdown" } },
                     definition = new { linkSupport = false },
                     rename = new { prepareSupport = false },
