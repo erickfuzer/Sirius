@@ -10,6 +10,10 @@ public sealed class AppSettings
     public string? LastFolder { get; set; }
     public double SidebarWidth { get; set; } = 232;
 
+    // Comando de execução escolhido para cada pasta, guardado aqui e não no projeto:
+    // abrir um repositório de terceiros nunca define o que o botão Executar faz.
+    public Dictionary<string, string> RunCommands { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     public static string DefaultPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Sirius", "settings.json");
 

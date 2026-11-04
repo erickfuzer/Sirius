@@ -1,9 +1,11 @@
 using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
 using Sirius.Core;
+using Sirius.Terminal;
 using Sirius.Theming;
 
 [assembly: AvaloniaTestApplication(typeof(Sirius.Tests.TestAppBuilder))]
@@ -482,6 +484,221 @@ public class MainWindowTests
 
         window.CloseSearch();
         Assert.Equal(200, window.CurrentSidebarWidth);
+    }
+
+    private static AppSettings WithRunCommand(TempFolder temp, string command)
+    {
+        var settings = new AppSettings();
+        settings.RunCommands[temp.Path] = command;
+        return settings;
+    }
+
+    private static async Task Until(Func<bool> condition)
+    {
+        var limit = DateTime.UtcNow.AddSeconds(30);
+        while (!condition())
+        {
+            Assert.True(DateTime.UtcNow < limit, "A condição não aconteceu a tempo.");
+            await Task.Delay(20);
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Executar_mostra_a_saida_e_volta_ao_estado_inicial()
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp, WithRunCommand(temp, "echo sirius-rodou"));
+        try
+        {
+            Assert.Equal("Executar", window.RunLabelText);
+
+            await window.RunOrStopAsync();
+            Assert.True(window.IsTerminalOpen);
+
+            Assert.Equal(0, await window.TaskFinished);
+            await Until(() => window.VisibleSession!.Buffer.AllText().Contains("Processo encerrado com código 0"));
+
+            Assert.Contains("sirius-rodou", window.VisibleSession!.Buffer.AllText());
+            Assert.False(window.IsTaskRunning);
+            Assert.Equal("Executar", window.RunLabelText);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Executar_salva_antes_para_rodar_o_que_esta_na_tela()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("dados.txt", "antigo");
+        var window = Open(temp, WithRunCommand(temp, "type dados.txt"));
+        try
+        {
+            window.OpenFile(path);
+            window.ActiveDocument!.Document.Text = "conteudo-novo";
+
+            await window.RunOrStopAsync();
+            await window.TaskFinished;
+            await Until(() => window.VisibleSession!.Buffer.AllText().Contains("Processo encerrado"));
+
+            Assert.Equal("conteudo-novo", File.ReadAllText(path));
+            Assert.False(window.ActiveDocument!.IsDirty);
+            Assert.Contains("conteudo-novo", window.VisibleSession!.Buffer.AllText());
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Parar_encerra_o_programa()
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp, WithRunCommand(temp, "ping -n 60 127.0.0.1"));
+        try
+        {
+            await window.RunOrStopAsync();
+            Assert.True(window.IsTaskRunning);
+            Assert.Equal("Parar", window.RunLabelText);
+
+            await window.RunOrStopAsync();
+            await Until(() => !window.IsTaskRunning);
+
+            Assert.Equal("Executar", window.RunLabelText);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Projeto_sem_comando_pergunta_e_cancelar_nao_executa()
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp);
+        try
+        {
+            var running = window.RunOrStopAsync();
+            Assert.True(window.IsDialogOpen);
+            window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+            await running;
+
+            Assert.False(window.IsTaskRunning);
+            Assert.False(window.IsTerminalOpen);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Terminal_abre_o_shell_e_recebe_comandos()
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp);
+        try
+        {
+            window.KeyPressQwerty(PhysicalKey.J, RawInputModifiers.Control);
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(window.IsTerminalOpen);
+
+            var session = window.VisibleSession!;
+            session.Write("echo shell-responde\r");
+            await Until(() => session.Buffer.AllText().Split('\n').Count(line => line.Contains("shell-responde")) >= 2);
+
+            window.KeyPressQwerty(PhysicalKey.J, RawInputModifiers.Control);
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(window.IsTerminalOpen);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Clicar_no_erro_da_saida_abre_o_arquivo_na_linha()
+    {
+        using var temp = new TempFolder();
+        temp.File("a.cs", "um\ndois\ntres");
+        var window = Open(temp, WithRunCommand(temp, "echo a.cs(3,1): error X"));
+        try
+        {
+            await window.RunOrStopAsync();
+            await window.TaskFinished;
+            await Until(() => window.VisibleSession!.Buffer.AllText().Contains("Processo encerrado"));
+
+            // Deixa a animação da cápsula terminar antes de clicar.
+            var until = DateTime.UtcNow.AddMilliseconds(500);
+            while (DateTime.UtcNow < until)
+            {
+                Dispatcher.UIThread.RunJobs();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                await Task.Delay(16);
+            }
+
+            var buffer = window.VisibleSession!.Buffer;
+            var line = Enumerable.Range(0, buffer.TotalLines).First(i => buffer.LineText(i).StartsWith("a.cs(3,1)"));
+            var host = window.FindControl<TerminalView>("TerminalHost")!;
+            var point = host.TranslatePoint(host.PointForCell(line, 2), window)!.Value;
+
+            window.MouseDown(point, MouseButton.Left);
+            window.MouseUp(point, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal("a.cs", window.ActiveDocument?.Name);
+            Assert.Equal(3, window.CaretLine);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void Erro_clicado_abre_o_arquivo_na_linha()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.cs", "um\ndois\ntres");
+        var window = Open(temp);
+        try
+        {
+            window.GoToLocation(path, 3, 2);
+
+            Assert.Equal("a.cs", window.ActiveDocument?.Name);
+            Assert.Equal(3, window.CaretLine);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Fechar_com_programa_rodando_pergunta_e_cancelar_mantem()
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp, WithRunCommand(temp, "ping -n 60 127.0.0.1"));
+        await window.RunOrStopAsync();
+
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(window.IsDialogOpen);
+        window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(window.IsTaskRunning);
+
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+        window.AnswerDialog(primary: true);
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(window.IsVisible);
     }
 
     [AvaloniaFact]

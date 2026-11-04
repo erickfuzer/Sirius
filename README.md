@@ -21,6 +21,8 @@ dotnet run --project src/Sirius
 | `Ctrl F` | Procurar no arquivo |
 | `Ctrl Shift F` | Buscar em todo o projeto (`Enter` avança pelos resultados) |
 | `Ctrl .` | Modo foco |
+| `F5` | Executar ou parar o projeto |
+| `Ctrl J` | Abrir ou fechar o terminal |
 
 ## Testes
 

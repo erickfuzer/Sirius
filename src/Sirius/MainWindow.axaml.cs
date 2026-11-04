@@ -99,6 +99,7 @@ public partial class MainWindow : Window
 
         _statusTimer =new DispatcherTimer(TimeSpan.FromSeconds(4), DispatcherPriority.Normal, (_, _) => ClearStatus());
 
+        InitializeTerminal();
         DialogInput.AddHandler(KeyDownEvent, OnDialogInputKeyDown, RoutingStrategies.Tunnel);
         Sidebar.Width = Math.Clamp(_settings.SidebarWidth, SidebarMinWidth, SidebarMaxWidth);
         TreeHeader.IsVisible = false;
@@ -148,6 +149,7 @@ public partial class MainWindow : Window
         _projectFiles = new List<string>();
         _lastFolderClicked = null;
         TreeHeader.IsVisible = true;
+        StopAllSessions();
         CloseSearch();
         ClearSearchResults();
 
@@ -391,7 +393,7 @@ public partial class MainWindow : Window
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Abrir pasta", AllowMultiple = false });
         var path = folders.FirstOrDefault()?.TryGetLocalPath();
-        if (path is null || !await CloseAllAsync())
+        if (path is null || !await ConfirmStopTaskAsync() || !await CloseAllAsync())
             return;
         OpenFolder(path);
     }
@@ -594,11 +596,26 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.Key == Key.F5)
+        {
+            e.Handled = true;
+            await RunOrStopAsync();
+            return;
+        }
+
         if (!e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            return;
+
+        // No terminal, estas combinações pertencem ao programa que está rodando.
+        if (TerminalHost.IsFocused && e.Key is Key.S or Key.O or Key.W or Key.OemPeriod)
             return;
 
         switch (e.Key)
         {
+            case Key.J:
+                e.Handled = true;
+                ToggleTerminal();
+                break;
             case Key.F when e.KeyModifiers.HasFlag(KeyModifiers.Shift) && RootFolder is not null:
                 e.Handled = true;
                 OpenSearch();
@@ -671,7 +688,10 @@ public partial class MainWindow : Window
             actions.Insert(0, ("Buscar no projeto", "Ctrl Shift F", OpenSearch));
             actions.Add(("Novo arquivo", "", () => _ = CreateFileAsync(DefaultTargetFolder())));
             actions.Add(("Nova pasta", "", () => _ = CreateFolderAsync(DefaultTargetFolder())));
+            actions.Insert(0, (IsTaskRunning ? "Parar execução" : "Executar projeto", "F5", () => _ = RunOrStopAsync()));
+            actions.Add(("Definir comando de execução", RunCommandForProject() ?? "", () => _ = AskAndSaveRunCommandAsync()));
         }
+        actions.Add((_terminalOpen ? "Fechar terminal" : "Abrir terminal", "Ctrl J", ToggleTerminal));
         if (ActiveDocument is { } active)
         {
             actions.Insert(0, ("Salvar arquivo", "Ctrl S", () => _ = SaveAsync(active)));
@@ -952,6 +972,7 @@ public partial class MainWindow : Window
         CodeEditor.TextArea.SelectionBrush = palette.Selection;
         CodeEditor.TextArea.SelectionBorder = null;
         CodeEditor.TextArea.Caret.CaretBrush = palette.Accent;
+        TerminalHost.ApplyScheme(TerminalScheme.For(palette));
 
         RefreshTabs();
         RefreshTree();
@@ -1090,14 +1111,22 @@ public partial class MainWindow : Window
     protected override async void OnClosing(WindowClosingEventArgs e)
     {
         base.OnClosing(e);
-        if (_allowClose || !_documents.Any(d => d.IsDirty))
+        if (_allowClose || (!IsTaskRunning && !_documents.Any(d => d.IsDirty)))
             return;
 
         e.Cancel = true;
-        if (await CloseAllAsync())
+        if (await ConfirmStopTaskAsync() && await CloseAllAsync())
         {
             _allowClose = true;
             Close();
         }
+    }
+
+    private async Task<bool> ConfirmStopTaskAsync()
+    {
+        if (!IsTaskRunning)
+            return true;
+        var choice = await AskAsync("Há um programa em execução", $"Continuar vai encerrar {_taskCommand}.", "Encerrar", null);
+        return choice == DialogChoice.Primary;
     }
 }
