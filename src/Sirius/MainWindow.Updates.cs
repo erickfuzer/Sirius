@@ -76,7 +76,7 @@ public partial class MainWindow
         if (_pendingUpdate is { } version)
         {
             // A cápsula tem largura fixa: ao lado de outro aviso, o texto longo seria cortado.
-            var crowded = InstallButton.IsVisible || ProblemsButton.IsVisible;
+            var crowded = InstallButton.IsVisible || ProblemsButton.IsVisible || OpenSiteButton.IsVisible;
             UpdateButton.Content = crowded ? $"Nova: {version}" : $"Versão {version} disponível";
         }
     }

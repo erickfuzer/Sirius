@@ -384,6 +384,7 @@
                                     </Button>
                                     <DockPanel Grid.Column="2" Margin="8,0" VerticalAlignment="Center">
                                         <Button x:Name="ProblemsButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnShowProblems" ToolTip.Tip="Ver problemas" />
+                                        <Button x:Name="OpenSiteButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnOpenSite" Content="Abrir site" />
                                         <Button x:Name="InstallButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnInstallServer" />
                                         <Button x:Name="UpdateButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnUpdateClick" ToolTip.Tip="Ver a versão nova" />
                                         <TextBlock x:Name="CapsuleStatus" FontSize="12" Foreground="{DynamicResource CapsuleMuted}" TextTrimming="CharacterEllipsis"

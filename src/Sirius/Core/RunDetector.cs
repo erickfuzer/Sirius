@@ -9,9 +9,21 @@ public static partial class RunDetector
     [GeneratedRegex(@"<OutputType>\s*(Win)?Exe\s*</OutputType>", RegexOptions.IgnoreCase)]
     private static partial Regex ExecutableProject();
 
+    // Só nome de máquina e porta: o endereço vira um link que abre no navegador.
+    [GeneratedRegex(@"\bphp(?:\.exe)?""?\s+-S\s+(?<host>[A-Za-z0-9.-]+):(?<port>\d{1,5})\b", RegexOptions.IgnoreCase)]
+    private static partial Regex PhpServer();
+
+    [GeneratedRegex(@"\bphp(?:\.exe)?""?\s+artisan\s+serve\b(?:.*?--port[= ](?<port>\d{1,5})\b)?", RegexOptions.IgnoreCase)]
+    private static partial Regex ArtisanServer();
+
+    private const string PhpAddress = "localhost:8000";
+
     public static string? Detect(string root, string? activeFile)
     {
+        // PHP vem antes do Node: um projeto Laravel também tem package.json, mas aquele
+        // script sobe só a parte visual, e o site não funcionaria.
         return DotNet(root)
+            ?? Php(root)
             ?? Node(root)
             ?? (File.Exists(Path.Combine(root, "Cargo.toml")) ? "cargo run" : null)
             ?? (File.Exists(Path.Combine(root, "go.mod")) ? "go run ." : null)
@@ -85,6 +97,34 @@ public static partial class RunDetector
         return null;
     }
 
+    private static string? Php(string root)
+    {
+        if (File.Exists(Path.Combine(root, "artisan")))
+            return "php artisan serve";
+        if (File.Exists(Path.Combine(root, "public", "index.php")))
+            return $"php -S {PhpAddress} -t public";
+        return File.Exists(Path.Combine(root, "index.php")) ? $"php -S {PhpAddress}" : null;
+    }
+
+    // O endereço do site, quando o comando sobe um servidor PHP.
+    public static string? SiteUrl(string? command)
+    {
+        if (command is null)
+            return null;
+
+        if (PhpServer().Match(command) is { Success: true } server)
+        {
+            // 0.0.0.0 significa "aceitar de qualquer lugar", mas não abre no navegador.
+            var host = server.Groups["host"].Value;
+            return $"http://{(host == "0.0.0.0" ? "localhost" : host)}:{server.Groups["port"].Value}";
+        }
+
+        if (ArtisanServer().Match(command) is { Success: true } artisan)
+            return $"http://127.0.0.1:{(artisan.Groups["port"].Success ? artisan.Groups["port"].Value : "8000")}";
+
+        return null;
+    }
+
     private static string? ActiveScript(string? file)
     {
         if (file is null)
@@ -93,6 +133,7 @@ public static partial class RunDetector
         {
             ".py" => $"python \"{file}\"",
             ".js" or ".mjs" => $"node \"{file}\"",
+            ".php" => $"php \"{file}\"",
             ".ps1" => $"powershell -NoProfile -File \"{file}\"",
             ".bat" or ".cmd" => $"\"{file}\"",
             _ => null,

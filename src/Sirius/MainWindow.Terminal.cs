@@ -244,6 +244,23 @@ public partial class MainWindow
         RunLabel.Text = running ? "Parar" : "Executar";
         RunIcon.IsVisible = !running;
         StopIcon.IsVisible = running;
+
+        var site = RunningSiteUrl;
+        OpenSiteButton.IsVisible = site is not null;
+        ToolTip.SetTip(OpenSiteButton, site);
+        RefreshUpdateNotice();
+    }
+
+    // O endereço só vale enquanto o servidor está no ar.
+    public string? RunningSiteUrl => IsTaskRunning ? RunDetector.SiteUrl(_taskCommand) : null;
+    public bool IsOpenSiteVisible => OpenSiteButton.IsVisible;
+
+    private void OnOpenSite(object? sender, RoutedEventArgs e) => OpenSite();
+
+    public void OpenSite()
+    {
+        if (RunningSiteUrl is { } url && !OpenUrl(url))
+            ShowStatus("Não foi possível abrir o navegador.");
     }
 
     private void UpdateTerminalInfo()

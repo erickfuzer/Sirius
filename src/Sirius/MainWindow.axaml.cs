@@ -910,6 +910,8 @@ public partial class MainWindow : Window
             actions.Add(("Nova pasta", "", () => _ = CreateFolderAsync(DefaultTargetFolder())));
             actions.Insert(0, (IsTaskRunning ? "Parar execução" : "Executar projeto", "F5", () => _ = RunOrStopAsync()));
             actions.Add(("Definir comando de execução", RunCommandForProject() ?? "", () => _ = AskAndSaveRunCommandAsync()));
+            if (RunningSiteUrl is { } site)
+                actions.Insert(0, ("Abrir site no navegador", site, OpenSite));
         }
         actions.Add((_terminalOpen ? "Fechar terminal" : "Abrir terminal", "Ctrl J", ToggleTerminal));
         actions.Add(("Nova aba", "Ctrl N", NewUntitled));

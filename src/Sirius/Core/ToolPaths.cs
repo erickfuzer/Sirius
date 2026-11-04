@@ -14,6 +14,8 @@ public static class ToolPaths
             yield return Path.Combine(programFiles, "Git", "cmd");
             yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotnet", "tools");
             yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "npm");
+            // O XAMPP traz o PHP, mas não o coloca no PATH.
+            yield return @"C:\xampp\php";
         }
     }
 
