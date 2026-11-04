@@ -6,11 +6,13 @@ namespace Sirius;
 // Linhas exibidas nas listas da janela. A lista é recriada quando algo muda.
 public sealed record TreeRow(
     string Name, string FullPath, bool IsFolder, Thickness Padding, Geometry? Chevron,
-    FontWeight Weight, IBrush Background, IBrush Foreground, bool IsDirty);
+    FontWeight Weight, IBrush Background, IBrush Foreground, bool IsDirty, string GitLetter, IBrush GitBrush);
 
 public sealed record TabRow(string Name, string FullPath, FontWeight Weight, IBrush Foreground, bool IsDirty);
 
 public sealed record CommandRow(string Name, string Hint, IBrush Background, Action Run);
+
+public sealed record GitRow(string Name, string Folder, string Letter, IBrush Brush, bool IsIncluded, Sirius.Core.GitChange Change);
 
 public sealed record ProblemRow(string Message, string Location, IBrush Brush, string FullPath, int Line, int Character);
 

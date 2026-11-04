@@ -65,6 +65,10 @@ public class WorkspaceTests
 
         temp.File("recente.cs", "x");
         await Until(() => window.TreeRows.Any(r => r.Name == "recente.cs"));
+
+        // A árvore pode atualizar pelo Git antes de a lista da barra de comando ser refeita.
+        await Task.Delay(500);
+        Dispatcher.UIThread.RunJobs();
         await window.ProjectIndexed;
 
         window.OpenPalette();

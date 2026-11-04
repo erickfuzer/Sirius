@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Editing;
 using AvaloniaEdit.Rendering;
+using Sirius.Core;
 using Sirius.Theming;
 
 namespace Sirius.Editing;
@@ -19,6 +20,9 @@ public sealed class GutterMargin : AbstractMargin
     private const double BaseNumberSize = 11.5;
     private const double BobWidth = 10;
     private const double BobHeight = 12;
+    private const double MarkInset = 7;
+    private const double MarkWidth = 2.5;
+    private const double DeletedMarkSize = 4;
 
     private static readonly Typeface NumberFace = new("avares://Sirius/Assets/Fonts#Geist Mono");
     private static readonly Typeface ActiveFace = new(new FontFamily("avares://Sirius/Assets/Fonts#Geist Mono"), FontStyle.Normal, FontWeight.SemiBold);
@@ -28,6 +32,16 @@ public sealed class GutterMargin : AbstractMargin
     private double _threadTop = double.NaN;
     private double _threadTarget;
     private double _scale = 1;
+    private IReadOnlyDictionary<int, GitLineKind>? _lineMarks;
+
+    public IReadOnlyDictionary<int, GitLineKind> LineMarks => _lineMarks ?? new Dictionary<int, GitLineKind>();
+
+    // As linhas que mudaram desde o último commit.
+    public void SetLineMarks(IReadOnlyDictionary<int, GitLineKind>? marks)
+    {
+        _lineMarks = marks;
+        InvalidateVisual();
+    }
 
     private double NumberRight => BaseNumberRight * _scale;
     private double ThreadX => BaseThreadX * _scale;
@@ -108,9 +122,34 @@ public sealed class GutterMargin : AbstractMargin
                 active ? ActiveFace : NumberFace, NumberSize, active ? palette.Accent : palette.Faint);
             var y = line.VisualTop - view.VerticalOffset + (line.Height - text.Height) / 2;
             context.DrawText(text, new Point(NumberRight - text.Width, y));
+            DrawLineMark(context, palette, number, line.VisualTop - view.VerticalOffset, line.Height);
         }
 
         DrawThread(context, view, caretLine, palette);
+    }
+
+    private void DrawLineMark(DrawingContext context, Palette palette, int number, double top, double height)
+    {
+        if (_lineMarks is null || !_lineMarks.TryGetValue(number, out var kind))
+            return;
+
+        var x = BaseGutterWidth * _scale - MarkInset;
+        if (kind == GitLineKind.DeletedAbove)
+        {
+            var triangle = new StreamGeometry();
+            using (var g = triangle.Open())
+            {
+                g.BeginFigure(new Point(x, top - DeletedMarkSize), true);
+                g.LineTo(new Point(x + DeletedMarkSize, top));
+                g.LineTo(new Point(x, top + DeletedMarkSize));
+                g.EndFigure(true);
+            }
+            context.DrawGeometry(palette.Error, null, triangle);
+            return;
+        }
+
+        var brush = kind == GitLineKind.Added ? palette.String : palette.Function;
+        context.FillRectangle(brush, new Rect(x, top, MarkWidth, height));
     }
 
     private void DrawThread(DrawingContext context, TextView view, int caretLine, Palette palette)

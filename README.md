@@ -25,6 +25,7 @@ dotnet run --project src/Sirius
 | `Ctrl .` | Modo foco |
 | `F5` | Executar ou parar o projeto |
 | `Ctrl J` | Abrir ou fechar o terminal |
+| `Ctrl Shift G` | Painel de Git: mudanças, comparação, commit, enviar e receber |
 | `Ctrl +` e `Ctrl -` | Aumentar ou diminuir a fonte do editor (`Ctrl 0` volta ao padrão) |
 | `F2` | Renomear o item da lista de arquivos ou, no editor, o símbolo sob o cursor |
 | `F12` ou `Ctrl` + clique | Ir para a definição |

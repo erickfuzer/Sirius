@@ -26,13 +26,17 @@ public partial class MainWindow
     private readonly Dispatcher _uiDispatcher = Dispatcher.UIThread;
 
     // Os testes respondem sem abrir a janela de escolher arquivo.
-    public Func<string, Task<string?>> PickSavePath { get; set; }
+    public Func<string, Task<string?>>? PickSavePath { get; set; }
 
     private void InitializeWorkspace()
     {
         PickSavePath = PickSavePathAsync;
         _diskDelay = new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Normal, (_, _) => OnDiskDelayElapsed());
-        Activated += (_, _) => _ = CheckOpenDocumentsAsync();
+        Activated += (_, _) =>
+        {
+            _ = CheckOpenDocumentsAsync();
+            _ = RefreshGitAsync();
+        };
         ReplaceInput.AddHandler(KeyDownEvent, OnReplaceKeyDown, RoutingStrategies.Tunnel);
     }
 
@@ -74,7 +78,8 @@ public partial class MainWindow
     // Chega numa thread de fundo.
     private void OnDiskEvent(string root, string path, bool structural)
     {
-        if (ProjectTree.IsIgnored(root, path))
+        // O interior do .git só importa quando muda o histórico ou o que está preparado.
+        if (ProjectTree.IsIgnored(root, path) && !IsGitStateFile(root, path))
             return;
 
         _uiDispatcher.Post(() =>
@@ -87,6 +92,18 @@ public partial class MainWindow
         });
     }
 
+    private static bool IsGitStateFile(string root, string path)
+    {
+        if (path.EndsWith(".lock", StringComparison.OrdinalIgnoreCase))
+            return false;
+        var relative = Path.GetRelativePath(root, path);
+        var git = ".git" + Path.DirectorySeparatorChar;
+        if (!relative.StartsWith(git, StringComparison.OrdinalIgnoreCase))
+            return false;
+        var inside = relative[git.Length..];
+        return inside is "HEAD" or "index" or "MERGE_HEAD" || inside.StartsWith("refs" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
     private void OnDiskDelayElapsed()
     {
         _diskDelay!.Stop();
@@ -97,6 +114,7 @@ public partial class MainWindow
             ReindexProject();
         }
         _ = CheckOpenDocumentsAsync();
+        _ = RefreshGitAsync();
     }
 
     public async Task CheckOpenDocumentsAsync()
@@ -271,7 +289,7 @@ public partial class MainWindow
 
     public async Task<bool> SaveAsAsync(OpenDocument document)
     {
-        var path = await PickSavePath(document.FullPath);
+        var path = await PickSavePath!(document.FullPath);
         if (path is null)
             return false;
 

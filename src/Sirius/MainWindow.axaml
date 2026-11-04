@@ -63,8 +63,17 @@
                 <Panel x:Name="Sidebar" Grid.Column="0" Width="232">
                     <!-- Árvore de arquivos -->
                     <Grid x:Name="TreeView" RowDefinitions="Auto,*">
-                        <Grid x:Name="TreeHeader" Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Height="28" Margin="6,0,0,0">
+                        <Grid x:Name="TreeHeader" Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Height="28" Margin="6,0,0,0">
                             <TextBlock Grid.Column="0" Text="Arquivos" FontSize="12" FontWeight="Medium" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
+                            <Button Grid.Column="3" Classes="flat" Height="24" Padding="5,0" CornerRadius="6" Click="OnOpenGit" ToolTip.Tip="Git (Ctrl Shift G)" AutomationProperties.Name="Abrir Git">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                                        <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.4"
+                                              Data="M5.8 3.5A1.8 1.8 0 1 1 2.2 3.5A1.8 1.8 0 1 1 5.8 3.5M5.8 12.5A1.8 1.8 0 1 1 2.2 12.5A1.8 1.8 0 1 1 5.8 12.5M13.8 5A1.8 1.8 0 1 1 10.2 5A1.8 1.8 0 1 1 13.8 5M4 5.3V10.7M12 6.8C12 9.8 4 8.3 4 10.8" />
+                                    </Viewbox>
+                                    <TextBlock x:Name="GitCount" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" VerticalAlignment="Center" IsVisible="False" />
+                                </StackPanel>
+                            </Button>
                             <Button Grid.Column="1" Classes="flat tool" Click="OnNewFile" ToolTip.Tip="Novo arquivo" AutomationProperties.Name="Novo arquivo">
                                 <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.2"
                                       Data="M3 1.5H8.5L11.5 4.5V12.5H3ZM8.5 1.5V4.5H11.5M5.5 8.5H9M7.25 6.75V10.25" />
@@ -95,13 +104,15 @@
                                                     <MenuItem Header="Excluir" Click="OnTreeDelete" />
                                                 </ContextMenu>
                                             </Button.ContextMenu>
-                                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="{Binding Padding}">
+                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="{Binding Padding}">
                                                 <Path Grid.Column="0" Width="12" Margin="0,0,3,0" VerticalAlignment="Center"
                                                       Stroke="{DynamicResource Muted}" StrokeThickness="1.2" Data="{Binding Chevron}" />
                                                 <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="{Binding Weight}"
                                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                                <Ellipse Grid.Column="2" Width="6" Height="6" Margin="6,0,10,0" Fill="{DynamicResource Accent}"
+                                                <Ellipse Grid.Column="2" Width="6" Height="6" Margin="6,0,4,0" Fill="{DynamicResource Accent}"
                                                          IsVisible="{Binding IsDirty}" />
+                                                <TextBlock Grid.Column="3" Text="{Binding GitLetter}" Foreground="{Binding GitBrush}" Margin="4,0,8,0" MinWidth="8"
+                                                           FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
                                             </Grid>
                                         </Button>
                                     </DataTemplate>
@@ -168,6 +179,85 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </Grid>
+
+                    <!-- Git -->
+                    <Panel x:Name="GitView" IsVisible="False" Margin="0,2,0,0">
+                        <StackPanel x:Name="GitEmptyPanel" Spacing="10" Margin="8,16" IsVisible="False">
+                            <TextBlock Text="Esta pasta não usa Git" FontWeight="SemiBold" />
+                            <TextBlock x:Name="GitEmptyMessage" Text="O Git guarda o histórico do projeto e permite publicar no GitHub." Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                            <Button Classes="primary" Content="Iniciar repositório" Click="OnGitInitClick" />
+                            <Button Classes="secondary" Content="Voltar aos arquivos" Click="OnCloseGit" />
+                        </StackPanel>
+
+                        <Grid x:Name="GitRepoPanel" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*">
+                            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Height="28" Margin="4,0,0,0">
+                                <Button x:Name="GitBranchButton" Grid.Column="0" Classes="flat" Height="24" Padding="6,0" MaxWidth="140" FontWeight="SemiBold" FontSize="12"
+                                        Click="OnBranchClick" ToolTip.Tip="Trocar de branch" />
+                                <Button x:Name="GitPullButton" Grid.Column="2" Classes="flat" Height="24" Padding="7,0" FontSize="11" Foreground="{DynamicResource Muted}"
+                                        Content="Receber" Click="OnPullClick" ToolTip.Tip="Receber as novidades do repositório remoto" />
+                                <Button x:Name="GitPushButton" Grid.Column="3" Classes="flat" Height="24" Padding="7,0" FontSize="11" Foreground="{DynamicResource Muted}"
+                                        Content="Enviar" Click="OnPushClick" ToolTip.Tip="Enviar seus commits para o repositório remoto" />
+                                <Button Grid.Column="4" Classes="flat option" Click="OnCloseGit" AutomationProperties.Name="Fechar Git" ToolTip.Tip="Voltar aos arquivos">
+                                    <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M1 1L8 8M8 1L1 8" />
+                                </Button>
+                            </Grid>
+                            <Border Grid.Row="1" MinHeight="54" Margin="0,4,0,0" Padding="10,6" CornerRadius="10" Background="{DynamicResource Tint}">
+                                <TextBox x:Name="GitMessage" Classes="bare" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" FontSize="13"
+                                         VerticalContentAlignment="Top" PlaceholderText="O que mudou? (Ctrl Enter faz o commit)" Foreground="{DynamicResource Ink}"
+                                         AutomationProperties.Name="Mensagem do commit" />
+                            </Border>
+                            <Button Grid.Row="2" Classes="primary" Margin="0,6,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Fazer commit" Click="OnCommitClick" />
+                            <TextBlock x:Name="GitStatusLine" Grid.Row="3" Margin="8,6,8,2" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                            <StackPanel Grid.Row="4">
+                                <TextBlock x:Name="GitConflictNotice" IsVisible="False" Margin="8,2,8,6" FontSize="12" Foreground="{DynamicResource Error}" TextWrapping="Wrap"
+                                           Text="Há conflitos. Edite os arquivos com !, escolha o que fica entre as marcas e faça o commit." />
+                                <TextBlock x:Name="GitNothing" IsVisible="False" Margin="8,4" FontSize="12" Foreground="{DynamicResource Muted}" Text="Nenhuma mudança desde o último commit." />
+                            </StackPanel>
+                            <ItemsControl x:Name="GitList" Grid.Row="5" Margin="0,2,0,0">
+                                <ItemsControl.Template>
+                                    <ControlTemplate TargetType="ItemsControl">
+                                        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                            <ItemsPresenter Name="PART_ItemsPresenter" />
+                                        </ScrollViewer>
+                                    </ControlTemplate>
+                                </ItemsControl.Template>
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="s:GitRow">
+                                        <Button Classes="flat" Height="26" CornerRadius="6" HorizontalAlignment="Stretch" Click="OnGitRowClick" ToolTip.Tip="Comparar com o último commit">
+                                            <Button.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Comparar" Click="OnGitRowClick" />
+                                                    <MenuItem Header="Abrir arquivo" Click="OnGitRowOpen" />
+                                                    <Separator />
+                                                    <MenuItem Header="Descartar mudanças" Click="OnGitRowDiscard" />
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
+                                            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="4,0,4,0">
+                                                <Button Grid.Column="0" Classes="flat" Width="20" Height="20" CornerRadius="5" HorizontalContentAlignment="Center" Click="OnGitRowToggle"
+                                                        AutomationProperties.Name="Incluir no commit" ToolTip.Tip="Incluir no commit">
+                                                    <Border Width="13" Height="13" CornerRadius="3" BorderThickness="1" BorderBrush="{DynamicResource Muted}">
+                                                        <Path Stroke="{DynamicResource Accent}" StrokeThickness="1.6" Stretch="Uniform" Margin="1" IsVisible="{Binding IsIncluded}" Data="M2 6.5L5 9.5L11 3" />
+                                                    </Border>
+                                                </Button>
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="5,0,6,0" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Folder}" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                <Button Grid.Column="3" Classes="flat" Width="20" Height="20" CornerRadius="5" HorizontalContentAlignment="Center" Click="OnGitRowDiscard"
+                                                        AutomationProperties.Name="Descartar mudanças" ToolTip.Tip="Descartar mudanças">
+                                                    <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.2" Data="M1 4H7A3 3 0 0 1 7 10H3M3.5 1.5L1 4L3.5 6.5" />
+                                                </Button>
+                                                <TextBlock Grid.Column="4" Text="{Binding Letter}" Foreground="{Binding Brush}" Margin="4,0,2,0" MinWidth="8" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </Panel>
                 </Panel>
 
                 <Thumb x:Name="SidebarSplitter" Grid.Column="1" Classes="splitter" DragDelta="OnSidebarDrag" DragCompleted="OnSidebarDragDone"
@@ -208,6 +298,28 @@
                             <ae:TextEditor x:Name="CodeEditor" IsVisible="False" Background="Transparent" BorderThickness="0"
                                            Foreground="{DynamicResource Ink}" FontFamily="{DynamicResource CodeFont}" FontSize="13.5"
                                            Padding="0,8,0,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+
+                            <!-- Comparação lado a lado -->
+                            <Grid x:Name="DiffHost" IsVisible="False" RowDefinitions="Auto,*" Background="{DynamicResource Sheet}">
+                                <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Height="28" Margin="14,0,8,0">
+                                    <TextBlock x:Name="DiffTitle" Grid.Column="0" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" Classes="flat" Height="24" Padding="8,0" FontSize="12" Foreground="{DynamicResource Muted}" Content="Abrir arquivo" Click="OnDiffOpenFile" />
+                                    <Button Grid.Column="2" Classes="flat option" Click="OnCloseDiff" AutomationProperties.Name="Fechar comparação" ToolTip.Tip="Fechar (Esc)">
+                                        <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M1 1L8 8M8 1L1 8" />
+                                    </Button>
+                                </Grid>
+                                <Grid Grid.Row="1" RowDefinitions="Auto,*" ColumnDefinitions="*,1,*">
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Último commit" FontSize="11" Foreground="{DynamicResource Muted}" Margin="14,0,0,4" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Agora" FontSize="11" Foreground="{DynamicResource Muted}" Margin="14,0,0,4" />
+                                    <ae:TextEditor x:Name="DiffLeft" Grid.Row="1" Grid.Column="0" IsReadOnly="True" Background="Transparent" BorderThickness="0"
+                                                   Foreground="{DynamicResource Ink}" FontFamily="{DynamicResource CodeFont}" FontSize="13.5"
+                                                   HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+                                    <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="1" Background="{DynamicResource Tint}" />
+                                    <ae:TextEditor x:Name="DiffRight" Grid.Row="1" Grid.Column="2" IsReadOnly="True" Background="Transparent" BorderThickness="0"
+                                                   Foreground="{DynamicResource Ink}" FontFamily="{DynamicResource CodeFont}" FontSize="13.5"
+                                                   HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+                                </Grid>
+                            </Grid>
 
                             <StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
                                 <TextBlock x:Name="EmptyTitle" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" />
@@ -260,13 +372,15 @@
                                             <TextBlock x:Name="RunLabel" Text="Executar" FontSize="12" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </Button>
-                                    <StackPanel x:Name="BranchPanel" Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="10,0,0,0">
+                                    <Button x:Name="BranchPanel" Grid.Column="1" Classes="flat terminaltab" Margin="6,0,0,0" VerticalAlignment="Center" Click="OnBranchClick" ToolTip.Tip="Trocar de branch">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
                                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                             <Path Stroke="{DynamicResource CapsuleMuted}" StrokeThickness="1.4"
                                                   Data="M5.8 3.5A1.8 1.8 0 1 1 2.2 3.5A1.8 1.8 0 1 1 5.8 3.5M5.8 12.5A1.8 1.8 0 1 1 2.2 12.5A1.8 1.8 0 1 1 5.8 12.5M13.8 5A1.8 1.8 0 1 1 10.2 5A1.8 1.8 0 1 1 13.8 5M4 5.3V10.7M12 6.8C12 9.8 4 8.3 4 10.8" />
                                         </Viewbox>
                                         <TextBlock x:Name="BranchName" FontSize="12" MaxWidth="110" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource CapsuleMuted}" VerticalAlignment="Center" />
                                     </StackPanel>
+                                    </Button>
                                     <DockPanel Grid.Column="2" Margin="8,0" VerticalAlignment="Center">
                                         <Button x:Name="ProblemsButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnShowProblems" ToolTip.Tip="Ver problemas" />
                                         <Button x:Name="InstallButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnInstallServer" />

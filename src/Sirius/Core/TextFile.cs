@@ -18,18 +18,24 @@ public static class TextFile
         if (info.Length > MaxBytes)
             throw new TextFileException("Este arquivo tem mais de 50 MB e não pode ser aberto.");
 
-        var bytes = File.ReadAllBytes(path);
+        var decoded = Decode(File.ReadAllBytes(path))
+            ?? throw new TextFileException("Este arquivo é binário e não pode ser aberto como texto.");
+        return new LoadedText(decoded.Text, decoded.Encoding, info.LastWriteTimeUtc);
+    }
+
+    // Null quando o conteúdo é binário.
+    public static (string Text, Encoding Encoding)? Decode(byte[] bytes)
+    {
         var encoding = DetectBom(bytes);
         if (encoding is null)
         {
             if (LooksBinary(bytes))
-                throw new TextFileException("Este arquivo é binário e não pode ser aberto como texto.");
+                return null;
             encoding = IsValidUtf8(bytes) ? new UTF8Encoding(false) : Encoding.Latin1;
         }
 
         var skip = encoding.GetPreamble().Length;
-        var text = encoding.GetString(bytes, skip, bytes.Length - skip);
-        return new LoadedText(text, encoding, info.LastWriteTimeUtc);
+        return (encoding.GetString(bytes, skip, bytes.Length - skip), encoding);
     }
 
     public static DateTime Save(string path, string text, Encoding encoding)

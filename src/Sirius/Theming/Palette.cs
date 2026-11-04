@@ -16,6 +16,8 @@ public sealed record Palette(
     public required IBrush RunBackground { get; init; }
     public required IBrush RunInk { get; init; }
     public required IBrush Error { get; init; }
+    public required IBrush DiffAdded { get; init; }
+    public required IBrush DiffRemoved { get; init; }
     public required IBrush TerminalError { get; init; }
     public required IBrush TerminalWarning { get; init; }
 
@@ -31,6 +33,8 @@ public sealed record Palette(
         RunBackground = B("#FF5A1F"),
         RunInk = B("#16171A"),
         Error = B("#C62828"),
+        DiffAdded = B("#262F7A3B"),
+        DiffRemoved = B("#26C62828"),
         TerminalError = B("#FF6B6B"),
         TerminalWarning = B("#F5C65B"),
     };
@@ -47,6 +51,8 @@ public sealed record Palette(
         RunBackground = B("#C93500"),
         RunInk = B("#FFFFFF"),
         Error = B("#FF6B6B"),
+        DiffAdded = B("#3A9FD5A0"),
+        DiffRemoved = B("#3AFF6B6B"),
         TerminalError = B("#C62828"),
         TerminalWarning = B("#8A6100"),
     };

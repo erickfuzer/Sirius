@@ -18,7 +18,26 @@ public sealed class TempFolder : IDisposable
         return full;
     }
 
-    public void Dispose() => Directory.Delete(Path, true);
+    public void Dispose()
+    {
+        // A consulta ao Git em segundo plano pode ainda estar terminando dentro desta pasta.
+        var limit = DateTime.UtcNow.AddSeconds(10);
+        while (true)
+        {
+            try
+            {
+                // O Git grava seus objetos como somente leitura, o que impediria apagar a pasta.
+                foreach (var file in Directory.EnumerateFiles(Path, "*", SearchOption.AllDirectories))
+                    System.IO.File.SetAttributes(file, FileAttributes.Normal);
+                Directory.Delete(Path, true);
+                return;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException && DateTime.UtcNow < limit)
+            {
+                Thread.Sleep(50);
+            }
+        }
+    }
 }
 
 public class TextFileTests
@@ -362,24 +381,12 @@ public class ToolPathsTests
     [Fact]
     public void Acrescentar_as_pastas_nao_duplica_nem_perde_o_que_havia()
     {
-        var original = Environment.GetEnvironmentVariable("PATH");
-        try
-        {
-            Environment.SetEnvironmentVariable("PATH", @"C:\pasta-que-ja-estava");
+        var first = ToolPaths.WithTools(@"C:\pasta-que-ja-estava");
 
-            ToolPaths.EnsureOnPath();
-            var first = Environment.GetEnvironmentVariable("PATH")!;
-            ToolPaths.EnsureOnPath();
-
-            Assert.StartsWith(@"C:\pasta-que-ja-estava", first);
-            Assert.Equal(first, Environment.GetEnvironmentVariable("PATH"));
-            foreach (var folder in ToolPaths.Folders.Where(Directory.Exists))
-                Assert.Contains(folder, first);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("PATH", original);
-        }
+        Assert.StartsWith(@"C:\pasta-que-ja-estava", first);
+        Assert.Equal(first, ToolPaths.WithTools(first));
+        foreach (var folder in ToolPaths.Folders.Where(Directory.Exists))
+            Assert.Contains(folder, first);
     }
 }
 

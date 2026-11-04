@@ -105,6 +105,7 @@ public partial class MainWindow : Window
         InitializeTerminal();
         InitializeLanguage();
         InitializeWorkspace();
+        InitializeGit();
         CodeEditor.AddHandler(PointerWheelChangedEvent, OnEditorWheel, RoutingStrategies.Tunnel);
         ApplyEditorFontSize(_settings.EditorFontSize);
         DialogInput.AddHandler(KeyDownEvent, OnDialogInputKeyDown, RoutingStrategies.Tunnel);
@@ -160,6 +161,12 @@ public partial class MainWindow : Window
         TreeHeader.IsVisible = true;
         StopAllSessions();
         _language.SetRoot(RootFolder);
+        CloseDiff();
+        CloseGit();
+        _gitExcluded.Clear();
+        _gitBaseTexts.Clear();
+        GitState = null;
+        _ = RefreshGitAsync();
         CloseSearch();
         ClearSearchResults();
 
@@ -207,14 +214,32 @@ public partial class MainWindow : Window
             var expanded = entry.IsFolder && _expanded.Contains(entry.FullPath);
             var active = !entry.IsFolder && string.Equals(ActiveDocument?.FullPath, entry.FullPath, StringComparison.OrdinalIgnoreCase);
             var document = _documents.Find(d => string.Equals(d.FullPath, entry.FullPath, StringComparison.OrdinalIgnoreCase));
+
+            var gitLetter = "";
+            IBrush gitBrush = Brushes.Transparent;
+            if (entry.IsFolder)
+            {
+                if (_gitChangedFolders.Contains(entry.FullPath))
+                {
+                    gitLetter = "•";
+                    gitBrush = palette.Muted;
+                }
+            }
+            else if (_gitMarks.TryGetValue(entry.FullPath, out var mark))
+            {
+                gitLetter = mark.Letter;
+                gitBrush = BrushOf(mark.Kind);
+            }
+
             rows.Add(new TreeRow(
                 entry.Name, entry.FullPath, entry.IsFolder,
                 new Thickness(6 + depth * 12, 0, 0, 0),
                 entry.IsFolder ? (expanded ? ChevronOpen : ChevronClosed) : null,
                 active ? FontWeight.SemiBold : FontWeight.Normal,
                 active ? palette.Tint : Brushes.Transparent,
-                entry.IsFolder ? palette.Muted : palette.Ink,
-                document?.IsDirty ?? false));
+                entry.IsFolder ? palette.Muted : gitLetter.Length > 0 ? gitBrush : palette.Ink,
+                document?.IsDirty ?? false,
+                gitLetter, gitBrush));
             if (expanded)
                 AddTreeLevel(entry.FullPath, depth + 1, rows);
         }
@@ -454,7 +479,7 @@ public partial class MainWindow : Window
 
     private void OnSidebarDragDone(object? sender, VectorEventArgs e)
     {
-        if (!IsSearchOpen)
+        if (!IsWidePanelOpen)
         {
             _settings.SidebarWidth = Sidebar.Width;
             _settings.Save(_settingsPath);
@@ -465,7 +490,7 @@ public partial class MainWindow : Window
     {
         var limit = Math.Max(SidebarMinWidth, Math.Min(SidebarMaxWidth, Bounds.Width - EditorMinWidth));
         Sidebar.Width = Math.Clamp(Sidebar.Width + delta, SidebarMinWidth, limit);
-        if (IsSearchOpen)
+        if (IsWidePanelOpen)
             _searchWidth = Sidebar.Width;
     }
 
@@ -526,6 +551,8 @@ public partial class MainWindow : Window
         document.Document.Changed += (_, _) =>
         {
             _language.DocumentChanged(document);
+            if (ActiveDocument == document)
+                ScheduleGitMarks();
             if (ActiveDocument == document && document.Highlighter is not null && !_redrawDelay.IsEnabled)
                 _redrawDelay.Start();
         };
@@ -536,6 +563,7 @@ public partial class MainWindow : Window
     private void Activate(OpenDocument? document)
     {
         CloseCompletion();
+        DiffHost.IsVisible = false;
         if (ActiveDocument is not null)
         {
             ActiveDocument.CaretOffset = CodeEditor.TextArea.Caret.Offset;
@@ -563,6 +591,8 @@ public partial class MainWindow : Window
         UpdateCaretPosition();
         UpdateServerHint();
         SaveSession();
+        _gutter.SetLineMarks(null);
+        _ = UpdateGitMarksAsync();
     }
 
     private void ExpandTo(string? path)
@@ -709,6 +739,20 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.Key == Key.Escape && IsDiffOpen && !TerminalHost.IsFocused)
+        {
+            e.Handled = true;
+            CloseDiff();
+            return;
+        }
+
+        if (e.Key == Key.Escape && IsGitOpen && GitMessage.IsFocused)
+        {
+            e.Handled = true;
+            CloseGit();
+            return;
+        }
+
         if (e.Key == Key.F5)
         {
             e.Handled = true;
@@ -769,6 +813,10 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 ToggleTerminal();
                 break;
+            case Key.G when e.KeyModifiers.HasFlag(KeyModifiers.Shift) && RootFolder is not null:
+                e.Handled = true;
+                OpenGit();
+                break;
             case Key.F when e.KeyModifiers.HasFlag(KeyModifiers.Shift) && RootFolder is not null:
                 e.Handled = true;
                 OpenSearch();
@@ -810,6 +858,7 @@ public partial class MainWindow : Window
 
     public void OpenPalette()
     {
+        _paletteOverride = null;
         PaletteOverlay.IsVisible = true;
         PaletteInput.Text = "";
         _paletteIndex = 0;
@@ -828,6 +877,9 @@ public partial class MainWindow : Window
 
     private List<(string Name, string Hint, Action Run)> AllCommands(string query)
     {
+        if (_paletteOverride is { } overrides)
+            return overrides.Where(item => item.Name.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+
         var commands = new List<(string Name, string Hint, Action Run)>();
         var matches = _projectFiles
             .Select(path => (Path: path, Name: Path.GetFileName(path)))
@@ -847,6 +899,13 @@ public partial class MainWindow : Window
         if (RootFolder is not null)
         {
             actions.Insert(0, ("Buscar no projeto", "Ctrl Shift F", OpenSearch));
+            actions.Add(("Abrir Git", "Ctrl Shift G", OpenGit));
+            if (GitState is not null)
+            {
+                actions.Add(("Enviar commits", "git push", () => _ = PushAsync()));
+                actions.Add(("Receber novidades", "git pull", () => _ = PullAsync()));
+                actions.Add(("Trocar de branch", "", () => _ = OpenBranchPickerAsync()));
+            }
             actions.Add(("Novo arquivo", "", () => _ = CreateFileAsync(DefaultTargetFolder())));
             actions.Add(("Nova pasta", "", () => _ = CreateFolderAsync(DefaultTargetFolder())));
             actions.Insert(0, (IsTaskRunning ? "Parar execução" : "Executar projeto", "F5", () => _ = RunOrStopAsync()));
@@ -928,12 +987,13 @@ public partial class MainWindow : Window
     {
         var seed = CodeEditor.IsVisible ? CodeEditor.SelectedText : "";
         SetSidebarVisible(true);
-        if (!IsSearchOpen)
+        if (!IsWidePanelOpen)
         {
             _settings.SidebarWidth = Sidebar.Width;
             Sidebar.Width = Math.Max(_searchWidth, SearchMinWidth);
         }
         TreeView.IsVisible = false;
+        GitView.IsVisible = false;
         SearchView.IsVisible = true;
         if (seed.Length > 0 && !seed.Contains('\n') && !seed.Contains('\r'))
             SearchInput.Text = seed;
@@ -948,9 +1008,11 @@ public partial class MainWindow : Window
     {
         _searchDelay?.Stop();
         if (IsSearchOpen)
+        {
             Sidebar.Width = _settings.SidebarWidth;
-        SearchView.IsVisible = false;
-        TreeView.IsVisible = true;
+            SearchView.IsVisible = false;
+            TreeView.IsVisible = true;
+        }
         if (ActiveDocument is not null)
             CodeEditor.TextArea.Focus();
     }
@@ -1172,6 +1234,7 @@ public partial class MainWindow : Window
         CodeEditor.TextArea.Caret.CaretBrush = palette.Accent;
         TerminalHost.ApplyScheme(TerminalScheme.For(palette));
         RefreshProblems();
+        RefreshGitRows();
 
         RefreshTabs();
         RefreshTree();
@@ -1248,6 +1311,10 @@ public partial class MainWindow : Window
 
     private void ShowDialog(string title, string body, string primary, string? secondary)
     {
+        // Só cabe uma pergunta por vez. A anterior conta como cancelada, a resposta segura,
+        // senão quem esperava por ela ficaria parado para sempre.
+        _dialog?.TrySetResult(DialogChoice.Cancel);
+
         DialogTitle.Text = title;
         DialogBody.Text = body;
         DialogPrimary.Content = primary;

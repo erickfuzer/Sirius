@@ -50,6 +50,7 @@ public partial class MainWindow
 
         // O editor encolhe para o terminal não esconder o código.
         CodeEditor.Margin = _terminalOpen ? new Thickness(0, 0, 0, height + CapsuleGap) : default;
+        DiffHost.Margin = _terminalOpen ? new Thickness(0, 0, 0, height + CapsuleGap) : new Thickness(0, 0, 0, CapsuleClosedHeight + CapsuleGap);
 
         // O terminal já nasce no tamanho final, e a animação só o revela. Assim os
         // programas não recebem um novo tamanho a cada quadro.
