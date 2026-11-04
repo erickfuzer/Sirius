@@ -7,9 +7,12 @@ namespace Sirius.Editing;
 // Um arquivo aberto em uma aba, com o histórico de desfazer e a posição de leitura.
 public sealed class OpenDocument
 {
-    private OpenDocument(string path, LoadedText loaded)
+    private DateTime? _acknowledgedWriteUtc;
+
+    private OpenDocument(string path, LoadedText loaded, bool untitled)
     {
         FullPath = path;
+        IsUntitled = untitled;
         Encoding = loaded.Encoding;
         LastWriteUtc = loaded.LastWriteUtc;
         Document = new TextDocument(loaded.Text);
@@ -20,17 +23,29 @@ public sealed class OpenDocument
     public SyntaxHighlighter? Highlighter { get; private set; }
     public string FullPath { get; private set; }
     public string Name => Path.GetFileName(FullPath);
-    public Encoding Encoding { get; }
+    public bool IsUntitled { get; private set; }
+    public Encoding Encoding { get; private set; }
     public TextDocument Document { get; }
     public DateTime LastWriteUtc { get; private set; }
     public int CaretOffset { get; set; }
     public double VerticalOffset { get; set; }
     public bool IsDirty => !Document.UndoStack.IsOriginalFile;
+    public bool MissingReported { get; set; }
 
     public bool ChangedOnDisk =>
-        File.Exists(FullPath) && File.GetLastWriteTimeUtc(FullPath) != LastWriteUtc;
+        !IsUntitled && File.Exists(FullPath) && File.GetLastWriteTimeUtc(FullPath) != LastWriteUtc;
 
-    public static OpenDocument Load(string path) => new(path, TextFile.Load(path));
+    public bool MissingOnDisk => !IsUntitled && !File.Exists(FullPath);
+
+    // Mudou no disco e a pessoa ainda não decidiu o que fazer com esta versão.
+    public bool NeedsDiskAttention =>
+        ChangedOnDisk && File.GetLastWriteTimeUtc(FullPath) != _acknowledgedWriteUtc;
+
+    public static OpenDocument Load(string path) => new(path, TextFile.Load(path), false);
+
+    // Uma aba nova. O caminho é só um nome provisório até a pessoa salvar.
+    public static OpenDocument CreateUntitled(string folder, string name) =>
+        new(Path.Combine(folder, name), new LoadedText("", new UTF8Encoding(false), default), true);
 
     // O arquivo mudou de nome ou de pasta. Uma extensão nova pode trazer outra linguagem.
     public void MoveTo(string path)
@@ -48,5 +63,45 @@ public sealed class OpenDocument
     {
         LastWriteUtc = TextFile.Save(FullPath, Document.Text, Encoding);
         Document.UndoStack.MarkAsOriginalFile();
+    }
+
+    // Grava em outro lugar e passa a apontar para ele. Se a gravação falhar, nada muda.
+    public void SaveTo(string path)
+    {
+        LastWriteUtc = TextFile.Save(path, Document.Text, Encoding);
+        IsUntitled = false;
+        MoveTo(path);
+        Document.UndoStack.MarkAsOriginalFile();
+    }
+
+    public void AcknowledgeDiskVersion() => _acknowledgedWriteUtc = File.GetLastWriteTimeUtc(FullPath);
+
+    public void ReloadFromDisk()
+    {
+        var loaded = TextFile.Load(FullPath);
+        SetTextKeepingPosition(loaded.Text);
+        Encoding = loaded.Encoding;
+        LastWriteUtc = loaded.LastWriteUtc;
+        Document.UndoStack.MarkAsOriginalFile();
+    }
+
+    // Troca só o trecho que mudou, para o cursor e a rolagem continuarem onde estavam.
+    public void SetTextKeepingPosition(string text)
+    {
+        var current = Document.Text;
+        if (current == text)
+            return;
+
+        var prefix = 0;
+        var limit = Math.Min(current.Length, text.Length);
+        while (prefix < limit && current[prefix] == text[prefix])
+            prefix++;
+
+        var suffix = 0;
+        limit -= prefix;
+        while (suffix < limit && current[current.Length - 1 - suffix] == text[text.Length - 1 - suffix])
+            suffix++;
+
+        Document.Replace(prefix, current.Length - prefix - suffix, text.Substring(prefix, text.Length - prefix - suffix));
     }
 }

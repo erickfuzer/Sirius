@@ -2,6 +2,19 @@ using System.Text.Json;
 
 namespace Sirius.Core;
 
+public sealed class SessionFile
+{
+    public string Path { get; set; } = "";
+    public int CaretOffset { get; set; }
+    public double VerticalOffset { get; set; }
+}
+
+public sealed class SessionState
+{
+    public List<SessionFile> Files { get; set; } = new();
+    public string? ActivePath { get; set; }
+}
+
 public sealed class AppSettings
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
@@ -14,6 +27,9 @@ public sealed class AppSettings
     // Comando de execução escolhido para cada pasta, guardado aqui e não no projeto:
     // abrir um repositório de terceiros nunca define o que o botão Executar faz.
     public Dictionary<string, string> RunCommands { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    // As abas de cada pasta, para reabrir na próxima vez. A chave é o caminho em minúsculas.
+    public Dictionary<string, SessionState> Sessions { get; set; } = new();
 
     public static string DefaultPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Sirius", "settings.json");

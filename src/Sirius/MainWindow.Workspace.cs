@@ -1,0 +1,402 @@
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
+using Avalonia.Threading;
+using Sirius.Core;
+using Sirius.Editing;
+
+namespace Sirius;
+
+// O dia a dia: vigiar o disco, reabrir as abas, aba sem nome e substituir no projeto.
+public partial class MainWindow
+{
+    private const int MaxReloadRetries = 10;
+
+    private FileSystemWatcher? _watcher;
+    private DispatcherTimer? _diskDelay;
+    private bool _treeChangedOnDisk;
+    private bool _checkingDisk;
+    private bool _sessionFrozen;
+    private bool _restoringSession;
+    private int _reloadRetries;
+    private int _nextUntitled = 1;
+
+    // Guardado na thread da interface: as threads de fundo nunca devem chamar Dispatcher.UIThread.
+    private readonly Dispatcher _uiDispatcher = Dispatcher.UIThread;
+
+    // Os testes respondem sem abrir a janela de escolher arquivo.
+    public Func<string, Task<string?>> PickSavePath { get; set; }
+
+    private void InitializeWorkspace()
+    {
+        PickSavePath = PickSavePathAsync;
+        _diskDelay = new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Normal, (_, _) => OnDiskDelayElapsed());
+        Activated += (_, _) => _ = CheckOpenDocumentsAsync();
+        ReplaceInput.AddHandler(KeyDownEvent, OnReplaceKeyDown, RoutingStrategies.Tunnel);
+    }
+
+    // Vigiar o disco
+
+    private void StartWatching(string root)
+    {
+        StopWatching();
+        try
+        {
+            var watcher = new FileSystemWatcher(root)
+            {
+                IncludeSubdirectories = true,
+                InternalBufferSize = 64 * 1024,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size,
+            };
+            watcher.Created += (_, e) => OnDiskEvent(root, e.FullPath, true);
+            watcher.Deleted += (_, e) => OnDiskEvent(root, e.FullPath, true);
+            watcher.Renamed += (_, e) => OnDiskEvent(root, e.FullPath, true);
+            watcher.Changed += (_, e) => OnDiskEvent(root, e.FullPath, false);
+            // Quando muita coisa muda de uma vez, o Windows descarta avisos: relemos tudo.
+            watcher.Error += (_, _) => OnDiskEvent(root, root, true);
+            watcher.EnableRaisingEvents = true;
+            _watcher = watcher;
+        }
+        catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            // Sem vigilância a IDE continua funcionando; a árvore só não se atualiza sozinha.
+            _watcher = null;
+        }
+    }
+
+    private void StopWatching()
+    {
+        _watcher?.Dispose();
+        _watcher = null;
+    }
+
+    // Chega numa thread de fundo.
+    private void OnDiskEvent(string root, string path, bool structural)
+    {
+        if (ProjectTree.IsIgnored(root, path))
+            return;
+
+        _uiDispatcher.Post(() =>
+        {
+            if (RootFolder != root)
+                return;
+            _treeChangedOnDisk |= structural;
+            if (_diskDelay is { IsEnabled: false })
+                _diskDelay.Start();
+        });
+    }
+
+    private void OnDiskDelayElapsed()
+    {
+        _diskDelay!.Stop();
+        if (_treeChangedOnDisk)
+        {
+            _treeChangedOnDisk = false;
+            RefreshTree();
+            ReindexProject();
+        }
+        _ = CheckOpenDocumentsAsync();
+    }
+
+    public async Task CheckOpenDocumentsAsync()
+    {
+        if (_checkingDisk || IsDialogOpen)
+            return;
+
+        _checkingDisk = true;
+        try
+        {
+            foreach (var document in _documents.ToList())
+            {
+                if (!_documents.Contains(document))
+                    continue;
+
+                if (document.MissingOnDisk)
+                {
+                    if (!document.MissingReported)
+                    {
+                        document.MissingReported = true;
+                        ShowStatus($"{document.Name} não existe mais no disco. Salve para recriar.");
+                    }
+                    continue;
+                }
+                document.MissingReported = false;
+
+                if (!document.NeedsDiskAttention)
+                    continue;
+
+                if (document.IsDirty)
+                {
+                    var choice = await AskAsync($"{document.Name} mudou no disco",
+                        "Outro programa alterou este arquivo, e você tem alterações não salvas aqui.",
+                        "Usar a versão do disco", "Manter as minhas");
+                    if (choice != DialogChoice.Primary)
+                    {
+                        document.AcknowledgeDiskVersion();
+                        continue;
+                    }
+                }
+                Reload(document);
+            }
+        }
+        finally
+        {
+            _checkingDisk = false;
+        }
+    }
+
+    private void Reload(OpenDocument document)
+    {
+        try
+        {
+            document.ReloadFromDisk();
+            _reloadRetries = 0;
+            RefreshTabs();
+            RefreshTree();
+            ShowStatus($"{document.Name} foi atualizado do disco");
+        }
+        catch (TextFileException e)
+        {
+            document.AcknowledgeDiskVersion();
+            ShowStatus(e.Message);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // O outro programa ainda está gravando: tentamos de novo daqui a pouco.
+            if (++_reloadRetries <= MaxReloadRetries)
+                _diskDelay?.Start();
+        }
+    }
+
+    // Reabrir as abas
+
+    private static string SessionKey(string root) => root.ToLowerInvariant();
+
+    private void SaveSession()
+    {
+        if (RootFolder is null || _sessionFrozen || _restoringSession)
+            return;
+
+        if (ActiveDocument is { } active)
+        {
+            active.CaretOffset = CodeEditor.TextArea.Caret.Offset;
+            active.VerticalOffset = CodeEditor.VerticalOffset;
+        }
+
+        var key = SessionKey(RootFolder);
+        var files = _documents.Where(document => !document.IsUntitled).ToList();
+        if (files.Count == 0)
+        {
+            _settings.Sessions.Remove(key);
+        }
+        else
+        {
+            _settings.Sessions[key] = new SessionState
+            {
+                ActivePath = ActiveDocument is { IsUntitled: false } current ? current.FullPath : null,
+                Files = files.Select(document => new SessionFile
+                {
+                    Path = document.FullPath,
+                    CaretOffset = document.CaretOffset,
+                    VerticalOffset = document.VerticalOffset,
+                }).ToList(),
+            };
+        }
+        _settings.Save(_settingsPath);
+    }
+
+    private void RestoreSession()
+    {
+        if (RootFolder is null || !_settings.Sessions.TryGetValue(SessionKey(RootFolder), out var session))
+            return;
+
+        _restoringSession = true;
+        try
+        {
+            foreach (var file in session.Files.Where(file => File.Exists(file.Path)))
+                OpenFile(file.Path);
+
+            foreach (var file in session.Files)
+            {
+                if (_documents.Find(document => string.Equals(document.FullPath, file.Path, StringComparison.OrdinalIgnoreCase)) is { } document)
+                {
+                    document.CaretOffset = file.CaretOffset;
+                    document.VerticalOffset = file.VerticalOffset;
+                }
+            }
+
+            // Sem documento ativo, a troca não grava por cima da posição que acabamos de restaurar.
+            var target = _documents.Find(document => string.Equals(document.FullPath, session.ActivePath, StringComparison.OrdinalIgnoreCase))
+                ?? _documents.LastOrDefault();
+            ActiveDocument = null;
+            if (target is not null)
+            {
+                Activate(target);
+                var vertical = target.VerticalOffset;
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (ActiveDocument == target)
+                        CodeEditor.ScrollToVerticalOffset(vertical);
+                }, DispatcherPriority.Loaded);
+            }
+        }
+        finally
+        {
+            _restoringSession = false;
+        }
+    }
+
+    // Aba sem nome, Salvar como e Salvar tudo
+
+    public void NewUntitled()
+    {
+        var folder = RootFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var document = OpenDocument.CreateUntitled(folder, $"Sem título {_nextUntitled++}");
+        Register(document);
+        Activate(document);
+    }
+
+    private async Task<string?> PickSavePathAsync(string suggested)
+    {
+        var start = await StorageProvider.TryGetFolderFromPathAsync(Path.GetDirectoryName(suggested)!);
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Salvar como",
+            SuggestedFileName = Path.GetFileName(suggested),
+            SuggestedStartLocation = start,
+        });
+        return file?.TryGetLocalPath();
+    }
+
+    public async Task<bool> SaveAsAsync(OpenDocument document)
+    {
+        var path = await PickSavePath(document.FullPath);
+        if (path is null)
+            return false;
+
+        var full = Path.GetFullPath(path);
+        if (_documents.Any(other => other != document && string.Equals(other.FullPath, full, StringComparison.OrdinalIgnoreCase)))
+        {
+            ShowStatus("Este arquivo já está aberto em outra aba. Feche-a antes.");
+            return false;
+        }
+
+        var oldPath = document.FullPath;
+        try
+        {
+            document.SaveTo(full);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            ShowStatus("Não foi possível salvar este arquivo.");
+            return false;
+        }
+
+        _language.DocumentMoved(document, oldPath);
+        if (ActiveDocument == document)
+        {
+            _colorizer.Highlighter = document.Highlighter;
+            Breadcrumb.Text = RootFolder is null ? "" : BreadcrumbFor(full);
+            CodeEditor.TextArea.TextView.Redraw();
+        }
+        UpdateServerHint();
+        ReindexProject();
+        RefreshTabs();
+        RefreshTree();
+        SaveSession();
+        ShowStatus("Salvo");
+        return true;
+    }
+
+    public async Task<bool> SaveAllAsync()
+    {
+        foreach (var document in _documents.Where(d => d.IsDirty).ToList())
+        {
+            if (!await SaveAsync(document))
+                return false;
+        }
+        return true;
+    }
+
+    // Substituir no projeto
+
+    private void OnReplaceClick(object? sender, RoutedEventArgs e) => _ = ReplaceAllAsync(ReplaceInput.Text ?? "");
+
+    private void OnReplaceKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            _ = ReplaceAllAsync(ReplaceInput.Text ?? "");
+        }
+    }
+
+    public async Task ReplaceAllAsync(string replacement)
+    {
+        var text = SearchInput.Text ?? "";
+        if (text.Length == 0 || RootFolder is not { } root)
+            return;
+
+        _searchDelay.Stop();
+        _searchCancel?.Cancel();
+        SearchStatus.Text = "Calculando…";
+
+        var query = new SearchQuery(text, _matchCase, _useRegex);
+        var open = _documents.Where(d => !d.IsUntitled)
+            .ToDictionary(d => d.FullPath, d => d.Document.Text, StringComparer.OrdinalIgnoreCase);
+        var plan = await Task.Run(() => ProjectReplace.Plan(ProjectTree.FindFiles(root), query, replacement, open, CancellationToken.None));
+
+        if (plan.InvalidQuery)
+        {
+            SearchStatus.Text = "Expressão regular inválida.";
+            return;
+        }
+        if (plan.Items.Count == 0)
+        {
+            SearchStatus.Text = "Nada encontrado.";
+            return;
+        }
+
+        var occurrences = plan.Total == 1 ? "1 ocorrência" : $"{plan.Total} ocorrências";
+        var files = plan.Items.Count == 1 ? "1 arquivo" : $"{plan.Items.Count} arquivos";
+        SearchStatus.Text = $"{occurrences} em {files}";
+        var closed = plan.Items.Count(item => item.Encoding is not null);
+        var body = closed == 0
+            ? "As alterações ficam nas abas abertas, sem salvar, e dá para desfazer com Ctrl Z."
+            : $"{(closed == 1 ? "1 arquivo fechado será gravado" : $"{closed} arquivos fechados serão gravados")} direto no disco, sem como desfazer pelo Ctrl Z. As abas abertas ficam alteradas, sem salvar.";
+
+        var choice = await AskAsync($"Substituir {occurrences} em {files}?", body, "Substituir", null);
+        if (choice != DialogChoice.Primary)
+        {
+            await RunSearchAsync();
+            return;
+        }
+
+        var failed = 0;
+        foreach (var item in plan.Items)
+        {
+            if (item.Encoding is null)
+            {
+                _documents.Find(d => string.Equals(d.FullPath, item.FullPath, StringComparison.OrdinalIgnoreCase))?.SetTextKeepingPosition(item.NewText);
+                continue;
+            }
+
+            try
+            {
+                TextFile.Save(item.FullPath, item.NewText, item.Encoding);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                failed++;
+            }
+        }
+
+        RefreshTabs();
+        RefreshTree();
+        await RunSearchAsync();
+        SearchStatus.Text = failed == 0
+            ? $"Substituídas {occurrences} em {files}."
+            : $"Substituídas em {plan.Items.Count - failed} de {plan.Items.Count} arquivos. {failed} não puderam ser gravados.";
+    }
+}

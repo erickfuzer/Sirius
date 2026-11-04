@@ -111,7 +111,7 @@
                     </Grid>
 
                     <!-- Busca no projeto -->
-                    <Grid x:Name="SearchView" IsVisible="False" RowDefinitions="Auto,Auto,*" Margin="0,2,0,0">
+                    <Grid x:Name="SearchView" IsVisible="False" RowDefinitions="Auto,Auto,Auto,*" Margin="0,2,0,0">
                         <Border Grid.Row="0" Height="30" CornerRadius="15" Background="{DynamicResource Tint}">
                             <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="12,0,4,0">
                                 <TextBox x:Name="SearchInput" Grid.Column="0" Classes="bare" PlaceholderText="Buscar no projeto" FontSize="13"
@@ -125,8 +125,16 @@
                                 </Button>
                             </Grid>
                         </Border>
-                        <TextBlock x:Name="SearchStatus" Grid.Row="1" Margin="8,8,8,4" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
-                        <ItemsControl x:Name="SearchList" Grid.Row="2">
+                        <Border Grid.Row="1" Height="30" Margin="0,4,0,0" CornerRadius="15" Background="{DynamicResource Tint}">
+                            <Grid ColumnDefinitions="*,Auto" Margin="12,0,4,0">
+                                <TextBox x:Name="ReplaceInput" Grid.Column="0" Classes="bare" PlaceholderText="Substituir por" FontSize="13"
+                                         Foreground="{DynamicResource Ink}" AutomationProperties.Name="Substituir por" />
+                                <Button Grid.Column="1" Classes="flat" Height="22" CornerRadius="11" Padding="9,0" FontSize="11" FontWeight="Medium"
+                                        Foreground="{DynamicResource Muted}" Content="Substituir tudo" Click="OnReplaceClick" />
+                            </Grid>
+                        </Border>
+                        <TextBlock x:Name="SearchStatus" Grid.Row="2" Margin="8,8,8,4" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                        <ItemsControl x:Name="SearchList" Grid.Row="3">
                             <ItemsControl.Template>
                                 <ControlTemplate TargetType="ItemsControl">
                                     <ScrollViewer HorizontalScrollBarVisibility="Disabled">

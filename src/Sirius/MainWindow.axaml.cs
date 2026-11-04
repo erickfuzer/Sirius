@@ -104,6 +104,7 @@ public partial class MainWindow : Window
 
         InitializeTerminal();
         InitializeLanguage();
+        InitializeWorkspace();
         CodeEditor.AddHandler(PointerWheelChangedEvent, OnEditorWheel, RoutingStrategies.Tunnel);
         ApplyEditorFontSize(_settings.EditorFontSize);
         DialogInput.AddHandler(KeyDownEvent, OnDialogInputKeyDown, RoutingStrategies.Tunnel);
@@ -149,6 +150,7 @@ public partial class MainWindow : Window
 
     public void OpenFolder(string folder)
     {
+        SaveSession();
         RootFolder = Path.GetFullPath(folder);
         _settings.LastFolder = RootFolder;
         _settings.Save(_settingsPath);
@@ -170,6 +172,8 @@ public partial class MainWindow : Window
         UpdateEmptyState();
 
         ReindexProject();
+        StartWatching(RootFolder);
+        RestoreSession();
     }
 
     private void ReindexProject()
@@ -183,12 +187,19 @@ public partial class MainWindow : Window
 
     private void RefreshTree()
     {
-        _treeRows.Clear();
+        var rows = new List<TreeRow>();
         if (RootFolder is not null)
-            AddTreeLevel(RootFolder, 0);
+            AddTreeLevel(RootFolder, 0, rows);
+
+        // Sem mudanças, a lista fica intacta: não pisca nem fecha um menu aberto.
+        if (rows.SequenceEqual(_treeRows))
+            return;
+        _treeRows.Clear();
+        foreach (var row in rows)
+            _treeRows.Add(row);
     }
 
-    private void AddTreeLevel(string folder, int depth)
+    private void AddTreeLevel(string folder, int depth, List<TreeRow> rows)
     {
         var palette = Palette.Current;
         foreach (var entry in ProjectTree.List(folder))
@@ -196,7 +207,7 @@ public partial class MainWindow : Window
             var expanded = entry.IsFolder && _expanded.Contains(entry.FullPath);
             var active = !entry.IsFolder && string.Equals(ActiveDocument?.FullPath, entry.FullPath, StringComparison.OrdinalIgnoreCase);
             var document = _documents.Find(d => string.Equals(d.FullPath, entry.FullPath, StringComparison.OrdinalIgnoreCase));
-            _treeRows.Add(new TreeRow(
+            rows.Add(new TreeRow(
                 entry.Name, entry.FullPath, entry.IsFolder,
                 new Thickness(6 + depth * 12, 0, 0, 0),
                 entry.IsFolder ? (expanded ? ChevronOpen : ChevronClosed) : null,
@@ -205,7 +216,7 @@ public partial class MainWindow : Window
                 entry.IsFolder ? palette.Muted : palette.Ink,
                 document?.IsDirty ?? false));
             if (expanded)
-                AddTreeLevel(entry.FullPath, depth + 1);
+                AddTreeLevel(entry.FullPath, depth + 1, rows);
         }
     }
 
@@ -434,6 +445,7 @@ public partial class MainWindow : Window
             ActiveDocument = null;
             Activate(_documents.Count == 0 ? null : _documents[Math.Min(index, _documents.Count - 1)]);
         }
+        SaveSession();
     }
 
     // Barra lateral
@@ -470,9 +482,20 @@ public partial class MainWindow : Window
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Abrir pasta", AllowMultiple = false });
         var path = folders.FirstOrDefault()?.TryGetLocalPath();
-        if (path is null || !await ConfirmStopTaskAsync() || !await CloseAllAsync())
+        if (path is null || !await ConfirmStopTaskAsync())
             return;
-        OpenFolder(path);
+
+        // Fechar as abas aqui é por causa da troca de pasta: a sessão da pasta atual continua valendo.
+        SaveSession();
+        _sessionFrozen = true;
+        var closed = await CloseAllAsync();
+        _sessionFrozen = false;
+        if (closed)
+        {
+            _sessionFrozen = true;
+            OpenFolder(path);
+            _sessionFrozen = false;
+        }
     }
 
     // Arquivos e abas
@@ -492,18 +515,22 @@ public partial class MainWindow : Window
                 ShowStatus(e is TextFileException ? e.Message : "Não foi possível abrir este arquivo.");
                 return;
             }
-            var opened = document;
-            opened.Document.UndoStack.PropertyChanged += (_, _) => OnDirtyMaybeChanged();
-            opened.Document.Changed += (_, _) =>
-            {
-                _language.DocumentChanged(opened);
-                if (ActiveDocument == opened && opened.Highlighter is not null && !_redrawDelay.IsEnabled)
-                    _redrawDelay.Start();
-            };
-            _documents.Add(opened);
-            _language.DocumentOpened(opened);
+            Register(document);
         }
         Activate(document);
+    }
+
+    private void Register(OpenDocument document)
+    {
+        document.Document.UndoStack.PropertyChanged += (_, _) => OnDirtyMaybeChanged();
+        document.Document.Changed += (_, _) =>
+        {
+            _language.DocumentChanged(document);
+            if (ActiveDocument == document && document.Highlighter is not null && !_redrawDelay.IsEnabled)
+                _redrawDelay.Start();
+        };
+        _documents.Add(document);
+        _language.DocumentOpened(document);
     }
 
     private void Activate(OpenDocument? document)
@@ -535,6 +562,7 @@ public partial class MainWindow : Window
         UpdateEmptyState();
         UpdateCaretPosition();
         UpdateServerHint();
+        SaveSession();
     }
 
     private void ExpandTo(string? path)
@@ -626,6 +654,9 @@ public partial class MainWindow : Window
 
     public async Task<bool> SaveAsync(OpenDocument document)
     {
+        if (document.IsUntitled)
+            return await SaveAsAsync(document);
+
         if (document.ChangedOnDisk)
         {
             var choice = await AskAsync($"{document.Name} mudou no disco", "Outro programa alterou este arquivo depois que você o abriu. Salvar agora substitui essa versão.", "Substituir", null);
@@ -712,7 +743,7 @@ public partial class MainWindow : Window
             return;
 
         // No terminal, estas combinações pertencem ao programa que está rodando.
-        if (TerminalHost.IsFocused && e.Key is Key.S or Key.O or Key.W or Key.OemPeriod
+        if (TerminalHost.IsFocused && e.Key is Key.S or Key.O or Key.W or Key.N or Key.OemPeriod
             or Key.OemPlus or Key.Add or Key.OemMinus or Key.Subtract or Key.D0 or Key.NumPad0)
             return;
 
@@ -745,6 +776,14 @@ public partial class MainWindow : Window
             case Key.K:
                 e.Handled = true;
                 OpenPalette();
+                break;
+            case Key.N:
+                e.Handled = true;
+                NewUntitled();
+                break;
+            case Key.S when ActiveDocument is not null && e.KeyModifiers.HasFlag(KeyModifiers.Shift):
+                e.Handled = true;
+                await SaveAsAsync(ActiveDocument);
                 break;
             case Key.S when ActiveDocument is not null:
                 e.Handled = true;
@@ -814,14 +853,18 @@ public partial class MainWindow : Window
             actions.Add(("Definir comando de execução", RunCommandForProject() ?? "", () => _ = AskAndSaveRunCommandAsync()));
         }
         actions.Add((_terminalOpen ? "Fechar terminal" : "Abrir terminal", "Ctrl J", ToggleTerminal));
+        actions.Add(("Nova aba", "Ctrl N", NewUntitled));
         if (ActiveDocument is { } active)
         {
             actions.Insert(0, ("Salvar arquivo", "Ctrl S", () => _ = SaveAsync(active)));
+            actions.Add(("Salvar como", "Ctrl Shift S", () => _ = SaveAsAsync(active)));
+            actions.Add(("Salvar tudo", "", () => _ = SaveAllAsync()));
             actions.Add(("Ir para a definição", "F12", () => _ = GoToDefinitionAsync()));
             actions.Add(("Renomear símbolo", "F2 no editor", () => _ = RenameSymbolAsync()));
             actions.Add(("Mostrar sugestões", "Ctrl Espaço", () => _ = RequestCompletionAsync()));
             actions.Add(("Mostrar problemas", "", ShowProblems));
-            actions.Add(("Renomear arquivo", "F2 na lista", () => _ = RenameAsync(active.FullPath)));
+            if (!active.IsUntitled)
+                actions.Add(("Renomear arquivo", "F2 na lista", () => _ = RenameAsync(active.FullPath)));
             actions.Add(("Aumentar fonte do editor", "Ctrl +", () => SetEditorFontSize(EditorFontSize + 1)));
             actions.Add(("Diminuir fonte do editor", "Ctrl -", () => SetEditorFontSize(EditorFontSize - 1)));
             actions.Add(("Tamanho padrão da fonte", "Ctrl 0", () => SetEditorFontSize(EditorDefaultFontSize)));
@@ -1272,10 +1315,18 @@ public partial class MainWindow : Window
             return;
 
         e.Cancel = true;
+
+        // As abas fecham por causa da saída, mas devem voltar na próxima vez.
+        SaveSession();
+        _sessionFrozen = true;
         if (await ConfirmStopTaskAsync() && await CloseAllAsync())
         {
             _allowClose = true;
             Close();
+        }
+        else
+        {
+            _sessionFrozen = false;
         }
     }
 

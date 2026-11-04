@@ -397,6 +397,7 @@ public class ConPtySessionTests
         using var session = ConPtySession.Start(RunDetector.WrapForShell(command), folder ?? Path.GetTempPath(), 80, 24);
         session.Output += text => { lock (output) output.Append(text); };
         session.Exited += exit => { code = exit; done.Set(); };
+        session.Begin();
         act?.Invoke(session);
         Assert.True(done.Wait(TimeSpan.FromSeconds(30)), "O programa não terminou.");
         lock (output)
@@ -409,6 +410,24 @@ public class ConPtySessionTests
         var (output, code) = Run("echo sirius-funciona");
         Assert.Contains("sirius-funciona", output);
         Assert.Equal(0, code);
+    }
+
+    [Fact]
+    public void Programa_rapido_nao_perde_a_saida_mesmo_inscrevendo_depois()
+    {
+        var output = new System.Text.StringBuilder();
+        using var done = new ManualResetEventSlim();
+        using var session = ConPtySession.Start(RunDetector.WrapForShell("echo rapido"), Path.GetTempPath(), 80, 24);
+
+        // Dá tempo de o programa terminar antes de alguém estar ouvindo.
+        Thread.Sleep(500);
+        session.Output += text => { lock (output) output.Append(text); };
+        session.Exited += _ => done.Set();
+        session.Begin();
+
+        Assert.True(done.Wait(TimeSpan.FromSeconds(30)));
+        lock (output)
+            Assert.Contains("rapido", output.ToString());
     }
 
     [Fact]

@@ -100,6 +100,7 @@ public partial class MainWindow
             try
             {
                 _shell = TerminalSession.Start(RunDetector.FindShell(), WorkingFolder(), TerminalHost.GridColumns, TerminalHost.GridRows);
+                _shell.Begin();
             }
             catch (System.ComponentModel.Win32Exception)
             {
@@ -205,6 +206,7 @@ public partial class MainWindow
             OnTaskExited(session, code);
             onExit?.Invoke(code);
         };
+        session.Begin();
         UpdateRunButton();
         ShowSession(session);
     }
@@ -292,6 +294,8 @@ public partial class MainWindow
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
+        SaveSession();
+        StopWatching();
         StopAllSessions();
         _language.Dispose();
     }

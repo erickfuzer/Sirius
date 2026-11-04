@@ -21,19 +21,8 @@ public static class ProjectSearch
     public static SearchResult Run(
         IEnumerable<string> files, SearchQuery query, IReadOnlyDictionary<string, string> unsaved, CancellationToken token)
     {
-        Regex? regex = null;
-        if (query.UseRegex)
-        {
-            try
-            {
-                var options = RegexOptions.CultureInvariant | (query.MatchCase ? RegexOptions.None : RegexOptions.IgnoreCase);
-                regex = new Regex(query.Text, options, RegexTimeout);
-            }
-            catch (ArgumentException)
-            {
-                return new SearchResult([], 0, false, true);
-            }
-        }
+        if (!TryBuildRegex(query, out var regex))
+            return new SearchResult([], 0, false, true);
 
         var hits = new List<SearchHit>();
         var fileCount = 0;
@@ -63,11 +52,31 @@ public static class ProjectSearch
         return new SearchResult(hits, fileCount, false, false);
     }
 
-    private static string? ReadOrNull(string path)
+    // Devolve falso só quando a expressão é inválida. Busca comum sai com regex nulo.
+    public static bool TryBuildRegex(SearchQuery query, out Regex? regex)
+    {
+        regex = null;
+        if (!query.UseRegex)
+            return true;
+        try
+        {
+            var options = RegexOptions.CultureInvariant | (query.MatchCase ? RegexOptions.None : RegexOptions.IgnoreCase);
+            regex = new Regex(query.Text, options, RegexTimeout);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static string? ReadOrNull(string path) => LoadOrNull(path)?.Text;
+
+    public static LoadedText? LoadOrNull(string path)
     {
         try
         {
-            return new FileInfo(path).Length > MaxFileBytes ? null : TextFile.Load(path).Text;
+            return new FileInfo(path).Length > MaxFileBytes ? null : TextFile.Load(path);
         }
         catch (Exception e) when (e is TextFileException or IOException or UnauthorizedAccessException)
         {

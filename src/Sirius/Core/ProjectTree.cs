@@ -9,6 +9,16 @@ public static class ProjectTree
         ".git", ".vs", ".idea", "bin", "obj", "node_modules", "__pycache__",
     };
 
+    // Verdadeiro para o que fica em pastas ignoradas, como bin e .git, e para os temporários da Sirius.
+    public static bool IsIgnored(string root, string path)
+    {
+        if (path.EndsWith(".sirius-tmp", StringComparison.OrdinalIgnoreCase))
+            return true;
+        return Path.GetRelativePath(root, path)
+            .Split(Path.DirectorySeparatorChar)
+            .Any(IgnoredFolders.Contains);
+    }
+
     public static List<TreeEntry> List(string folder)
     {
         var entries = new List<TreeEntry>();

@@ -21,6 +21,7 @@ public sealed class LanguageService : IDisposable
     private readonly Dictionary<OpenDocument, OpenEntry> _open = new();
     private readonly Dictionary<string, List<LspDiagnostic>> _diagnostics = new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _changeDelay;
+    private readonly Dispatcher _uiDispatcher = Dispatcher.UIThread;
     private string? _root;
 
     public LanguageService()
@@ -128,8 +129,8 @@ public sealed class LanguageService : IDisposable
                 return null;
 
             client = new LanguageClient(connection);
-            client.DiagnosticsPublished += (path, list) => Dispatcher.UIThread.Post(() => Publish(path, list));
-            client.Closed += () => Dispatcher.UIThread.Post(() => OnServerClosed(server, root));
+            client.DiagnosticsPublished += (path, list) => _uiDispatcher.Post(() => Publish(path, list));
+            client.Closed += () => _uiDispatcher.Post(() => OnServerClosed(server, root));
             await client.InitializeAsync(root);
             return client;
         }

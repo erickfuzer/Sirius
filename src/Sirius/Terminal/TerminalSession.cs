@@ -9,6 +9,7 @@ public sealed class TerminalSession : IDisposable
     private readonly ConPtySession _pty;
     private readonly StringBuilder _pending = new();
     private readonly object _gate = new();
+    private readonly Dispatcher _uiDispatcher = Dispatcher.UIThread;
     private bool _flushScheduled;
 
     private TerminalSession(ConPtySession pty, TerminalBuffer buffer)
@@ -19,6 +20,9 @@ public sealed class TerminalSession : IDisposable
         _pty.Output += OnOutput;
         _pty.Exited += OnExited;
     }
+
+    // Chame depois de se inscrever em Exited, para não perder o fim de um programa rápido.
+    public void Begin() => _pty.Begin();
 
     public TerminalBuffer Buffer { get; }
     public bool IsRunning { get; private set; } = true;
@@ -59,7 +63,7 @@ public sealed class TerminalSession : IDisposable
                 return;
             _flushScheduled = true;
         }
-        Dispatcher.UIThread.Post(Flush);
+        _uiDispatcher.Post(Flush);
     }
 
     private void Flush()
@@ -79,7 +83,7 @@ public sealed class TerminalSession : IDisposable
 
     private void OnExited(int code)
     {
-        Dispatcher.UIThread.Post(() =>
+        _uiDispatcher.Post(() =>
         {
             Flush();
             IsRunning = false;

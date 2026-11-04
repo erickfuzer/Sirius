@@ -258,6 +258,105 @@ public class SyntaxScopesTests
     }
 }
 
+public class ProjectReplaceTests
+{
+    private static readonly IReadOnlyDictionary<string, string> NoneOpen = new Dictionary<string, string>();
+
+    private static ReplacePlan Plan(TempFolder temp, SearchQuery query, string replacement, IReadOnlyDictionary<string, string>? open = null) =>
+        ProjectReplace.Plan(ProjectTree.FindFiles(temp.Path), query, replacement, open ?? NoneOpen, CancellationToken.None);
+
+    [Theory]
+    [InlineData("foo foo\nfoo", "foo", false, "bar", "bar bar\nbar", 3)]
+    [InlineData("Foo foo", "foo", false, "bar", "bar bar", 2)]
+    [InlineData("Foo foo", "foo", true, "bar", "Foo bar", 1)]
+    [InlineData("a\r\nb\nc\rd", "b", false, "x", "a\r\nx\nc\rd", 1)]
+    [InlineData("aa", "a", false, "aa", "aaaa", 2)]
+    [InlineData("custo $1", "$1", false, "$2", "custo $2", 1)]
+    public void Substitui_texto_comum(string text, string find, bool matchCase, string replacement, string expected, int count)
+    {
+        var result = ProjectReplace.ReplaceText(text, new SearchQuery(find, matchCase), null, replacement);
+        Assert.Equal((expected, count), result);
+    }
+
+    [Fact]
+    public void Expressao_regular_usa_grupos_e_vale_por_linha()
+    {
+        var query = new SearchQuery(@"^(\w+)=(\d+)$", UseRegex: true);
+        ProjectSearch.TryBuildRegex(query, out var regex);
+        var result = ProjectReplace.ReplaceText("a=1\nb=2\nfim", query, regex, "$2=$1");
+        Assert.Equal(("1=a\n2=b\nfim", 2), result);
+    }
+
+    [Fact]
+    public void Expressao_que_casa_vazio_nao_conta_nem_altera()
+    {
+        var query = new SearchQuery("x*", UseRegex: true);
+        ProjectSearch.TryBuildRegex(query, out var regex);
+        Assert.Equal(("abc", 0), ProjectReplace.ReplaceText("abc", query, regex, "-"));
+    }
+
+    [Fact]
+    public void Planejar_nao_altera_nenhum_arquivo()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.txt", "foo");
+
+        var plan = Plan(temp, new SearchQuery("foo"), "bar");
+
+        Assert.Equal(1, plan.Total);
+        Assert.Equal("foo", File.ReadAllText(path));
+    }
+
+    [Fact]
+    public void Plano_soma_ocorrencias_e_ignora_binario_e_pastas_ignoradas()
+    {
+        using var temp = new TempFolder();
+        temp.File("a.txt", "foo foo");
+        temp.File("b.txt", "nada");
+        temp.File(Path.Combine("bin", "c.txt"), "foo");
+        File.WriteAllBytes(temp.File("d.bin"), [(byte)'f', (byte)'o', (byte)'o', 0]);
+
+        var plan = Plan(temp, new SearchQuery("foo"), "bar");
+
+        var item = Assert.Single(plan.Items);
+        Assert.EndsWith("a.txt", item.FullPath);
+        Assert.Equal(2, plan.Total);
+    }
+
+    [Fact]
+    public void Plano_guarda_a_codificacao_dos_arquivos_fechados()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.txt");
+        File.WriteAllBytes(path, Encoding.Latin1.GetBytes("coração"));
+
+        var item = Assert.Single(Plan(temp, new SearchQuery("cor"), "COR").Items);
+
+        Assert.Equal(Encoding.Latin1.WebName, item.Encoding!.WebName);
+        Assert.Equal("CORação", item.NewText);
+    }
+
+    [Fact]
+    public void Aba_aberta_usa_o_texto_da_tela_e_nao_tem_codificacao()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.txt", "antigo");
+        var open = new Dictionary<string, string> { [path] = "novo foo" };
+
+        var item = Assert.Single(Plan(temp, new SearchQuery("foo"), "bar", open).Items);
+
+        Assert.Null(item.Encoding);
+        Assert.Equal("novo bar", item.NewText);
+    }
+
+    [Fact]
+    public void Expressao_invalida_e_avisada()
+    {
+        using var temp = new TempFolder();
+        Assert.True(Plan(temp, new SearchQuery("(", UseRegex: true), "x").InvalidQuery);
+    }
+}
+
 public class ToolPathsTests
 {
     [Fact]
@@ -527,6 +626,18 @@ public class ProjectTreeTests
         using var temp = new TempFolder();
         temp.File(Path.Combine(".git", "HEAD"), "ref: refs/heads/main\n");
         Assert.Equal("main", ProjectTree.CurrentBranch(temp.Path));
+    }
+
+    [Theory]
+    [InlineData(@"C:\p\src\a.cs", false)]
+    [InlineData(@"C:\p\bin\a.dll", true)]
+    [InlineData(@"C:\p\src\obj\a.json", true)]
+    [InlineData(@"C:\p\.git\HEAD", true)]
+    [InlineData(@"C:\p\a.cs.sirius-tmp", true)]
+    [InlineData(@"C:\p\binario.txt", false)]
+    public void Reconhece_o_que_a_vigilancia_ignora(string path, bool expected)
+    {
+        Assert.Equal(expected, ProjectTree.IsIgnored(@"C:\p", path));
     }
 
     [Fact]

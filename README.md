@@ -16,7 +16,9 @@ dotnet run --project src/Sirius
 |---|---|
 | `Ctrl K` | Barra de comando: encontrar arquivos e executar ações |
 | `Ctrl O` | Abrir pasta |
+| `Ctrl N` | Nova aba sem nome |
 | `Ctrl S` | Salvar |
+| `Ctrl Shift S` | Salvar como |
 | `Ctrl W` | Fechar aba |
 | `Ctrl F` | Procurar no arquivo |
 | `Ctrl Shift F` | Buscar em todo o projeto (`Enter` avança pelos resultados) |

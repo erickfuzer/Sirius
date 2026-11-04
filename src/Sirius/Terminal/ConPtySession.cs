@@ -71,12 +71,10 @@ public sealed class ConPtySession : IDisposable
         }
         CloseHandle(info.hThread);
 
-        var session = new ConPtySession(
+        return new ConPtySession(
             new FileStream(inputWrite, FileAccess.Write, 1, false),
             new FileStream(outputRead, FileAccess.Read, 4096, false),
             console, info.hProcess, info.dwProcessId, attributes);
-        session.BeginThreads();
-        return session;
     }
 
     public void Write(string text)
@@ -115,7 +113,9 @@ public sealed class ConPtySession : IDisposable
         _writes.Writer.TryComplete();
     }
 
-    private void BeginThreads()
+    // Chame depois de se inscrever nos eventos. Até lá a saída espera no canal, e um
+    // programa rápido não termina antes de alguém estar ouvindo.
+    public void Begin()
     {
         var readerDone = new ManualResetEventSlim();
         StartThread("sirius-pty-read", () =>
