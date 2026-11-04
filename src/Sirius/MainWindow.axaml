@@ -301,6 +301,12 @@
                                            Foreground="{DynamicResource Ink}" FontFamily="{DynamicResource CodeFont}" FontSize="13.5"
                                            Padding="0,8,0,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
 
+                            <!-- Aba de imagem -->
+                            <Panel x:Name="ImageHost" IsVisible="False">
+                                <e:ImagePreview x:Name="ImageView" Focusable="True" ClipToBounds="True" AutomationProperties.Name="Imagem" />
+                                <TextBlock x:Name="ImageMessage" IsVisible="False" Foreground="{DynamicResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Panel>
+
                             <!-- Comparação lado a lado -->
                             <Grid x:Name="DiffHost" IsVisible="False" RowDefinitions="Auto,*" Background="{DynamicResource Sheet}">
                                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Height="28" Margin="14,0,8,0">

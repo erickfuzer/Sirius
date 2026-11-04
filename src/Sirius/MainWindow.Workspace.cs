@@ -135,7 +135,9 @@ public partial class MainWindow
                     if (!document.MissingReported)
                     {
                         document.MissingReported = true;
-                        ShowStatus($"{document.Name} não existe mais no disco. Salve para recriar.");
+                        ShowStatus(document.IsImage
+                            ? $"{document.Name} não existe mais no disco."
+                            : $"{document.Name} não existe mais no disco. Salve para recriar.");
                     }
                     continue;
                 }
@@ -170,6 +172,7 @@ public partial class MainWindow
         {
             document.ReloadFromDisk();
             _reloadRetries = 0;
+            RefreshImage();
             RefreshTabs();
             RefreshTree();
             ShowStatus($"{document.Name} foi atualizado do disco");
@@ -232,8 +235,10 @@ public partial class MainWindow
         _restoringSession = true;
         try
         {
+            _restoringTabs = true;
             foreach (var file in session.Files.Where(file => File.Exists(file.Path)))
                 OpenFile(file.Path);
+            _restoringTabs = false;
 
             foreach (var file in session.Files)
             {
@@ -261,6 +266,7 @@ public partial class MainWindow
         }
         finally
         {
+            _restoringTabs = false;
             _restoringSession = false;
         }
     }
@@ -289,6 +295,9 @@ public partial class MainWindow
 
     public async Task<bool> SaveAsAsync(OpenDocument document)
     {
+        if (document.IsImage)
+            return false;
+
         var path = await PickSavePath!(document.FullPath);
         if (path is null)
             return false;

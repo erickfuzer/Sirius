@@ -24,6 +24,7 @@ public sealed class OpenDocument
     public string FullPath { get; private set; }
     public string Name => Path.GetFileName(FullPath);
     public bool IsUntitled { get; private set; }
+    public bool IsImage { get; private init; }
     public Encoding Encoding { get; private set; }
     public TextDocument Document { get; }
     public DateTime LastWriteUtc { get; private set; }
@@ -43,6 +44,14 @@ public sealed class OpenDocument
 
     public static OpenDocument Load(string path) => new(path, TextFile.Load(path), false);
 
+    // A imagem é desenhada à parte. O documento fica vazio e nunca é gravado por cima do arquivo.
+    public static OpenDocument LoadImage(string path)
+    {
+        if (!File.Exists(path))
+            throw new FileNotFoundException(null, path);
+        return new OpenDocument(path, new LoadedText("", new UTF8Encoding(false), File.GetLastWriteTimeUtc(path)), false) { IsImage = true };
+    }
+
     // Uma aba nova. O caminho é só um nome provisório até a pessoa salvar.
     public static OpenDocument CreateUntitled(string folder, string name) =>
         new(Path.Combine(folder, name), new LoadedText("", new UTF8Encoding(false), default), true);
@@ -61,6 +70,8 @@ public sealed class OpenDocument
 
     public void Save()
     {
+        if (IsImage)
+            return;
         LastWriteUtc = TextFile.Save(FullPath, Document.Text, Encoding);
         Document.UndoStack.MarkAsOriginalFile();
     }
@@ -68,6 +79,8 @@ public sealed class OpenDocument
     // Grava em outro lugar e passa a apontar para ele. Se a gravação falhar, nada muda.
     public void SaveTo(string path)
     {
+        if (IsImage)
+            return;
         LastWriteUtc = TextFile.Save(path, Document.Text, Encoding);
         IsUntitled = false;
         MoveTo(path);
@@ -78,6 +91,12 @@ public sealed class OpenDocument
 
     public void ReloadFromDisk()
     {
+        if (IsImage)
+        {
+            LastWriteUtc = File.GetLastWriteTimeUtc(FullPath);
+            return;
+        }
+
         var loaded = TextFile.Load(FullPath);
         SetTextKeepingPosition(loaded.Text);
         Encoding = loaded.Encoding;

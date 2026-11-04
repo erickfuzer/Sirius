@@ -21,6 +21,8 @@ public sealed record Palette(
     public required IBrush DiffRemoved { get; init; }
     public required IBrush TerminalError { get; init; }
     public required IBrush TerminalWarning { get; init; }
+    public required IBrush CheckerLight { get; init; }
+    public required IBrush CheckerDark { get; init; }
 
     public static readonly Palette Claro = new(
         "claro", ThemeVariant.Light,
@@ -39,6 +41,8 @@ public sealed record Palette(
         DiffRemoved = B("#26C62828"),
         TerminalError = B("#FF6B6B"),
         TerminalWarning = B("#F5C65B"),
+        CheckerLight = B("#FFFFFF"),
+        CheckerDark = B("#DFE1E5"),
     };
 
     public static readonly Palette Grafite = new(
@@ -59,6 +63,8 @@ public sealed record Palette(
         DiffRemoved = B("#3AFF6B6B"),
         TerminalError = B("#8F1414"),
         TerminalWarning = B("#5F4300"),
+        CheckerLight = B("#3A3D44"),
+        CheckerDark = B("#2C2F35"),
     };
 
     public static Palette Current { get; private set; } = Claro;

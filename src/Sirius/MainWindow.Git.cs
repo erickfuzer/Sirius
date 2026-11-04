@@ -233,8 +233,7 @@ public partial class MainWindow
         Sidebar.Width = _settings.SidebarWidth;
         GitView.IsVisible = false;
         TreeView.IsVisible = true;
-        if (ActiveDocument is not null)
-            CodeEditor.TextArea.Focus();
+        FocusActiveDocument();
     }
 
     // Só para atualizar as contagens: sem janelas de login, e falhar aqui não importa.
@@ -456,7 +455,8 @@ public partial class MainWindow
         }
 
         string right;
-        if (_documents.Find(d => string.Equals(d.FullPath, full, StringComparison.OrdinalIgnoreCase)) is { } open)
+        // A aba de imagem tem documento vazio: compará-lo mostraria o arquivo como se estivesse sem nada.
+        if (_documents.Find(d => string.Equals(d.FullPath, full, StringComparison.OrdinalIgnoreCase)) is { IsImage: false } open)
         {
             right = open.Document.Text;
         }
@@ -506,7 +506,7 @@ public partial class MainWindow
         DiffTitle.Text = GitState is { } snapshot ? Path.GetRelativePath(snapshot.TopLevel, path).Replace(Path.DirectorySeparatorChar, '/') : Path.GetFileName(path);
         DiffPath = path;
         DiffHost.IsVisible = true;
-        CodeEditor.IsVisible = false;
+        ShowDocumentSurface();
         EmptyState.IsVisible = false;
 
         var firstChange = rows.FindIndex(row => row.LeftKind != DiffRowKind.Same || row.RightKind != DiffRowKind.Same);
@@ -535,10 +535,9 @@ public partial class MainWindow
         if (!IsDiffOpen)
             return;
         DiffHost.IsVisible = false;
-        CodeEditor.IsVisible = ActiveDocument is not null;
+        ShowDocumentSurface();
         UpdateEmptyState();
-        if (ActiveDocument is not null)
-            CodeEditor.TextArea.Focus();
+        FocusActiveDocument();
     }
 
     private void SyncDiffScroll(AvaloniaEdit.TextEditor from, AvaloniaEdit.TextEditor to)
@@ -569,7 +568,7 @@ public partial class MainWindow
 
     private async Task<IReadOnlyDictionary<int, GitLineKind>?> ComputeGitMarksAsync()
     {
-        if (GitState is not { Status.HeadOid: not null } snapshot || ActiveDocument is not { IsUntitled: false } document)
+        if (GitState is not { Status.HeadOid: not null } snapshot || ActiveDocument is not { IsUntitled: false, IsImage: false } document)
             return null;
         if (document.Document.TextLength > MaxMarkedChars || !FileOperations.IsInside(document.FullPath, snapshot.TopLevel))
             return null;

@@ -77,8 +77,7 @@ public partial class MainWindow
     public void CloseTerminal()
     {
         SetTerminalOpen(false);
-        if (ActiveDocument is not null)
-            CodeEditor.TextArea.Focus();
+        FocusActiveDocument();
     }
 
     private void SetTerminalOpen(bool open)

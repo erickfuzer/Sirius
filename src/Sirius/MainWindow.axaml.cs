@@ -107,6 +107,7 @@ public partial class MainWindow : Window
         InitializeWorkspace();
         InitializeGit();
         InitializeColors();
+        InitializeImages();
         CodeEditor.AddHandler(PointerWheelChangedEvent, OnEditorWheel, RoutingStrategies.Tunnel);
         ApplyEditorFontSize(_settings.EditorFontSize);
         DialogInput.AddHandler(KeyDownEvent, OnDialogInputKeyDown, RoutingStrategies.Tunnel);
@@ -534,7 +535,7 @@ public partial class MainWindow : Window
         {
             try
             {
-                document = OpenDocument.Load(fullPath);
+                document = ImageFile.IsImage(fullPath) ? OpenDocument.LoadImage(fullPath) : OpenDocument.Load(fullPath);
             }
             catch (Exception e) when (e is TextFileException or IOException or UnauthorizedAccessException)
             {
@@ -581,10 +582,11 @@ public partial class MainWindow : Window
             CodeEditor.ScrollToVerticalOffset(document.VerticalOffset);
             _gutter.SnapThread();
             CodeEditor.TextArea.TextView.Redraw();
-            Dispatcher.UIThread.Post(() => CodeEditor.TextArea.Focus());
+            Dispatcher.UIThread.Post(FocusActiveDocument);
         }
 
-        CodeEditor.IsVisible = document is not null;
+        ShowDocumentSurface();
+        RefreshImage();
         Breadcrumb.Text = document is null || RootFolder is null ? "" : BreadcrumbFor(document.FullPath);
         ExpandTo(document?.FullPath);
         RefreshTabs();
@@ -686,6 +688,9 @@ public partial class MainWindow : Window
 
     public async Task<bool> SaveAsync(OpenDocument document)
     {
+        if (document.IsImage)
+            return true;
+
         if (document.IsUntitled)
             return await SaveAsAsync(document);
 
@@ -813,6 +818,18 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 await RequestCompletionAsync();
                 break;
+            case Key.OemPlus or Key.Add when IsImageShown:
+                e.Handled = true;
+                ZoomImage(1);
+                break;
+            case Key.OemMinus or Key.Subtract when IsImageShown:
+                e.Handled = true;
+                ZoomImage(-1);
+                break;
+            case Key.D0 or Key.NumPad0 when IsImageShown:
+                e.Handled = true;
+                ZoomImage(0);
+                break;
             case Key.OemPlus or Key.Add:
                 e.Handled = true;
                 SetEditorFontSize(EditorFontSize + 1);
@@ -885,8 +902,7 @@ public partial class MainWindow : Window
     public void ClosePalette()
     {
         PaletteOverlay.IsVisible = false;
-        if (ActiveDocument is not null)
-            CodeEditor.TextArea.Focus();
+        FocusActiveDocument();
     }
 
     private void OnOverlayPressed(object? sender, PointerPressedEventArgs e) => ClosePalette();
@@ -933,7 +949,16 @@ public partial class MainWindow : Window
         actions.Add(("Nova aba", "Ctrl N", NewUntitled));
         actions.Add(("Procurar versão nova", $"Versão {CurrentVersion}", () => _ = CheckForUpdatesAsync(manual: true)));
         actions.Add(("Aviso de versão nova", _settings.CheckForUpdates ? "Ligado" : "Desligado", ToggleUpdateChecks));
-        if (ActiveDocument is { } active)
+        if (ActiveDocument is { IsImage: true } image)
+        {
+            actions.Add(("Renomear arquivo", "F2 na lista", () => _ = RenameAsync(image.FullPath)));
+            actions.Add(("Aproximar imagem", "Ctrl +", () => ZoomImage(1)));
+            actions.Add(("Afastar imagem", "Ctrl -", () => ZoomImage(-1)));
+            actions.Add(("Ajustar imagem à área", "Ctrl 0", () => ZoomImage(0)));
+            actions.Add(("Imagem no tamanho real", "Dois cliques", ImageView.ShowActualSize));
+            actions.Add(("Fechar aba", "Ctrl W", () => _ = CloseDocumentAsync(image)));
+        }
+        else if (ActiveDocument is { } active)
         {
             actions.Insert(0, ("Salvar arquivo", "Ctrl S", () => _ = SaveAsync(active)));
             actions.Add(("Salvar como", "Ctrl Shift S", () => _ = SaveAsAsync(active)));
@@ -1033,8 +1058,7 @@ public partial class MainWindow : Window
             SearchView.IsVisible = false;
             TreeView.IsVisible = true;
         }
-        if (ActiveDocument is not null)
-            CodeEditor.TextArea.Focus();
+        FocusActiveDocument();
     }
 
     private void OnCloseSearch(object? sender, RoutedEventArgs e) => CloseSearch();
@@ -1263,6 +1287,7 @@ public partial class MainWindow : Window
             _searchRows[_searchIndex] = _searchRows[_searchIndex] with { Background = palette.Tint };
         CodeEditor.TextArea.TextView.Redraw();
         _gutter.InvalidateVisual();
+        ImageView.InvalidateVisual();
     }
 
     private void OnToggleFocus(object? sender, RoutedEventArgs e) => ToggleFocus();
@@ -1276,7 +1301,7 @@ public partial class MainWindow : Window
     {
         var caret = CodeEditor.TextArea.Caret;
         CaretPosition.IsVisible = ActiveDocument is not null;
-        CaretPosition.Text = $"Ln {caret.Line}, Col {caret.Column}";
+        CaretPosition.Text = ActiveDocument is { IsImage: true } ? ImageView.Description : $"Ln {caret.Line}, Col {caret.Column}";
     }
 
     private void UpdateEmptyState()
