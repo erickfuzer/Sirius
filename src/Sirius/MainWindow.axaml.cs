@@ -103,6 +103,7 @@ public partial class MainWindow : Window
         _statusTimer =new DispatcherTimer(TimeSpan.FromSeconds(4), DispatcherPriority.Normal, (_, _) => ClearStatus());
 
         InitializeTerminal();
+        InitializeLanguage();
         CodeEditor.AddHandler(PointerWheelChangedEvent, OnEditorWheel, RoutingStrategies.Tunnel);
         ApplyEditorFontSize(_settings.EditorFontSize);
         DialogInput.AddHandler(KeyDownEvent, OnDialogInputKeyDown, RoutingStrategies.Tunnel);
@@ -156,6 +157,7 @@ public partial class MainWindow : Window
         _lastFolderClicked = null;
         TreeHeader.IsVisible = true;
         StopAllSessions();
+        _language.SetRoot(RootFolder);
         CloseSearch();
         ClearSearchResults();
 
@@ -301,7 +303,11 @@ public partial class MainWindow : Window
 
         // Abas, pastas abertas e resultados de busca apontavam para o nome antigo.
         foreach (var document in _documents.Where(d => FileOperations.IsInside(d.FullPath, path)))
-            document.MoveTo(target + document.FullPath[path.Length..]);
+        {
+            var oldPath = document.FullPath;
+            document.MoveTo(target + oldPath[path.Length..]);
+            _language.DocumentMoved(document, oldPath);
+        }
         foreach (var folder in _expanded.Where(f => FileOperations.IsInside(f, path)).ToList())
         {
             _expanded.Remove(folder);
@@ -317,6 +323,7 @@ public partial class MainWindow : Window
             Breadcrumb.Text = BreadcrumbFor(active.FullPath);
             CodeEditor.TextArea.TextView.Redraw();
         }
+        UpdateServerHint();
         ReindexProject();
         RefreshTabs();
         RefreshTree();
@@ -419,6 +426,7 @@ public partial class MainWindow : Window
     // Tira a aba sem perguntar nada. Quem chama já cuidou das alterações.
     private void Forget(OpenDocument document)
     {
+        _language.DocumentClosed(document);
         var index = _documents.IndexOf(document);
         _documents.RemoveAt(index);
         if (ActiveDocument == document)
@@ -488,16 +496,19 @@ public partial class MainWindow : Window
             opened.Document.UndoStack.PropertyChanged += (_, _) => OnDirtyMaybeChanged();
             opened.Document.Changed += (_, _) =>
             {
+                _language.DocumentChanged(opened);
                 if (ActiveDocument == opened && opened.Highlighter is not null && !_redrawDelay.IsEnabled)
                     _redrawDelay.Start();
             };
             _documents.Add(opened);
+            _language.DocumentOpened(opened);
         }
         Activate(document);
     }
 
     private void Activate(OpenDocument? document)
     {
+        CloseCompletion();
         if (ActiveDocument is not null)
         {
             ActiveDocument.CaretOffset = CodeEditor.TextArea.Caret.Offset;
@@ -523,6 +534,7 @@ public partial class MainWindow : Window
         RefreshTree();
         UpdateEmptyState();
         UpdateCaretPosition();
+        UpdateServerHint();
     }
 
     private void ExpandTo(string? path)
@@ -631,6 +643,7 @@ public partial class MainWindow : Window
             return false;
         }
 
+        _language.DocumentSaved(document);
         RefreshTabs();
         RefreshTree();
         ShowStatus("Salvo");
@@ -679,6 +692,20 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.Key == Key.F2 && CodeEditor.TextArea.IsKeyboardFocusWithin)
+        {
+            e.Handled = true;
+            await RenameSymbolAsync();
+            return;
+        }
+
+        if (e.Key == Key.F12 && CodeEditor.TextArea.IsKeyboardFocusWithin)
+        {
+            e.Handled = true;
+            await GoToDefinitionAsync();
+            return;
+        }
+
         // No Windows o AltGr chega como Ctrl e Alt juntos. Em teclados brasileiros ele digita
         // caracteres como ? e /, então nunca pode ser tratado como atalho.
         if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Alt))
@@ -691,6 +718,10 @@ public partial class MainWindow : Window
 
         switch (e.Key)
         {
+            case Key.Space when CodeEditor.TextArea.IsKeyboardFocusWithin:
+                e.Handled = true;
+                await RequestCompletionAsync();
+                break;
             case Key.OemPlus or Key.Add:
                 e.Handled = true;
                 SetEditorFontSize(EditorFontSize + 1);
@@ -786,6 +817,10 @@ public partial class MainWindow : Window
         if (ActiveDocument is { } active)
         {
             actions.Insert(0, ("Salvar arquivo", "Ctrl S", () => _ = SaveAsync(active)));
+            actions.Add(("Ir para a definição", "F12", () => _ = GoToDefinitionAsync()));
+            actions.Add(("Renomear símbolo", "F2 no editor", () => _ = RenameSymbolAsync()));
+            actions.Add(("Mostrar sugestões", "Ctrl Espaço", () => _ = RequestCompletionAsync()));
+            actions.Add(("Mostrar problemas", "", ShowProblems));
             actions.Add(("Renomear arquivo", "F2 na lista", () => _ = RenameAsync(active.FullPath)));
             actions.Add(("Aumentar fonte do editor", "Ctrl +", () => SetEditorFontSize(EditorFontSize + 1)));
             actions.Add(("Diminuir fonte do editor", "Ctrl -", () => SetEditorFontSize(EditorFontSize - 1)));
@@ -1093,6 +1128,7 @@ public partial class MainWindow : Window
         CodeEditor.TextArea.SelectionBorder = null;
         CodeEditor.TextArea.Caret.CaretBrush = palette.Accent;
         TerminalHost.ApplyScheme(TerminalScheme.For(palette));
+        RefreshProblems();
 
         RefreshTabs();
         RefreshTree();

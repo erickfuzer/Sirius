@@ -15,6 +15,9 @@ public sealed record Palette(
 {
     public required IBrush RunBackground { get; init; }
     public required IBrush RunInk { get; init; }
+    public required IBrush Error { get; init; }
+    public required IBrush TerminalError { get; init; }
+    public required IBrush TerminalWarning { get; init; }
 
     public static readonly Palette Claro = new(
         "claro", ThemeVariant.Light,
@@ -27,6 +30,9 @@ public sealed record Palette(
     {
         RunBackground = B("#FF5A1F"),
         RunInk = B("#16171A"),
+        Error = B("#C62828"),
+        TerminalError = B("#FF6B6B"),
+        TerminalWarning = B("#F5C65B"),
     };
 
     public static readonly Palette Grafite = new(
@@ -40,6 +46,9 @@ public sealed record Palette(
     {
         RunBackground = B("#C93500"),
         RunInk = B("#FFFFFF"),
+        Error = B("#FF6B6B"),
+        TerminalError = B("#C62828"),
+        TerminalWarning = B("#8A6100"),
     };
 
     public static Palette Current { get; private set; } = Claro;

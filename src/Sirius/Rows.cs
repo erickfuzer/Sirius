@@ -12,6 +12,8 @@ public sealed record TabRow(string Name, string FullPath, FontWeight Weight, IBr
 
 public sealed record CommandRow(string Name, string Hint, IBrush Background, Action Run);
 
+public sealed record ProblemRow(string Message, string Location, IBrush Brush, string FullPath, int Line, int Character);
+
 // Na busca, cada arquivo é uma linha de título seguida das linhas com resultado.
 public sealed record SearchRow(
     bool IsFile, string Title, string Hint, string FullPath, int Line, int Column, int Length,

@@ -258,6 +258,32 @@ public class SyntaxScopesTests
     }
 }
 
+public class ToolPathsTests
+{
+    [Fact]
+    public void Acrescentar_as_pastas_nao_duplica_nem_perde_o_que_havia()
+    {
+        var original = Environment.GetEnvironmentVariable("PATH");
+        try
+        {
+            Environment.SetEnvironmentVariable("PATH", @"C:\pasta-que-ja-estava");
+
+            ToolPaths.EnsureOnPath();
+            var first = Environment.GetEnvironmentVariable("PATH")!;
+            ToolPaths.EnsureOnPath();
+
+            Assert.StartsWith(@"C:\pasta-que-ja-estava", first);
+            Assert.Equal(first, Environment.GetEnvironmentVariable("PATH"));
+            foreach (var folder in ToolPaths.Folders.Where(Directory.Exists))
+                Assert.Contains(folder, first);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", original);
+        }
+    }
+}
+
 public class FileOperationsTests
 {
     [Theory]

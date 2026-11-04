@@ -11,7 +11,7 @@ namespace Sirius;
 // A cápsula que se abre em terminal, e o botão Executar.
 public partial class MainWindow
 {
-    private const double CapsuleClosedWidth = 520;
+    private const double CapsuleClosedWidth = 600;
     private const double CapsuleOpenWidth = 1040;
     private const double CapsuleOpenHeight = 340;
     private const double CapsuleClosedHeight = 40;
@@ -122,6 +122,10 @@ public partial class MainWindow
         }
 
         SetTerminalOpen(true);
+        _showingProblems = false;
+        ProblemsList.IsVisible = false;
+        ProblemsTabButton.Classes.Set("on", false);
+        TerminalHost.IsVisible = true;
         TerminalHost.Session = session;
         TaskTabButton.IsVisible = _task is not null;
         TaskTabButton.Classes.Set("on", session == _task);
@@ -173,13 +177,18 @@ public partial class MainWindow
                 return;
         }
 
+        StartTask(command, null);
+    }
+
+    private void StartTask(string command, Action<int>? onExit)
+    {
         _task?.Dispose();
         _task = null;
         var wasOpen = _terminalOpen;
         SetTerminalOpen(true);
         try
         {
-            _task = TerminalSession.Start(RunDetector.WrapForShell(command), RootFolder, TerminalHost.GridColumns, TerminalHost.GridRows);
+            _task = TerminalSession.Start(RunDetector.WrapForShell(command), WorkingFolder(), TerminalHost.GridColumns, TerminalHost.GridRows);
         }
         catch (System.ComponentModel.Win32Exception)
         {
@@ -191,7 +200,11 @@ public partial class MainWindow
         var session = _task;
         _taskCommand = command;
         _taskFinished = new TaskCompletionSource<int>();
-        session.Exited += code => OnTaskExited(session, code);
+        session.Exited += code =>
+        {
+            OnTaskExited(session, code);
+            onExit?.Invoke(code);
+        };
         UpdateRunButton();
         ShowSession(session);
     }
@@ -280,5 +293,6 @@ public partial class MainWindow
     {
         base.OnClosed(e);
         StopAllSessions();
+        _language.Dispose();
     }
 }

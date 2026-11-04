@@ -24,7 +24,13 @@ dotnet run --project src/Sirius
 | `F5` | Executar ou parar o projeto |
 | `Ctrl J` | Abrir ou fechar o terminal |
 | `Ctrl +` e `Ctrl -` | Aumentar ou diminuir a fonte do editor (`Ctrl 0` volta ao padrão) |
-| `F2` | Renomear o item selecionado na lista de arquivos |
+| `F2` | Renomear o item da lista de arquivos ou, no editor, o símbolo sob o cursor |
+| `F12` ou `Ctrl` + clique | Ir para a definição |
+| `Ctrl Espaço` | Mostrar sugestões |
+
+## Inteligência de código
+
+Autocompletar, erros no código, ir para a definição e renomear símbolo usam servidores de linguagem. Quando falta o servidor de um arquivo aberto, a cápsula oferece a instalação para C#, PHP, JavaScript, TypeScript e Python. Go, Rust e C++ funcionam se `gopls`, `rust-analyzer` ou `clangd` estiverem instalados.
 
 ## Testes
 

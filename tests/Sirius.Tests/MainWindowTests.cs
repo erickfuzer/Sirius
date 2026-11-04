@@ -24,6 +24,8 @@ public class MainWindowTests
     private static MainWindow Open(TempFolder temp, AppSettings? settings = null)
     {
         var window = new MainWindow(settings ?? new AppSettings(), Path.Combine(temp.Path, "settings.json"), temp.Path);
+        // Estes testes não dependem dos servidores de linguagem instalados na máquina.
+        window.Language.IsInstalled = _ => false;
         window.Show();
         Dispatcher.UIThread.RunJobs();
         return window;
