@@ -17,8 +17,8 @@ public sealed record TerminalScheme(IBrush Foreground, IBrush Background, IBrush
 
     public static TerminalScheme For(Palette palette) =>
         palette == Palette.Grafite
-            ? new TerminalScheme(palette.CapsuleInk, palette.CapsuleBackground, palette.RunBackground, B("#4DC93500"), OnLight)
-            : new TerminalScheme(palette.CapsuleInk, palette.CapsuleBackground, palette.RunBackground, B("#59FF6A2B"), OnDark);
+            ? new TerminalScheme(palette.CapsuleInk, palette.CapsuleBackground, palette.RunBackground, B("#403D5A85"), OnLight)
+            : new TerminalScheme(palette.CapsuleInk, palette.CapsuleBackground, palette.RunBackground, B("#599DB8E0"), OnDark);
 
     public Color Resolve(int color)
     {

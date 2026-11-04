@@ -7,6 +7,7 @@
         x:DataType="s:MainWindow"
         x:CompileBindings="False"
         Title="Sirius"
+        Icon="avares://Sirius/Assets/sirius.ico"
         Width="1320" Height="860" MinWidth="720" MinHeight="480"
         WindowStartupLocation="CenterScreen"
         WindowDecorations="BorderOnly"
@@ -23,8 +24,8 @@
             <Grid x:Name="TitleBar" Grid.Row="0" Background="Transparent" ColumnDefinitions="*,Auto,*"
                   PointerPressed="OnTitleBarPressed">
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="14,0,0,0" VerticalAlignment="Center">
-                    <Path Width="13" Height="13" Fill="{DynamicResource Accent}" Stretch="Uniform"
-                          Data="M8 0C8.7 4.6 10.4 7.3 16 8C10.4 8.7 8.7 11.4 8 16C7.3 11.4 5.6 8.7 0 8C5.6 7.3 7.3 4.6 8 0Z" />
+                    <Path Width="15" Height="15" Fill="{DynamicResource Accent}" Stretch="Uniform" VerticalAlignment="Center"
+                          Data="M7 0C7.6 4 9.2 6.4 14 7C9.2 7.6 7.6 10 7 14C6.4 10 4.8 7.6 0 7C4.800 6.4 6.4 4 7 0ZM17.5 15A1.5 1.5 0 1 1 14.5 15A1.5 1.5 0 1 1 17.500 15Z" />
                     <TextBlock Text="Sirius" FontWeight="SemiBold" VerticalAlignment="Center" />
                     <TextBlock x:Name="ProjectName" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
                 </StackPanel>

@@ -11,15 +11,14 @@ using Sirius.Theming;
 
 namespace Sirius.Editing;
 
-// Números das linhas e o fio: a linha laranja que desce do topo até onde você está.
+// Números das linhas e o fio: a linha que desce do topo, com uma estrelinha, até onde você está.
 public sealed class GutterMargin : AbstractMargin
 {
     private const double BaseNumberRight = 40;
     private const double BaseThreadX = 52;
     private const double BaseGutterWidth = 66;
     private const double BaseNumberSize = 11.5;
-    private const double BobWidth = 10;
-    private const double BobHeight = 12;
+    private const double StarRadius = 6;
     private const double MarkInset = 7;
     private const double MarkWidth = 2.5;
     private const double DeletedMarkSize = 4;
@@ -166,18 +165,26 @@ public sealed class GutterMargin : AbstractMargin
             return;
 
         context.DrawLine(new Pen(palette.Accent, 1.5), new Point(ThreadX, 0), new Point(ThreadX, Math.Min(bottom, Bounds.Height)));
-        if (bottom - BobHeight > Bounds.Height)
+        if (bottom - StarRadius > Bounds.Height)
             return;
 
-        var bob = new StreamGeometry();
-        using (var g = bob.Open())
-        {
-            g.BeginFigure(new Point(ThreadX - BobWidth / 2, bottom - BobHeight + 2), true);
-            g.LineTo(new Point(ThreadX + BobWidth / 2, bottom - BobHeight + 2));
-            g.LineTo(new Point(ThreadX, bottom + 2));
-            g.EndFigure(true);
-        }
-        context.DrawGeometry(palette.Accent, null, bob);
+        context.DrawGeometry(palette.Accent, null, Star(ThreadX, bottom, StarRadius));
+    }
+
+    // Quatro pontas com lados curvos, a mesma forma do ícone.
+    private static StreamGeometry Star(double x, double y, double radius)
+    {
+        var near = radius * 0.125;
+        var far = radius * 0.5;
+        var star = new StreamGeometry();
+        using var g = star.Open();
+        g.BeginFigure(new Point(x, y - radius), true);
+        g.CubicBezierTo(new Point(x + near, y - far), new Point(x + far, y - near), new Point(x + radius, y));
+        g.CubicBezierTo(new Point(x + far, y + near), new Point(x + near, y + far), new Point(x, y + radius));
+        g.CubicBezierTo(new Point(x - near, y + far), new Point(x - far, y + near), new Point(x - radius, y));
+        g.CubicBezierTo(new Point(x - far, y - near), new Point(x - near, y - far), new Point(x, y - radius));
+        g.EndFigure(true);
+        return star;
     }
 
     private void Step()

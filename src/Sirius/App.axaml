@@ -116,7 +116,7 @@
 
         <Style Selector="Button.primary">
             <Setter Property="Background" Value="{DynamicResource Accent}" />
-            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="{DynamicResource OnAccent}" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Height" Value="32" />
             <Setter Property="Padding" Value="14,0" />
@@ -125,12 +125,12 @@
         </Style>
         <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Accent}" />
-            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="{DynamicResource OnAccent}" />
             <Setter Property="Opacity" Value="0.9" />
         </Style>
         <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Accent}" />
-            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="{DynamicResource OnAccent}" />
         </Style>
 
         <Style Selector="Button.secondary">
