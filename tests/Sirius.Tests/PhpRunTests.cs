@@ -250,6 +250,202 @@ public class PhpRunTests
         Dispatcher.UIThread.RunJobs();
     }
 
+    // Sem PHP no computador
+
+    [Theory]
+    [InlineData("php -S localhost:8000", true)]
+    [InlineData("php artisan serve", true)]
+    [InlineData("php \"C:\\a b\\aula.php\"", true)]
+    [InlineData("PHP.EXE -v", true)]
+    [InlineData("\"php\" -v", true)]
+    [InlineData("php", true)]
+    [InlineData("  php -v", true)]
+    [InlineData("\"C:\\xampp\\php\\php.exe\" -S localhost:8000", false)]
+    [InlineData("npm run dev", false)]
+    [InlineData("phpunit", false)]
+    [InlineData("composer run php", false)]
+    public void Reconhece_comando_que_precisa_do_php(string command, bool expected) =>
+        Assert.Equal(expected, RunDetector.NeedsPhp(command));
+
+    [Fact]
+    public void Procura_o_php_nas_duas_pastas_do_winget()
+    {
+        var winget = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WinGet");
+        Assert.Contains(Path.Combine(winget, "Links"), ToolPaths.Folders);
+    }
+
+    [Fact]
+    public void So_pula_o_visual_cpp_quando_ele_ja_existe()
+    {
+        Assert.Contains("--id PHP.PHP.8.4 --exact", ToolPaths.PhpInstallCommand(true));
+        Assert.Contains("--skip-dependencies", ToolPaths.PhpInstallCommand(true));
+        Assert.Contains("--id PHP.PHP.8.4 --exact", ToolPaths.PhpInstallCommand(false));
+        Assert.DoesNotContain("--skip-dependencies", ToolPaths.PhpInstallCommand(false));
+    }
+
+    [Fact]
+    public void Programa_que_nao_existe_nao_conta_como_php_funcionando() =>
+        Assert.False(ToolPaths.PhpRuns(@"C:\pasta-que-nao-existe\php.exe"));
+
+    [AvaloniaTheory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Oferta_avisa_de_administrador_so_quando_vai_pedir(bool hasVisualCpp, bool warns)
+    {
+        using var temp = new TempFolder();
+        using var settingsFolder = new TempFolder();
+        var window = OpenPhpProject(temp, settingsFolder, () => false);
+        window.PhpInstallCommand = null;
+        window.HasVisualCpp = hasVisualCpp;
+
+        var running = window.RunProjectAsync();
+        await Until(() => window.IsDialogOpen);
+
+        Assert.Equal(warns, window.PhpOfferText.Contains("administrador"));
+        Assert.Equal(hasVisualCpp, window.PhpOfferText.Contains("--skip-dependencies"));
+        window.AnswerDialog(primary: false);
+        await running;
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public async Task Php_instalado_que_nao_abre_explica_o_motivo()
+    {
+        using var temp = new TempFolder();
+        using var settingsFolder = new TempFolder();
+        var window = OpenPhpProject(temp, settingsFolder, () => false);
+
+        var running = window.RunProjectAsync();
+        await Until(() => window.IsDialogOpen);
+        window.IsPhpInstalled = () => true;
+        window.DoesPhpRun = () => false;
+        window.AnswerDialog(primary: true);
+        await running;
+
+        await Until(() => window.StatusText.Contains("Visual C++"));
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static MainWindow OpenPhpProject(TempFolder temp, TempFolder settingsFolder, Func<bool> installed)
+    {
+        temp.File("index.php", "<?php\n");
+        var window = new MainWindow(new AppSettings(), Path.Combine(settingsFolder.Path, "settings.json"), temp.Path)
+        {
+            IsPhpInstalled = installed,
+            PhpInstallCommand = "echo instalando",
+        };
+        window.Language.IsInstalled = _ => false;
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        return window;
+    }
+
+    [AvaloniaFact]
+    public async Task Sem_php_executar_oferece_instalar_e_cancelar_nao_roda_nada()
+    {
+        using var temp = new TempFolder();
+        using var settingsFolder = new TempFolder();
+        var window = OpenPhpProject(temp, settingsFolder, () => false);
+
+        var running = window.RunProjectAsync();
+        await Until(() => window.IsDialogOpen);
+        Assert.False(window.IsTaskRunning);
+
+        window.AnswerDialog(primary: false);
+        await running;
+
+        Assert.False(window.IsDialogOpen);
+        Assert.False(window.IsTaskRunning);
+        Assert.False(window.IsTerminalOpen);
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public async Task Aceitar_instala_e_avisa_para_clicar_em_executar()
+    {
+        using var temp = new TempFolder();
+        using var settingsFolder = new TempFolder();
+        var installed = false;
+        var window = OpenPhpProject(temp, settingsFolder, () => installed);
+        window.DoesPhpRun = () => true;
+
+        var running = window.RunProjectAsync();
+        await Until(() => window.IsDialogOpen);
+        installed = true;
+        window.AnswerDialog(primary: true);
+        await running;
+
+        await Until(() => window.StatusText.Contains("PHP instalado"));
+        Assert.False(window.IsOpenSiteVisible);
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public async Task Instalou_mas_nao_achou_o_php_pede_para_reabrir()
+    {
+        using var temp = new TempFolder();
+        using var settingsFolder = new TempFolder();
+        var window = OpenPhpProject(temp, settingsFolder, () => false);
+
+        var running = window.RunProjectAsync();
+        await Until(() => window.IsDialogOpen);
+        window.AnswerDialog(primary: true);
+        await running;
+
+        await Until(() => window.StatusText.Contains("Reabra"));
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public async Task Instalacao_que_falha_nao_diz_que_deu_certo()
+    {
+        using var temp = new TempFolder();
+        using var settingsFolder = new TempFolder();
+        var window = OpenPhpProject(temp, settingsFolder, () => true);
+        window.IsPhpInstalled = () => false;
+        window.PhpInstallCommand = "exit /b 3";
+
+        var running = window.RunProjectAsync();
+        await Until(() => window.IsDialogOpen);
+        window.AnswerDialog(primary: true);
+        await running;
+
+        await Until(() => window.StatusText.Contains("código 3"));
+        Assert.DoesNotContain("instalado", window.StatusText, StringComparison.OrdinalIgnoreCase);
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public async Task Com_php_executa_direto_sem_perguntar()
+    {
+        using var temp = new TempFolder();
+        using var settingsFolder = new TempFolder();
+        var settings = new AppSettings();
+        settings.RunCommands[temp.Path] = FakeServer;
+        var window = new MainWindow(settings, Path.Combine(settingsFolder.Path, "settings.json"), temp.Path)
+        {
+            IsPhpInstalled = () => throw new InvalidOperationException("Não devia consultar: este comando não começa com php."),
+        };
+        window.Language.IsInstalled = _ => false;
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        await window.RunProjectAsync();
+        await Until(() => window.IsTaskRunning);
+
+        Assert.False(window.IsDialogOpen);
+        window.StopTask();
+        await Until(() => !window.IsTaskRunning);
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+    }
+
     [AvaloniaFact]
     public async Task Comando_que_nao_e_servidor_nao_mostra_o_botao()
     {

@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Sirius.Core;
+using Sirius.Lsp;
 using Sirius.Terminal;
 using Sirius.Theming;
 
@@ -173,6 +174,12 @@ public partial class MainWindow
         if (command is null)
             return;
 
+        if (RunDetector.NeedsPhp(command) && !IsPhpInstalled())
+        {
+            await OfferPhpInstallAsync();
+            return;
+        }
+
         // O programa precisa rodar com o que está na tela, não com a versão antiga do disco.
         foreach (var document in _documents.Where(d => d.IsDirty).ToList())
         {
@@ -182,6 +189,37 @@ public partial class MainWindow
 
         StartTask(command, null);
     }
+
+    // Trocados nos testes, que nunca instalam nada de verdade.
+    public Func<bool> IsPhpInstalled { get; set; } = () => LanguageServerCatalog.FindExecutable("php") is not null;
+    public Func<bool> DoesPhpRun { get; set; } = () =>
+        LanguageServerCatalog.FindExecutable("php") is { } php && ToolPaths.PhpRuns(php);
+    public bool HasVisualCpp { get; set; } = ToolPaths.HasVisualCpp;
+    public string? PhpInstallCommand { get; set; }
+
+    // Sem isto, o Executar só mostraria "php não é reconhecido", sem dizer o que fazer.
+    private async Task OfferPhpInstallAsync()
+    {
+        var command = PhpInstallCommand ?? ToolPaths.PhpInstallCommand(HasVisualCpp);
+        var admin = HasVisualCpp ? "" : "\n\nO Windows vai pedir permissão de administrador, para um componente da Microsoft de que o PHP precisa.";
+        var choice = await AskAsync("Instalar o PHP?",
+            $"Este projeto precisa do PHP, que não está neste computador. O comando vai rodar no terminal:\n\n{command}{admin}\n\nPara usar banco de dados MySQL, prefira o XAMPP, que já traz tudo.",
+            "Instalar", null);
+        if (choice != DialogChoice.Primary)
+            return;
+
+        StartTask(command, code =>
+        {
+            if (code != 0)
+                return;
+            // O status do fim da tarefa é o último a aparecer, por isso vem depois dele.
+            ShowStatus(!IsPhpInstalled() ? "Instalado, mas a Sirius não encontrou o PHP. Reabra a Sirius."
+                : DoesPhpRun() ? "PHP instalado. Clique em Executar."
+                : "O PHP não abriu: falta o Visual C++ da Microsoft.");
+        });
+    }
+
+    public string PhpOfferText => DialogBody.Text ?? "";
 
     private void StartTask(string command, Action<int>? onExit)
     {

@@ -16,7 +16,13 @@ public static partial class RunDetector
     [GeneratedRegex(@"\bphp(?:\.exe)?""?\s+artisan\s+serve\b(?:.*?--port[= ](?<port>\d{1,5})\b)?", RegexOptions.IgnoreCase)]
     private static partial Regex ArtisanServer();
 
+    // Só quando o comando começa chamando "php": um caminho completo já diz qual programa usar.
+    [GeneratedRegex(@"^\s*""?php(?:\.exe)?""?(?:\s|$)", RegexOptions.IgnoreCase)]
+    private static partial Regex CallsPhp();
+
     private const string PhpAddress = "localhost:8000";
+
+    public static bool NeedsPhp(string command) => CallsPhp().IsMatch(command);
 
     public static string? Detect(string root, string? activeFile)
     {
