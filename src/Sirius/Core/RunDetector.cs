@@ -29,7 +29,7 @@ public static partial class RunDetector
             ?? (File.Exists(Path.Combine(root, "go.mod")) ? "go run ." : null)
             ?? (File.Exists(Path.Combine(root, "main.py")) ? "python main.py" : null)
             ?? (File.Exists(Path.Combine(root, "Makefile")) ? "make" : null)
-            ?? ActiveScript(activeFile);
+            ?? ActiveScript(root, activeFile);
     }
 
     private static string? DotNet(string root)
@@ -125,10 +125,42 @@ public static partial class RunDetector
         return null;
     }
 
-    private static string? ActiveScript(string? file)
+    // A página a abrir: em uma pasta de arquivos soltos, como exercícios, é o arquivo em uso.
+    // Com página inicial, é sempre ela, para não abrir por engano um arquivo interno do projeto.
+    public static string? SitePageUrl(string? command, string root, string? file)
+    {
+        var site = SiteUrl(command);
+        if (site is null || file is null
+            || !PhpServer().IsMatch(command!)
+            || command!.Contains(" -t ", StringComparison.OrdinalIgnoreCase)
+            || File.Exists(Path.Combine(root, "index.php"))
+            || !IsPhp(file)
+            || RelativeInside(root, file) is not { } relative)
+        {
+            return site;
+        }
+
+        var parts = relative.Split(Path.DirectorySeparatorChar).Select(Uri.EscapeDataString);
+        return $"{site}/{string.Join('/', parts)}";
+    }
+
+    public static bool IsPhp(string file) => string.Equals(Path.GetExtension(file), ".php", StringComparison.OrdinalIgnoreCase);
+
+    private static string? RelativeInside(string root, string file)
+    {
+        var relative = Path.GetRelativePath(root, file);
+        var outside = Path.IsPathRooted(relative) || relative == ".."
+            || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+        return outside ? null : relative;
+    }
+
+    private static string? ActiveScript(string root, string? file)
     {
         if (file is null)
             return null;
+        // Um .php solto costuma ser página: no terminal, o HTML sairia como texto.
+        if (IsPhp(file) && RelativeInside(root, file) is not null)
+            return $"php -S {PhpAddress}";
         return Path.GetExtension(file).ToLowerInvariant() switch
         {
             ".py" => $"python \"{file}\"",

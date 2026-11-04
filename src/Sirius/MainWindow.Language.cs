@@ -134,7 +134,8 @@ public partial class MainWindow
         InstallButton.IsVisible = canInstall;
         if (canInstall)
             InstallButton.Content = $"Instalar suporte a {_missingServer!.DisplayName}";
-        RefreshUpdateNotice();
+        // Chamado ao trocar de aba: a página do "Abrir site" acompanha o arquivo em uso.
+        UpdateSiteButton();
     }
 
     private void OnInstallServer(object? sender, RoutedEventArgs e) => _ = InstallMissingServerAsync();

@@ -11,6 +11,7 @@ namespace Sirius;
 // A cápsula que se abre em terminal, e o botão Executar.
 public partial class MainWindow
 {
+    private string? _taskStartFile;
     private const double CapsuleClosedWidth = 600;
     private const double CapsuleOpenWidth = 1040;
     private const double CapsuleOpenHeight = 340;
@@ -201,6 +202,7 @@ public partial class MainWindow
 
         var session = _task;
         _taskCommand = command;
+        _taskStartFile = ActiveDocument?.FullPath;
         _taskFinished = new TaskCompletionSource<int>();
         session.Exited += code =>
         {
@@ -244,15 +246,31 @@ public partial class MainWindow
         RunLabel.Text = running ? "Parar" : "Executar";
         RunIcon.IsVisible = !running;
         StopIcon.IsVisible = running;
+        UpdateSiteButton();
+    }
 
+    private void UpdateSiteButton()
+    {
         var site = RunningSiteUrl;
         OpenSiteButton.IsVisible = site is not null;
         ToolTip.SetTip(OpenSiteButton, site);
         RefreshUpdateNotice();
     }
 
-    // O endereço só vale enquanto o servidor está no ar.
-    public string? RunningSiteUrl => IsTaskRunning ? RunDetector.SiteUrl(_taskCommand) : null;
+    // O endereço só vale enquanto o servidor está no ar. Numa aba que não é PHP, como um
+    // CSS, vale o arquivo que estava aberto ao executar, em vez de uma página que não existe.
+    public string? RunningSiteUrl
+    {
+        get
+        {
+            if (!IsTaskRunning)
+                return null;
+            var active = ActiveDocument?.FullPath;
+            var page = active is not null && RunDetector.IsPhp(active) ? active : _taskStartFile;
+            return RunDetector.SitePageUrl(_taskCommand, WorkingFolder(), page);
+        }
+    }
+
     public bool IsOpenSiteVisible => OpenSiteButton.IsVisible;
 
     private void OnOpenSite(object? sender, RoutedEventArgs e) => OpenSite();
