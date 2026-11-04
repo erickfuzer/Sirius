@@ -114,6 +114,67 @@ public class WebCompletionTests
     public void Outro_comando_nao_abre_a_lista_de_novo() =>
         Assert.False(Parse("""[{ "label": "a", "command": { "title": "x", "command": "outro" } }]""").SuggestAgain);
 
+    // Descrições
+
+    [Fact]
+    public void Tira_o_icone_em_base64_e_os_links_da_descricao()
+    {
+        const string Css = "Define a cor.\\\n\n![Baseline icon](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgi)\n\nSyntax: &lt;color&gt;\n\n[MDN Reference](https://developer.mozilla.org/x)";
+
+        var text = LspParsers.CleanDocumentation(Css);
+
+        Assert.Equal("Define a cor.\n\nSyntax: <color>\n\nMDN Reference", text);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("![so icone](data:image/png;base64,AAAA)")]
+    public void Descricao_sem_texto_vira_nada(string? documentation) =>
+        Assert.Null(LspParsers.CleanDocumentation(documentation));
+
+    [Fact]
+    public void Descricao_gigante_e_cortada()
+    {
+        var text = LspParsers.CleanDocumentation(new string('a', 5000))!;
+        Assert.True(text.Length <= 1501);
+        Assert.EndsWith("…", text);
+    }
+
+    [Fact]
+    public void Texto_de_codigo_na_descricao_nao_e_estragado() =>
+        Assert.Equal("strlen(string $x): int\n\nretorna $x[0]", LspParsers.CleanDocumentation("strlen(string $x): int\n\nretorna $x[0]"));
+
+    [AvaloniaFact]
+    public void Descricao_tem_largura_limitada_e_quebra_linha()
+    {
+        var item = new CompletionItem(new CompletionEntry("a", "detalhe", "texto", "a", null), null, 0, null);
+
+        var block = Assert.IsType<Avalonia.Controls.TextBlock>(item.Description);
+
+        Assert.Equal("detalhe\n\ntexto", block.Text);
+        Assert.Equal(Avalonia.Media.TextWrapping.Wrap, block.TextWrapping);
+        Assert.True(block.MaxWidth <= 500);
+    }
+
+    [AvaloniaFact]
+    public void Sem_descricao_nao_abre_a_janela_ao_lado() =>
+        Assert.Null(new CompletionItem(new CompletionEntry("a", null, null, "a", null), null, 0, null).Description);
+
+    [AvaloniaTheory]
+    [InlineData("claro")]
+    [InlineData("grafite")]
+    public void Lista_usa_cores_da_paleta(string theme)
+    {
+        Sirius.Theming.Palette.Apply(theme);
+        var resources = Avalonia.Application.Current!.Resources;
+
+        Assert.True(resources.ContainsKey("Selection"));
+        Assert.Same(Sirius.Theming.Palette.Current.Selection, resources["Selection"]);
+        Sirius.Theming.Palette.Apply("claro");
+    }
+
     // Na janela, com o servidor falso
 
     private static object Item(string label, string newText, int line, int start, int end, bool snippet = true, bool again = false) => new Dictionary<string, object?>

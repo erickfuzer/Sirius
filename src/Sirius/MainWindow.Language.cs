@@ -16,6 +16,7 @@ namespace Sirius;
 public partial class MainWindow
 {
     private const int MaxCompletionItems = 1000;
+    private const double CompletionWidth = 280;
     private const int MaxHoverChars = 1500;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
 
@@ -241,6 +242,8 @@ public partial class MainWindow
             StartOffset = start,
             EndOffset = caret,
             CloseWhenCaretAtBeginning = true,
+            // O padrão cortava nomes longos, como background-attachment.
+            Width = CompletionWidth,
         };
 
         // Filtra pelo que já foi digitado antes de cortar: o CSS tem centenas de propriedades,

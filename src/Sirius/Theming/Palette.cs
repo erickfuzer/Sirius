@@ -80,6 +80,7 @@ public sealed record Palette(
         r["Faint"] = Current.Faint;
         r["Tint"] = Current.Tint;
         r["Accent"] = Current.Accent;
+        r["Selection"] = Current.Selection;
         r["OnAccent"] = Current.OnAccent;
         r["Error"] = Current.Error;
         r["Veil"] = Current.Veil;

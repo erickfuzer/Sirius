@@ -1,5 +1,7 @@
+using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using AvaloniaEdit.Document;
 
 namespace Sirius.Lsp;
@@ -99,7 +101,7 @@ public static partial class LspParsers
                 && command.ValueKind == JsonValueKind.Object
                 && StringOf(command, "command") == "editor.action.triggerSuggest";
 
-            var documentation = item.TryGetProperty("documentation", out var docs) ? TextOf(docs) : null;
+            var documentation = item.TryGetProperty("documentation", out var docs) ? CleanDocumentation(TextOf(docs)) : null;
             entries.Add(new CompletionEntry(label, StringOf(item, "detail"), documentation, insert, StringOf(item, "sortText"))
             {
                 Edit = range,
@@ -211,8 +213,8 @@ public static partial class LspParsers
     {
         if (result.ValueKind != JsonValueKind.Object || !result.TryGetProperty("contents", out var contents))
             return null;
-        var text = TextOf(contents);
-        return string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+        var text = CleanDocumentation(TextOf(contents));
+        return string.IsNullOrWhiteSpace(text) ? null : text;
     }
 
     public static Dictionary<string, List<LspTextEdit>> WorkspaceEdit(JsonElement result)
@@ -248,6 +250,34 @@ public static partial class LspParsers
         }
         return edits;
     }
+
+    // A Sirius mostra texto puro. O servidor de CSS manda até o ícone em base64 no meio da
+    // descrição, que na tela vira uma linha enorme de letras sem sentido.
+    public static string? CleanDocumentation(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+
+        text = MarkdownImage().Replace(text, "");
+        text = MarkdownLink().Replace(text, "$1");
+        text = text.Replace("\\\n", "\n").Replace("\\\r\n", "\n");
+        text = WebUtility.HtmlDecode(text);
+        text = ExtraBlankLines().Replace(text, "\n\n").Trim();
+        if (text.Length == 0)
+            return null;
+        return text.Length <= MaxDocumentationLength ? text : text[..MaxDocumentationLength].TrimEnd() + "…";
+    }
+
+    private const int MaxDocumentationLength = 1500;
+
+    [GeneratedRegex(@"!\[[^\]]*\]\([^)]*\)")]
+    private static partial Regex MarkdownImage();
+
+    [GeneratedRegex(@"\[([^\]]*)\]\([^)]*\)")]
+    private static partial Regex MarkdownLink();
+
+    [GeneratedRegex(@"(\r?\n[ \t]*){3,}")]
+    private static partial Regex ExtraBlankLines();
 
     private static string? TextOf(JsonElement value)
     {

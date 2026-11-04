@@ -44,7 +44,8 @@ public sealed class LanguageClient : IDisposable
                 {
                     synchronization = new { didSave = true },
                     publishDiagnostics = new { relatedInformation = false },
-                    completion = new { completionItem = new { snippetSupport = true, documentationFormat = new[] { "plaintext", "markdown" } } },
+                    // Só texto puro: a descrição aparece como texto, sem interpretar Markdown.
+                    completion = new { completionItem = new { snippetSupport = true, documentationFormat = new[] { "plaintext" } } },
                     hover = new { contentFormat = new[] { "plaintext", "markdown" } },
                     definition = new { linkSupport = false },
                     rename = new { prepareSupport = false },
