@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Sirius/Sirius.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Sirius.Tests/Sirius.Tests.csproj" />
+  </Folder>
+</Solution>
