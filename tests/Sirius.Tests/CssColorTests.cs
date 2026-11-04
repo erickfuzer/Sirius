@@ -1,10 +1,12 @@
 using System.Globalization;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Threading;
 using Sirius.Core;
+using Sirius.Editing;
 
 namespace Sirius.Tests;
 
@@ -481,6 +483,61 @@ public class CssColorTests
         Dispatcher.UIThread.RunJobs();
         Assert.False(window.IsColorPickerOpen);
         Assert.Equal("a { color: #336699; }\n\n\n\n\n", Text(window));
+        window.Close();
+    }
+
+    private static void Settle()
+    {
+        Dispatcher.UIThread.RunJobs();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static void Drag(Window window, Control control, double fromX, double fromY, double toX, double toY)
+    {
+        Point At(double x, double y) => control.TranslatePoint(new Point(control.Bounds.Width * x, control.Bounds.Height * y), window)!.Value;
+
+        window.MouseDown(At(fromX, fromY), MouseButton.Left);
+        Settle();
+        window.MouseMove(At((fromX + toX) / 2, (fromY + toY) / 2));
+        Settle();
+        window.MouseMove(At(toX, toY));
+        Settle();
+        window.MouseUp(At(toX, toY), MouseButton.Left);
+        Settle();
+    }
+
+    [AvaloniaFact]
+    public void Arrastar_no_seletor_muda_a_cor_e_e_um_so_desfazer()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        const string Original = "a { color: #ff0000; }\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
+        var window = Open(temp, settings, "a.css", Original);
+        window.OpenColorPicker(11);
+        Settle();
+
+        // Canto de baixo do quadro: sem brilho, a cor é preta, em qualquer tom.
+        Drag(window, window.FindControl<ColorSquare>("ColorSquareView")!, 0.5, 0.5, 1, 1);
+        Assert.True(window.IsColorPickerOpen);
+        Assert.Equal("#000000", window.PickedColorText);
+
+        // Canto de cima, à direita: cor pura.
+        Drag(window, window.FindControl<ColorSquare>("ColorSquareView")!, 0.5, 0.5, 1, 0);
+        Assert.Equal("#ff0000", window.PickedColorText);
+
+        // O meio da barra de tom é ciano.
+        Drag(window, window.FindControl<ColorStrip>("HueStrip")!, 0.1, 0.5, 0.5, 0.5);
+        Assert.Equal("#00ffff", window.PickedColorText);
+
+        // Metade da barra de transparência.
+        Drag(window, window.FindControl<ColorStrip>("AlphaStrip")!, 0.9, 0.5, 0.5, 0.5);
+        Assert.Equal("#00ffff80", window.PickedColorText);
+        Assert.StartsWith("a { color: #00ffff80; }", Text(window));
+
+        window.CloseColorPicker();
+        window.ActiveDocument!.Document.UndoStack.Undo();
+        Assert.Equal(Original, Text(window));
         window.Close();
     }
 
