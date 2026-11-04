@@ -243,7 +243,8 @@ public sealed class TerminalView : Control
         if (_session is not { } session)
             return;
 
-        var control = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        // Ctrl e Alt juntos são o AltGr, que digita caracteres em vez de acionar atalhos.
+        var control = e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt);
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
 
         if (shift && e.Key is Key.PageUp or Key.PageDown)

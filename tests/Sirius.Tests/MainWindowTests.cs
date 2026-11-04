@@ -565,6 +565,64 @@ public class MainWindowTests
         Assert.True(File.Exists(path));
     }
 
+    [AvaloniaTheory]
+    [InlineData(PhysicalKey.W)]
+    [InlineData(PhysicalKey.S)]
+    [InlineData(PhysicalKey.K)]
+    [InlineData(PhysicalKey.O)]
+    [InlineData(PhysicalKey.J)]
+    [InlineData(PhysicalKey.Q)]
+    [InlineData(PhysicalKey.Minus)]
+    [InlineData(PhysicalKey.Equal)]
+    public void AltGr_nunca_aciona_atalho(PhysicalKey key)
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.php", "<?php");
+        var window = Open(temp);
+        window.OpenFile(path);
+        var document = window.ActiveDocument!;
+        document.Document.Insert(0, "x");
+        var fontSize = window.EditorFontSize;
+
+        window.KeyPressQwerty(key, RawInputModifiers.Control | RawInputModifiers.Alt);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(window.IsDialogOpen);
+        Assert.False(window.IsPaletteOpen);
+        Assert.False(window.IsTerminalOpen);
+        Assert.Same(document, window.ActiveDocument);
+        Assert.True(document.IsDirty);
+        Assert.Equal(fontSize, window.EditorFontSize);
+    }
+
+    [AvaloniaFact]
+    public void Ctrl_W_sem_alt_continua_fechando_a_aba()
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp);
+        window.OpenFile(temp.File("a.php", "<?php"));
+
+        window.KeyPressQwerty(PhysicalKey.W, RawInputModifiers.Control);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Empty(window.Documents);
+    }
+
+    [AvaloniaFact]
+    public void Interrogacao_digitada_entra_no_arquivo()
+    {
+        using var temp = new TempFolder();
+        var window = Open(temp);
+        window.OpenFile(temp.File("a.php", ""));
+        Dispatcher.UIThread.RunJobs();
+
+        window.KeyPressQwerty(PhysicalKey.W, RawInputModifiers.Control | RawInputModifiers.Alt);
+        window.KeyTextInput("<?php");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("<?php", window.ActiveDocument!.Document.Text);
+    }
+
     [AvaloniaFact]
     public void Atalhos_mudam_a_fonte_do_editor_e_guardam_a_escolha()
     {

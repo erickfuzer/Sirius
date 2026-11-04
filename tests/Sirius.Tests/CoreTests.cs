@@ -190,6 +190,7 @@ public class SyntaxHighlighterTests
     [InlineData("a.css")]
     [InlineData("a.md")]
     [InlineData("a.axaml")]
+    [InlineData("a.php")]
     public void Linguagens_comuns_tem_gramatica(string file)
     {
         Assert.NotNull(SyntaxHighlighter.ForDocument(file, new TextDocument("x")));

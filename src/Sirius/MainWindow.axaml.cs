@@ -679,7 +679,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        // No Windows o AltGr chega como Ctrl e Alt juntos. Em teclados brasileiros ele digita
+        // caracteres como ? e /, então nunca pode ser tratado como atalho.
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Alt))
             return;
 
         // No terminal, estas combinações pertencem ao programa que está rodando.
