@@ -106,6 +106,7 @@ public partial class MainWindow : Window
         InitializeLanguage();
         InitializeWorkspace();
         InitializeGit();
+        InitializeColors();
         CodeEditor.AddHandler(PointerWheelChangedEvent, OnEditorWheel, RoutingStrategies.Tunnel);
         ApplyEditorFontSize(_settings.EditorFontSize);
         DialogInput.AddHandler(KeyDownEvent, OnDialogInputKeyDown, RoutingStrategies.Tunnel);
@@ -563,6 +564,7 @@ public partial class MainWindow : Window
     private void Activate(OpenDocument? document)
     {
         CloseCompletion();
+        CloseColorPicker();
         DiffHost.IsVisible = false;
         if (ActiveDocument is not null)
         {
@@ -722,6 +724,13 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 FinishDialog(DialogChoice.Cancel);
             }
+            return;
+        }
+
+        if (e.Key == Key.Escape && IsColorPickerOpen)
+        {
+            e.Handled = true;
+            CloseColorPicker();
             return;
         }
 
@@ -1233,6 +1242,7 @@ public partial class MainWindow : Window
         Capsule.BoxShadow = palette.PopShadow;
         PaletteCard.BoxShadow = palette.PopShadow;
         DialogCard.BoxShadow = palette.PopShadow;
+        ColorCard.BoxShadow = palette.PopShadow;
         CodeEditor.TextArea.SelectionBrush = palette.Selection;
         CodeEditor.TextArea.SelectionBorder = null;
         CodeEditor.TextArea.Caret.CaretBrush = palette.Accent;

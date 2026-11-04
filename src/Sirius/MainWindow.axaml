@@ -3,6 +3,7 @@
         xmlns:ae="using:AvaloniaEdit"
         xmlns:s="using:Sirius"
         xmlns:t="using:Sirius.Terminal"
+        xmlns:e="using:Sirius.Editing"
         x:Class="Sirius.MainWindow"
         x:DataType="s:MainWindow"
         x:CompileBindings="False"
@@ -412,6 +413,26 @@
                                     </Button>
                                     </Grid>
                                 </Grid>
+                            </Border>
+
+                            <!-- Seletor de cores do CSS -->
+                            <Border x:Name="ColorCard" IsVisible="False" Width="236" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                    Padding="10" CornerRadius="12" Background="{DynamicResource Pop}">
+                                <StackPanel Spacing="10">
+                                    <Button Classes="flat" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Height="26" Padding="4,0"
+                                            Click="OnColorFormatClick" ToolTip.Tip="Trocar o formato" AutomationProperties.Name="Trocar o formato da cor">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Border Width="16" Height="16" CornerRadius="4" ClipToBounds="True" Background="White" VerticalAlignment="Center"
+                                                    BorderThickness="1" BorderBrush="{DynamicResource Faint}">
+                                                <Border x:Name="ColorPreview" />
+                                            </Border>
+                                            <TextBlock x:Name="ColorText" FontFamily="{DynamicResource CodeFont}" FontSize="12" Foreground="{DynamicResource Ink}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <e:ColorSquare x:Name="ColorSquareView" Height="124" />
+                                    <e:ColorStrip x:Name="HueStrip" Height="12" IsHue="True" Margin="6,0" />
+                                    <e:ColorStrip x:Name="AlphaStrip" Height="12" Margin="6,0" />
+                                </StackPanel>
                             </Border>
                         </Panel>
                     </Grid>

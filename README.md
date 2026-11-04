@@ -22,6 +22,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 ## Funcionalidades
 
 - **Editor:** abas, sintaxe colorida para dezenas de linguagens, zoom, temas claro e grafite e modo foco
+- **Cores do CSS:** um quadradinho mostra cada cor no código, e clicar nele abre um seletor que altera o texto na hora. Funciona em CSS, SCSS, Sass e Less, e dentro de `<style>` e `style="..."` em HTML e PHP
 - **Barra de comando:** <kbd>Ctrl</kbd> + <kbd>K</kbd> encontra arquivos e executa ações sem tirar a mão do teclado
 - **Projeto:** árvore de arquivos para criar, renomear e excluir, com busca e substituição em todo o projeto
 - **Terminal integrado:** a cápsula flutuante se abre em um terminal completo. O botão Executar detecta o comando do projeto, e os erros da saída são clicáveis. Em PHP, ele sobe o servidor e oferece abrir o site no navegador, ou o arquivo em uso em pastas sem `index.php`, usando também o PHP do XAMPP
