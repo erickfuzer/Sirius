@@ -98,7 +98,6 @@ public static class UpdateChecker
     private const string LatestReleaseApi = "https://api.github.com/repos/erickfuzer/Sirius/releases/latest";
     private const string ReleasesPage = "https://github.com/erickfuzer/Sirius/releases/tag/";
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(24);
 
     // O GitHub limita consultas sem login, e as notas de uma versão cabem com folga nesse tamanho.
     private static readonly HttpClient Http = CreateClient();
@@ -142,14 +141,6 @@ public static class UpdateChecker
         {
             return null;
         }
-    }
-
-    public static bool IsDue(AppSettings settings, DateTime utcNow)
-    {
-        if (!settings.CheckForUpdates)
-            return false;
-        // Um relógio que voltou no tempo não pode impedir a consulta para sempre.
-        return settings.LastUpdateCheck is not { } last || last > utcNow || utcNow - last >= CheckInterval;
     }
 
     // A versão a anunciar, ou null se a pessoa já está nela ou decidiu ignorá-la.

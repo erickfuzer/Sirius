@@ -23,7 +23,7 @@ public partial class MainWindow
     public void StartUpdateChecks()
     {
         RefreshUpdateNotice();
-        if (UpdateChecker.IsDue(_settings, DateTime.UtcNow))
+        if (_settings.CheckForUpdates)
             _ = CheckForUpdatesAsync(manual: false);
     }
 
@@ -46,7 +46,6 @@ public partial class MainWindow
                 return;
             }
 
-            _settings.LastUpdateCheck = DateTime.UtcNow;
             _settings.LatestVersion = tag;
             // Procurar de propósito traz de volta uma versão que tinha sido ignorada.
             if (manual)

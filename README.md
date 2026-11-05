@@ -38,9 +38,13 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 
 ### Com o Claude Code no terminal
 
-O terminal da Sirius é um terminal completo, então o [Claude Code](https://claude.com/claude-code) roda dentro dela, com cores, rolagem pela roda do mouse e acentos. Ele edita o projeto, e a mudança aparece na hora no editor e nas marcas do Git:
+O terminal da Sirius é um terminal completo, então o [Claude Code](https://claude.com/claude-code) roda dentro dela, com cores, rolagem pela roda do mouse e acentos. Você pede na cápsula, com o projeto aberto logo acima:
 
-<img src="docs/screenshot-claude.png" alt="Claude Code rodando no terminal da Sirius: ele adicionou a estrela Vega a um arquivo PHP, o diff aparece na cápsula e a linha nova aparece no editor com a marca do Git" width="760">
+<img src="docs/screenshot-claude-pedido.png" alt="Claude Code aberto no terminal da Sirius, com o boneco Clawd e o pedido de adicionar a estrela Vega digitado, abaixo de um arquivo PHP aberto no editor" width="760">
+
+Ele edita o arquivo, e a mudança aparece na hora no editor e nas marcas do Git:
+
+<img src="docs/screenshot-claude.png" alt="Claude Code depois do pedido: a estrela Vega foi adicionada ao arquivo PHP, o diff aparece na cápsula e a linha nova aparece no editor com a marca do Git" width="760">
 
 <details>
 <summary>Ver as cores do CSS</summary>
@@ -78,7 +82,7 @@ A interface é desenhada pelo [Avalonia](https://avaloniaui.net), sem navegador 
 
 O terminal roda no ConPTY, o mesmo mecanismo de terminal do próprio Windows. A inteligência de código conversa com servidores de linguagem pelo protocolo LSP: quando falta o servidor de um arquivo aberto, a cápsula oferece a instalação para C#, PHP, HTML, CSS, JavaScript, TypeScript e Python. Go, Rust e C++ funcionam se `gopls`, `rust-analyzer` ou `clangd` estiverem instalados. O Git é o seu próprio `git`, sem biblioteca no meio.
 
-A única consulta que a Sirius faz por conta própria é perguntar à API pública do GitHub qual é a última versão, no máximo uma vez por dia. Ela não envia nada do seu projeto e pode ser desligada em "Aviso de versão nova", na barra de comando.
+A única consulta que a Sirius faz por conta própria é perguntar à API pública do GitHub qual é a última versão, cada vez que ela abre. Ela não envia nada do seu projeto e pode ser desligada em "Aviso de versão nova", na barra de comando.
 
 ## Como usar
 

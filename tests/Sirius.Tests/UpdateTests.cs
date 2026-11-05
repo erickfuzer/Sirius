@@ -127,19 +127,7 @@ public class UpdateTests
     public void Endereco_aponta_para_a_pagina_da_versao() =>
         Assert.Equal("https://github.com/erickfuzer/Sirius/releases/tag/v0.1.0-alpha.2", UpdateChecker.ReleasePageFor(V("v0.1.0-alpha.2")));
 
-    // Quando consultar e o que anunciar
-
-    [Fact]
-    public void Consulta_no_maximo_uma_vez_por_dia()
-    {
-        var now = new DateTime(2026, 11, 4, 12, 0, 0, DateTimeKind.Utc);
-
-        Assert.True(UpdateChecker.IsDue(new AppSettings(), now));
-        Assert.False(UpdateChecker.IsDue(new AppSettings { LastUpdateCheck = now.AddHours(-23) }, now));
-        Assert.True(UpdateChecker.IsDue(new AppSettings { LastUpdateCheck = now.AddHours(-24) }, now));
-        Assert.True(UpdateChecker.IsDue(new AppSettings { LastUpdateCheck = now.AddDays(3) }, now));
-        Assert.False(UpdateChecker.IsDue(new AppSettings { CheckForUpdates = false }, now));
-    }
+    // O que anunciar
 
     [Theory]
     [InlineData("v0.1.0-alpha.2", null, "0.1.0-alpha.2")]
@@ -175,7 +163,6 @@ public class UpdateTests
         Assert.Equal("0.1.0-alpha.2", fixture.Window.PendingUpdateText);
         var saved = AppSettings.Load(fixture.SettingsPath);
         Assert.Equal("v0.1.0-alpha.2", saved.LatestVersion);
-        Assert.NotNull(saved.LastUpdateCheck);
     }
 
     [AvaloniaFact]
@@ -183,7 +170,7 @@ public class UpdateTests
     {
         using var temp = new TempFolder();
         var php = temp.File("index.php", "<?php\n");
-        using var fixture = new Fixture(new AppSettings { LastUpdateCheck = DateTime.UtcNow, LatestVersion = "v0.1.0-alpha.2" });
+        using var fixture = new Fixture(new AppSettings { LatestVersion = "v0.1.0-alpha.2" });
         fixture.Window.StartUpdateChecks();
         Assert.Equal("Versão 0.1.0-alpha.2 disponível", fixture.Window.UpdateNoticeLabel);
 
@@ -207,15 +194,34 @@ public class UpdateTests
     }
 
     [AvaloniaFact]
-    public void Consulta_recente_nao_repete_mas_mantem_o_aviso()
+    public void Consulta_toda_vez_que_a_sirius_abre()
     {
-        using var fixture = new Fixture(new AppSettings { LastUpdateCheck = DateTime.UtcNow.AddHours(-1), LatestVersion = "v0.1.0-alpha.2" });
+        using var fixture = new Fixture { Latest = "v0.1.0-alpha.2" };
+
+        fixture.Window.StartUpdateChecks();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("0.1.0-alpha.2", fixture.Window.PendingUpdateText);
+
+        // Uma versão publicada um minuto depois já aparece ao abrir de novo.
+        fixture.Latest = "v0.1.0-alpha.3";
+        fixture.Window.StartUpdateChecks();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(2, fixture.Fetches);
+        Assert.Equal("0.1.0-alpha.3", fixture.Window.PendingUpdateText);
+    }
+
+    [AvaloniaFact]
+    public void Sem_internet_mantem_o_aviso_que_ja_sabia()
+    {
+        using var fixture = new Fixture(new AppSettings { LatestVersion = "v0.1.0-alpha.2" });
 
         fixture.Window.StartUpdateChecks();
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal(0, fixture.Fetches);
+        Assert.Equal(1, fixture.Fetches);
         Assert.True(fixture.Window.IsUpdateNoticeVisible);
+        Assert.Equal("v0.1.0-alpha.2", fixture.Settings.LatestVersion);
     }
 
     [AvaloniaFact]
@@ -229,7 +235,6 @@ public class UpdateTests
         Assert.Equal(1, fixture.Fetches);
         Assert.Equal("", fixture.Window.StatusText);
         Assert.False(fixture.Window.IsDialogOpen);
-        Assert.Null(fixture.Settings.LastUpdateCheck);
     }
 
     [AvaloniaFact]
@@ -247,7 +252,7 @@ public class UpdateTests
     [AvaloniaFact]
     public void Desligar_esconde_e_ligar_volta_a_consultar()
     {
-        using var fixture = new Fixture(new AppSettings { LastUpdateCheck = DateTime.UtcNow, LatestVersion = "v0.1.0-alpha.2" });
+        using var fixture = new Fixture(new AppSettings { LatestVersion = "v0.1.0-alpha.2" });
         fixture.Window.StartUpdateChecks();
         Assert.True(fixture.Window.IsUpdateNoticeVisible);
 
@@ -299,13 +304,11 @@ public class UpdateTests
         Assert.False(fixture.Window.IsUpdateNoticeVisible);
         Assert.Equal("v0.1.0-alpha.2", AppSettings.Load(fixture.SettingsPath).DismissedVersion);
 
-        fixture.Settings.LastUpdateCheck = null;
         fixture.Window.StartUpdateChecks();
         Dispatcher.UIThread.RunJobs();
         Assert.False(fixture.Window.IsUpdateNoticeVisible);
 
         fixture.Latest = "v0.1.0-alpha.3";
-        fixture.Settings.LastUpdateCheck = null;
         fixture.Window.StartUpdateChecks();
         Dispatcher.UIThread.RunJobs();
         Assert.True(fixture.Window.IsUpdateNoticeVisible);

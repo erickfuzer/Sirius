@@ -26,7 +26,6 @@ public sealed class AppSettings
 
     // Aviso de versão nova. A última versão fica guardada para o aviso aparecer mesmo sem internet.
     public bool CheckForUpdates { get; set; } = true;
-    public DateTime? LastUpdateCheck { get; set; }
     public string? LatestVersion { get; set; }
     public string? DismissedVersion { get; set; }
 
