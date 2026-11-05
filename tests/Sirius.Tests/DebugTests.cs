@@ -191,8 +191,19 @@ public class DbgpParserTests
     {
         var response = DbgpParser.Parse($"<response {Ns}><stack where=\"{{main}}\" level=\"0\" type=\"file\" filename=\"file:///C:/a/b.php\" lineno=\"12\"></stack></response>");
 
-        Assert.Equal(("file:///C:/a/b.php", 12), DbgpParser.TopFrame(response));
+        Assert.Equal(new DebugFrame("file:///C:/a/b.php", 12, null, 1), DbgpParser.TopFrame(response));
         Assert.Null(DbgpParser.TopFrame(DbgpParser.Parse($"<response {Ns}></response>")));
+    }
+
+    [Fact]
+    public void Dentro_de_uma_funcao_conta_quem_chamou()
+    {
+        var response = DbgpParser.Parse($"<response {Ns}>" +
+            "<stack where=\"Catalogo->total\" level=\"0\" type=\"file\" filename=\"file:///C:/a.php\" lineno=\"9\"></stack>" +
+            "<stack where=\"{main}\" level=\"1\" type=\"file\" filename=\"file:///C:/a.php\" lineno=\"20\"></stack>" +
+            "</response>");
+
+        Assert.Equal(new DebugFrame("file:///C:/a.php", 9, "Catalogo->total", 2), DbgpParser.TopFrame(response));
     }
 
     [Fact]
@@ -203,10 +214,86 @@ public class DbgpParserTests
     }
 }
 
+public class DebugValuesTests
+{
+    private static readonly DebugVariable Pessoa = new("$pessoa", "$pessoa", "array", "array(2)",
+    [
+        new DebugVariable("nome", "$pessoa[\"nome\"]", "string", "'Ana'", []),
+        new DebugVariable("notas", "$pessoa[\"notas\"]", "array", "array(1)",
+        [
+            new DebugVariable("0", "$pessoa[\"notas\"][0]", "int", "9", []),
+        ]),
+    ]);
+
+    private static readonly DebugVariable Total = new("$total", "$total", "int", "7", []);
+    private static readonly DebugVariable Carro = new("$carro", "$carro", "object", "Carro",
+    [
+        new DebugVariable("cor", "$carro->cor", "string", "'azul'", []),
+    ]);
+    private static readonly IReadOnlyList<DebugVariable> All = [Pessoa, Total, Carro];
+
+    private static string? At(string line, string under) =>
+        DebugValues.At(All, line, line.IndexOf(under, StringComparison.Ordinal))?.FullName;
+
+    [Fact]
+    public void Acha_a_variavel_com_o_mouse_em_qualquer_letra()
+    {
+        const string line = "echo $total + 1;";
+
+        Assert.Equal("$total", DebugValues.At(All, line, 5)?.FullName);
+        Assert.Equal("$total", DebugValues.At(All, line, 10)?.FullName);
+        Assert.Null(DebugValues.At(All, line, 11));
+        Assert.Null(DebugValues.At(All, line, 0));
+    }
+
+    [Fact]
+    public void Mouse_no_comeco_do_array_mostra_o_array_inteiro()
+    {
+        Assert.Equal("$pessoa", At("echo $pessoa['nome'];", "$pessoa"));
+    }
+
+    [Theory]
+    [InlineData("echo $pessoa['nome'];", "'nome'", "$pessoa[\"nome\"]")]
+    [InlineData("echo $pessoa[\"nome\"];", "\"nome\"", "$pessoa[\"nome\"]")]
+    [InlineData("echo $pessoa['notas'][0];", "'notas'", "$pessoa[\"notas\"]")]
+    [InlineData("echo $pessoa['notas'][0];", "[0]", "$pessoa[\"notas\"][0]")]
+    [InlineData("echo $carro->cor;", "cor", "$carro->cor")]
+    public void Mouse_em_um_item_mostra_ate_aquele_item(string line, string under, string expected)
+    {
+        Assert.Equal(expected, At(line, under));
+    }
+
+    [Fact]
+    public void Variavel_que_nao_existe_nesta_parada_nao_tem_dica()
+    {
+        Assert.Null(At("echo $outra;", "$outra"));
+        Assert.Null(At("echo $pessoa['idade'];", "'idade'"));
+        Assert.Null(At("echo total;", "total"));
+    }
+
+    [Fact]
+    public void Dica_traz_o_valor_e_os_itens()
+    {
+        Assert.Equal("$total = 7", DebugValues.Describe(Total));
+        Assert.Equal("$pessoa = array(2)\nnome: 'Ana'\nnotas: array(1)", DebugValues.Describe(Pessoa));
+    }
+
+    [Fact]
+    public void Dica_de_array_grande_corta_os_itens()
+    {
+        var items = Enumerable.Range(0, 40).Select(i => new DebugVariable(i.ToString(), $"$a[{i}]", "int", "1", [])).ToList();
+
+        var tip = DebugValues.Describe(new DebugVariable("$a", "$a", "array", "array(40)", items));
+
+        Assert.Equal(14, tip.Split('\n').Length);
+        Assert.EndsWith("E mais 28", tip);
+    }
+}
+
 // Faz o papel do Xdebug: conecta no servidor e responde pelo mesmo protocolo.
 public sealed class FakeXdebug : IDisposable
 {
-    public sealed record Stop(string File, int Line, string Variables = "", string Globals = "");
+    public sealed record Stop(string File, int Line, string Variables = "", string Globals = "", string? Function = null);
 
     private readonly TcpClient _client = new();
     private readonly Queue<Stop> _stops;
@@ -268,7 +355,7 @@ public sealed class FakeXdebug : IDisposable
             case "breakpoint_set":
                 attributes = $" id=\"{id}\"";
                 break;
-            case "run" or "step_over":
+            case "run" or "step_over" or "step_into" or "step_out":
                 if (_stops.TryDequeue(out var next))
                 {
                     _current = next;
@@ -280,7 +367,11 @@ public sealed class FakeXdebug : IDisposable
                 }
                 break;
             case "stack_get":
-                inner = $"<stack level=\"0\" type=\"file\" filename=\"{new Uri(_current!.File).AbsoluteUri}\" lineno=\"{_current.Line}\"></stack>";
+                var uri = new Uri(_current!.File).AbsoluteUri;
+                inner = _current.Function is { } function
+                    ? $"<stack where=\"{function}\" level=\"0\" type=\"file\" filename=\"{uri}\" lineno=\"{_current.Line}\"></stack>" +
+                      $"<stack where=\"{{main}}\" level=\"1\" type=\"file\" filename=\"{uri}\" lineno=\"1\"></stack>"
+                    : $"<stack where=\"{{main}}\" level=\"0\" type=\"file\" filename=\"{uri}\" lineno=\"{_current.Line}\"></stack>";
                 break;
             case "context_get":
                 inner = command.Contains("-c 1") ? _current!.Globals : _current!.Variables;
@@ -381,6 +472,37 @@ public class XdebugServerTests
 
         Assert.False(server.IsPaused);
         Assert.Contains(php.Commands, c => c.StartsWith("stop"));
+    }
+
+    [Fact]
+    public async Task Entrar_e_sair_de_funcao_vao_para_o_xdebug()
+    {
+        var file = @"C:\a.php";
+        using var server = new XdebugServer();
+        var pauses = new ConcurrentQueue<DebugPause>();
+        server.Paused += pauses.Enqueue;
+        server.Start();
+        using var php = new FakeXdebug(
+            new FakeXdebug.Stop(file, 1),
+            new FakeXdebug.Stop(file, 5, Function: "calcular"),
+            new FakeXdebug.Stop(file, 2));
+        php.Connect(server.Port);
+        await Until(() => pauses.Count == 1);
+        Assert.Null(pauses.Last().Function);
+        Assert.Equal(1, pauses.Last().Depth);
+
+        server.StepInto();
+        await Until(() => pauses.Count == 2);
+        Assert.Contains(php.Commands, c => c.StartsWith("step_into"));
+        Assert.Equal("calcular", pauses.Last().Function);
+        Assert.Equal(2, pauses.Last().Depth);
+
+        server.StepOut();
+        await Until(() => pauses.Count == 3);
+        Assert.Contains(php.Commands, c => c.StartsWith("step_out"));
+
+        server.Continue();
+        await php.Finished;
     }
 
     [Fact]
@@ -807,6 +929,96 @@ public class DebugWindowTests
         await Until(() => !window.IsDebugPaused);
 
         Assert.False(window.IsTaskRunning);
+        window.EndDebug();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task F11_entra_e_Shift_F11_sai_da_funcao()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n$b = 2;\n$c = 3;\n");
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        using var engine = new FakeXdebug(
+            new FakeXdebug.Stop(php, 2),
+            new FakeXdebug.Stop(php, 4, Function: "calcular"),
+            new FakeXdebug.Stop(php, 3));
+        engine.Connect(server.Port);
+        await Until(() => window.PausedLine == 2);
+        Assert.False(window.IsDebugOutVisible);
+        Assert.Equal("Parado em a.php, linha 2", window.TerminalInfoText);
+
+        // No corpo principal, sair correria até o fim do programa sem avisar.
+        window.KeyPressQwerty(PhysicalKey.F11, RawInputModifiers.Shift);
+        await Task.Delay(150, TestContext.Current.CancellationToken);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(2, window.PausedLine);
+
+        window.KeyPressQwerty(PhysicalKey.F11, RawInputModifiers.None);
+        await Until(() => window.PausedLine == 4);
+        Assert.True(window.IsDebugOutVisible);
+        Assert.Equal("Parado em a.php, linha 4, em calcular()", window.TerminalInfoText);
+
+        window.KeyPressQwerty(PhysicalKey.F11, RawInputModifiers.Shift);
+        await Until(() => window.PausedLine == 3);
+        Assert.False(window.IsDebugOutVisible);
+        window.EndDebug();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Botoes_entrar_e_sair_funcionam()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n$b = 2;\n$c = 3;\n");
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        using var engine = new FakeXdebug(
+            new FakeXdebug.Stop(php, 2),
+            new FakeXdebug.Stop(php, 4, Function: "calcular"),
+            new FakeXdebug.Stop(php, 3));
+        engine.Connect(server.Port);
+        await Until(() => window.PausedLine == 2);
+
+        ButtonNamed(window, "DebugIntoButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+        await Until(() => window.PausedLine == 4);
+
+        ButtonNamed(window, "DebugOutButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+        await Until(() => window.PausedLine == 3);
+        window.EndDebug();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Dica_do_valor_so_vale_no_arquivo_da_parada_e_durante_ela()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\necho $a;\n");
+        var outro = temp.File("b.php", "<?php\necho $a;\n");
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        using var engine = new FakeXdebug(new FakeXdebug.Stop(php, 3, FakeXdebug.Int("$a", 1)));
+        window.OpenFile(php);
+        var offset = window.ActiveDocument!.Document.Text.LastIndexOf("$a", StringComparison.Ordinal);
+        Assert.Null(window.DebugTipAt(offset));
+
+        engine.Connect(server.Port);
+        await Until(() => window.IsDebugPaused);
+
+        Assert.Equal("$a = 1", window.DebugTipAt(offset));
+        Assert.Null(window.DebugTipAt(0));
+
+        window.OpenFile(outro);
+        Assert.Null(window.DebugTipAt(window.ActiveDocument!.Document.Text.IndexOf('$')));
+
+        window.OpenFile(php);
+        window.DebugContinue();
+        await Until(() => !window.IsDebugPaused);
+        Assert.Null(window.DebugTipAt(offset));
         window.EndDebug();
         window.Close();
     }

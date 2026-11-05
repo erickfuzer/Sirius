@@ -35,6 +35,9 @@ public partial class MainWindow
     public bool IsDebugPaused => _pause is not null;
     public bool IsShowingVariables => _showingVariables;
     public bool AreDebugButtonsVisible => DebugButtons.IsVisible;
+    public bool IsDebugOutVisible => DebugOutButton.IsVisible;
+    public bool IsEditorTipOpen => ToolTip.GetIsOpen(CodeEditor);
+    public string EditorTipText => (ToolTip.GetTip(CodeEditor) as TextBlock)?.Text ?? "";
     public int? PausedLine => _pause?.Line;
     public IReadOnlyList<VariableRow> VariableRows => _variableRows;
     public string TerminalInfoText => TerminalInfo.Text ?? "";
@@ -238,7 +241,8 @@ public partial class MainWindow
             GoToLocation(pause.Path, pause.Line, 1);
         CodeEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Background);
         ShowVariables();
-        TerminalInfo.Text = $"Parado em {Path.GetFileName(pause.Path)}, linha {pause.Line}";
+        var function = pause.Function is null ? "" : $", em {pause.Function}()";
+        TerminalInfo.Text = $"Parado em {Path.GetFileName(pause.Path)}, linha {pause.Line}{function}";
         UpdateDebugButtons();
 
         // A pessoa está no navegador, olhando a página carregar: a Sirius precisa aparecer.
@@ -294,13 +298,39 @@ public partial class MainWindow
             UpdateTerminalInfo();
     }
 
-    private void UpdateDebugButtons() => DebugButtons.IsVisible = _pause is not null;
+    private void UpdateDebugButtons()
+    {
+        DebugButtons.IsVisible = _pause is not null;
+        DebugOutButton.IsVisible = _pause is { Depth: > 1 };
+    }
 
     private void OnDebugContinue(object? sender, RoutedEventArgs e) => DebugContinue();
     private void OnDebugNext(object? sender, RoutedEventArgs e) => DebugNext();
 
+    private void OnDebugInto(object? sender, RoutedEventArgs e) => DebugInto();
+    private void OnDebugOut(object? sender, RoutedEventArgs e) => DebugOut();
+
     public void DebugContinue() => _debug?.Continue();
     public void DebugNext() => _debug?.StepOver();
+    public void DebugInto() => _debug?.StepInto();
+
+    // No corpo principal não há de onde sair: o programa só correria até o fim, sem avisar.
+    public void DebugOut()
+    {
+        if (_pause is { Depth: > 1 })
+            _debug?.StepOut();
+    }
+
+    // Dica ao parar o mouse: só no arquivo da parada, onde os nomes valem. Null para deixar as outras dicas.
+    public string? DebugTipAt(int offset)
+    {
+        if (ActivePausedLine is null || ActiveDocument is not { } document)
+            return null;
+        var line = document.Document.GetLineByOffset(offset);
+        return DebugValues.At(_pause!.Variables, document.Document.GetText(line), offset - line.Offset) is { } variable
+            ? DebugValues.Describe(variable)
+            : null;
+    }
 
     // Variáveis
 

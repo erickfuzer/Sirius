@@ -11,7 +11,75 @@ namespace Sirius.Core;
 // Fullname é o nome completo para achar no PHP, como $pessoa['nome'].
 public sealed record DebugVariable(string Name, string FullName, string Type, string Value, IReadOnlyList<DebugVariable> Children);
 
-public sealed record DebugPause(string Path, int Line, IReadOnlyList<DebugVariable> Variables);
+// Function é null no corpo principal do arquivo. Depth diz quantas funções há até aqui, contando o corpo principal.
+public sealed record DebugPause(string Path, int Line, IReadOnlyList<DebugVariable> Variables, string? Function = null, int Depth = 1);
+
+public readonly record struct DebugFrame(string File, int Line, string? Function, int Depth);
+
+// O valor sob o mouse, a partir do texto da linha.
+public static partial class DebugValues
+{
+    private const int MaxTipItems = 12;
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\$[A-Za-z_]\w*(?:\[(?:'[^']*'|""[^""]*""|\d+)\]|->[A-Za-z_]\w*)*")]
+    private static partial System.Text.RegularExpressions.Regex Chain();
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\[(?:'[^']*'|""[^""]*""|\d+)\]|->[A-Za-z_]\w*")]
+    private static partial System.Text.RegularExpressions.Regex Step();
+
+    // Em $a['b']['c'], o mouse no $a mostra $a, e no 'c' mostra o item inteiro até ali.
+    public static DebugVariable? At(IReadOnlyList<DebugVariable> variables, string line, int column)
+    {
+        foreach (System.Text.RegularExpressions.Match chain in Chain().Matches(line))
+        {
+            if (column < chain.Index || column >= chain.Index + chain.Length)
+                continue;
+
+            var end = chain.Length;
+            var relative = column - chain.Index;
+            var first = Step().Match(chain.Value);
+            if (first.Success && relative < first.Index)
+                end = first.Index;
+            else
+            {
+                foreach (System.Text.RegularExpressions.Match step in Step().Matches(chain.Value))
+                {
+                    if (relative >= step.Index && relative < step.Index + step.Length)
+                    {
+                        end = step.Index + step.Length;
+                        break;
+                    }
+                }
+            }
+
+            // O Xdebug sempre escreve as chaves com aspas duplas.
+            return Find(variables, chain.Value[..end].Replace('\'', '"'));
+        }
+        return null;
+    }
+
+    private static DebugVariable? Find(IEnumerable<DebugVariable> variables, string fullName)
+    {
+        foreach (var variable in variables)
+        {
+            if (variable.FullName == fullName)
+                return variable;
+            if (Find(variable.Children, fullName) is { } child)
+                return child;
+        }
+        return null;
+    }
+
+    public static string Describe(DebugVariable variable)
+    {
+        var text = new StringBuilder($"{variable.FullName} = {variable.Value}");
+        foreach (var child in variable.Children.Take(MaxTipItems))
+            text.Append('\n').Append(child.Name).Append(": ").Append(child.Value);
+        if (variable.Children.Count > MaxTipItems)
+            text.Append('\n').Append($"E mais {variable.Children.Count - MaxTipItems}");
+        return text.ToString();
+    }
+}
 
 // O protocolo DBGp, que o Xdebug fala: é ele quem conecta aqui a cada página.
 public static class DbgpParser
@@ -37,12 +105,19 @@ public static class DbgpParser
     public static IEnumerable<DebugVariable> Superglobals(XElement response) =>
         Variables(response).Where(v => UsefulSuperglobals.Contains(v.FullName) && v.Children.Count > 0);
 
-    public static (string File, int Line)? TopFrame(XElement response)
+    // Lê a saída de "stack_get": o primeiro é onde o programa está, e os outros são quem chamou.
+    public static DebugFrame? TopFrame(XElement response)
     {
-        var frame = response.Element(Protocol + "stack");
-        return frame?.Attribute("filename")?.Value is { } file && int.TryParse(frame.Attribute("lineno")?.Value, out var line)
-            ? (file, line)
-            : null;
+        var frames = response.Elements(Protocol + "stack").ToList();
+        if (frames.Count == 0
+            || frames[0].Attribute("filename")?.Value is not { } file
+            || !int.TryParse(frames[0].Attribute("lineno")?.Value, out var line))
+        {
+            return null;
+        }
+
+        var where = (string?)frames[0].Attribute("where");
+        return new DebugFrame(file, line, where is null || where.StartsWith('{') ? null : where, frames.Count);
     }
 
     private static DebugVariable Variable(XElement property)
@@ -123,6 +198,8 @@ public sealed class XdebugServer : IDisposable
 
     public void Continue() => Send("run");
     public void StepOver() => Send("step_over");
+    public void StepInto() => Send("step_into");
+    public void StepOut() => Send("step_out");
 
     private void Send(string command)
     {
@@ -225,7 +302,7 @@ public sealed class XdebugServer : IDisposable
 
         private async Task<DebugPause?> ReadPauseAsync()
         {
-            if (DbgpParser.TopFrame(await RequestAsync("stack_get -d 0")) is not { } frame
+            if (DbgpParser.TopFrame(await RequestAsync("stack_get")) is not { } frame
                 || !frame.File.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
                 return null; // Código sem arquivo, como um eval: nada para mostrar.
@@ -233,7 +310,7 @@ public sealed class XdebugServer : IDisposable
 
             var variables = DbgpParser.Variables(await RequestAsync("context_get -d 0 -c 0"));
             variables.AddRange(DbgpParser.Superglobals(await RequestAsync("context_get -d 0 -c 1")));
-            return new DebugPause(LspParsers.ToPath(frame.File), frame.Line, variables);
+            return new DebugPause(LspParsers.ToPath(frame.File), frame.Line, variables, frame.Function, frame.Depth);
         }
 
         private async Task SyncBreakpointsAsync()

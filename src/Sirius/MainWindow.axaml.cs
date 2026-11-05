@@ -808,6 +808,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.Key == Key.F11 && IsDebugPaused)
+        {
+            e.Handled = true;
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+                DebugOut();
+            else
+                DebugInto();
+            return;
+        }
+
         if (e.Key == Key.F2 && FocusedTreeRow() is { } focusedRow)
         {
             e.Handled = true;

@@ -355,6 +355,13 @@ public partial class MainWindow
         var cancel = new CancellationTokenSource(RequestTimeout);
         _hoverCancel = cancel;
 
+        // Durante uma parada, o valor é o que a pessoa quer ver, e ele já está aqui, sem perguntar a ninguém.
+        if (DebugTipAt(offset) is { } debugTip)
+        {
+            ShowEditorTip(debugTip);
+            return;
+        }
+
         var parts = _language.DiagnosticsFor(document.FullPath)
             .Where(diagnostic =>
             {
@@ -380,7 +387,11 @@ public partial class MainWindow
 
         if (cancel.IsCancellationRequested || parts.Count == 0)
             return;
-        var tip = string.Join("\n\n", parts);
+        ShowEditorTip(string.Join("\n\n", parts));
+    }
+
+    private void ShowEditorTip(string tip)
+    {
         ToolTip.SetTip(CodeEditor, new TextBlock
         {
             Text = tip.Length > MaxHoverChars ? tip[..MaxHoverChars] + "…" : tip,

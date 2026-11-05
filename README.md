@@ -29,7 +29,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Barra de comando:** <kbd>Ctrl</kbd> + <kbd>K</kbd> encontra arquivos e executa ações sem tirar a mão do teclado
 - **Projeto:** árvore de arquivos para criar, renomear e excluir, com busca e substituição em todo o projeto
 - **Terminal integrado:** a cápsula flutuante se abre em um terminal completo. O botão Executar detecta o comando do projeto, e os erros da saída são clicáveis. Em PHP, ele sobe o servidor e oferece abrir o site no navegador, ou o arquivo em uso em pastas sem `index.php`. Se o computador não tiver PHP, oferece a instalação
-- **Depuração de PHP:** clique na margem para marcar uma linha, execute e abra a página. A Sirius para ali e mostra o valor de cada variável, inclusive `$_POST` e `$_GET`, e você avança linha por linha. O Xdebug é baixado na primeira vez, se você aceitar, sem mudar a sua instalação do PHP
+- **Depuração de PHP:** clique na margem para marcar uma linha, execute e abra a página. A Sirius para ali e mostra o valor de cada variável, inclusive `$_POST` e `$_GET`, também ao parar o mouse sobre ela. Você avança linha por linha e entra nas funções. O Xdebug é baixado na primeira vez, se você aceitar, sem mudar a sua instalação do PHP
 - **Inteligência de código:** autocompletar, erros no código, ir para a definição, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação
 - **Git:** mudanças na árvore e na margem, comparação lado a lado, commit por arquivo, descartar, enviar, receber, branches e histórico de commits, com o que mudou em cada um
 - **Sessão:** cada pasta reabre as suas abas, e a IDE acompanha o que outros programas mudam no disco
@@ -122,6 +122,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 | <kbd>Ctrl</kbd> <kbd>.</kbd> | Modo foco |
 | <kbd>F5</kbd> | Executar ou parar o projeto. Parado em uma linha marcada, continuar |
 | <kbd>F10</kbd> | Parado em uma linha marcada, ir para a próxima |
+| <kbd>F11</kbd> e <kbd>Shift</kbd> <kbd>F11</kbd> | Parado em uma linha marcada, entrar na função e sair dela |
 | Clique à esquerda do número da linha | Em PHP, marcar onde a depuração para |
 | <kbd>Ctrl</kbd> <kbd>J</kbd> | Abrir ou fechar o terminal |
 | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>G</kbd> | Painel de Git: mudanças, histórico, comparação, commit, enviar e receber |
@@ -142,7 +143,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 ## Limitações
 
 - Só funciona no Windows: o terminal, o instalador e a integração com o Explorer são específicos dele.
-- A depuração é só de PHP, começa pelo botão Executar e ainda não entra nem sai de funções.
+- A depuração é só de PHP e começa pelo botão Executar.
 - Conflitos de Git são resolvidos editando o arquivo.
 - Entre os programas de tela cheia no terminal, o Claude Code foi testado, mas o `vim` não. O terminal repassa a roda do mouse a eles, mas não os cliques.
 - GIF animado mostra só o primeiro quadro, e o SVG ainda não tem prévia.

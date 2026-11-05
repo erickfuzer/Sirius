@@ -477,6 +477,18 @@
                                                     <TextBlock Text="Próxima linha" Foreground="{DynamicResource CapsuleInk}" VerticalAlignment="Center" />
                                                 </StackPanel>
                                             </Button>
+                                            <Button x:Name="DebugIntoButton" Classes="flat terminaltab" Click="OnDebugInto" ToolTip.Tip="Entrar na função (F11)" AutomationProperties.Name="Entrar na função">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <Path Stroke="{DynamicResource CapsuleInk}" StrokeThickness="1.4" VerticalAlignment="Center" Data="M4.5 0V6.5M1.5 3.5L4.5 6.5L7.5 3.5M0 9.5H9" />
+                                                    <TextBlock Text="Entrar" Foreground="{DynamicResource CapsuleInk}" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button x:Name="DebugOutButton" Classes="flat terminaltab" Click="OnDebugOut" ToolTip.Tip="Sair da função (Shift F11)" AutomationProperties.Name="Sair da função">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <Path Stroke="{DynamicResource CapsuleInk}" StrokeThickness="1.4" VerticalAlignment="Center" Data="M4.5 9.5V3M1.5 6L4.5 3L7.5 6M0 0H9" />
+                                                    <TextBlock Text="Sair" Foreground="{DynamicResource CapsuleInk}" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
                                         </StackPanel>
                                         <Button x:Name="ProblemsButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnShowProblems" ToolTip.Tip="Ver problemas" />
                                         <Button x:Name="OpenSiteButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnOpenSite" Content="Abrir site" />
