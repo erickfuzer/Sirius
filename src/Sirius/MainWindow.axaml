@@ -49,13 +49,13 @@
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0">
                     <Button Classes="flat chrome" Click="OnMinimize" AutomationProperties.Name="Minimizar janela">
-                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.1" Data="M1 6H11" />
+                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.1" Data="M0 0H10" />
                     </Button>
                     <Button Classes="flat chrome" Click="OnMaximize" AutomationProperties.Name="Maximizar janela">
-                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.1" Data="M3 1.5H9A1.5 1.5 0 0 1 10.5 3V9A1.5 1.5 0 0 1 9 10.5H3A1.5 1.5 0 0 1 1.5 9V3A1.5 1.5 0 0 1 3 1.5Z" />
+                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.1" Data="M1.5 0H7.5A1.5 1.5 0 0 1 9 1.5V7.5A1.5 1.5 0 0 1 7.5 9H1.5A1.5 1.5 0 0 1 0 7.5V1.5A1.5 1.5 0 0 1 1.5 0Z" />
                     </Button>
                     <Button Classes="flat chrome" Click="OnCloseWindow" AutomationProperties.Name="Fechar janela">
-                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.1" Data="M2 2L10 10M10 2L2 10" />
+                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.1" Data="M0 0L8 8M8 0L0 8" />
                     </Button>
                 </StackPanel>
             </Grid>
@@ -78,11 +78,11 @@
                             </Button>
                             <Button Grid.Column="1" Classes="flat tool" Click="OnNewFile" ToolTip.Tip="Novo arquivo" AutomationProperties.Name="Novo arquivo">
                                 <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.2"
-                                      Data="M3 1.5H8.5L11.5 4.5V12.5H3ZM8.5 1.5V4.5H11.5M5.5 8.5H9M7.25 6.75V10.25" />
+                                      Data="M0 0H5.5L8.5 3V11H0ZM5.5 0V3H8.5M2.5 7H6M4.25 5.25V8.75" />
                             </Button>
                             <Button Grid.Column="2" Classes="flat tool" Click="OnNewFolder" ToolTip.Tip="Nova pasta" AutomationProperties.Name="Nova pasta">
                                 <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.2"
-                                      Data="M1.5 3H5.5L7 4.5H12.5V11.5H1.5ZM5.25 8H8.75M7 6.25V9.75" />
+                                      Data="M0 0H4L5.5 1.5H11V8.5H0ZM3.75 5H7.25M5.5 3.25V6.75" />
                             </Button>
                         </Grid>
                         <ScrollViewer x:Name="TreeScroll" Grid.Row="1" Background="Transparent">
@@ -298,14 +298,14 @@
                                                 <Button Grid.Column="0" Classes="flat" Width="20" Height="20" CornerRadius="5" HorizontalContentAlignment="Center" Click="OnGitRowToggle"
                                                         AutomationProperties.Name="Incluir no commit" ToolTip.Tip="Incluir no commit">
                                                     <Border Width="13" Height="13" CornerRadius="3" BorderThickness="1" BorderBrush="{DynamicResource Muted}">
-                                                        <Path Stroke="{DynamicResource Accent}" StrokeThickness="1.6" Stretch="Uniform" Margin="1" IsVisible="{Binding IsIncluded}" Data="M2 6.5L5 9.5L11 3" />
+                                                        <Path Stroke="{DynamicResource Accent}" StrokeThickness="1.6" Stretch="Uniform" Margin="1" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsIncluded}" Data="M2 6.5L5 9.5L11 3" />
                                                     </Border>
                                                 </Button>
                                                 <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="5,0,6,0" VerticalAlignment="Center" />
                                                 <TextBlock Grid.Column="2" Text="{Binding Folder}" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                                 <Button Grid.Column="3" Classes="flat" Width="20" Height="20" CornerRadius="5" HorizontalContentAlignment="Center" Click="OnGitRowDiscard"
                                                         AutomationProperties.Name="Descartar mudanças" ToolTip.Tip="Descartar mudanças">
-                                                    <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.2" Data="M1 4H7A3 3 0 0 1 7 10H3M3.5 1.5L1 4L3.5 6.5" />
+                                                    <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.2" Data="M0 2.5H6A3 3 0 0 1 6 8.5H2M2.5 0L0 2.5L2.5 5" />
                                                 </Button>
                                                 <TextBlock Grid.Column="4" Text="{Binding Letter}" Foreground="{Binding Brush}" Margin="4,0,2,0" MinWidth="8" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
                                             </Grid>
@@ -455,13 +455,17 @@
                                     <TextBlock x:Name="CaretPosition" Grid.Column="3" Foreground="{DynamicResource CapsuleMuted}" FontFamily="{DynamicResource CodeFont}" FontSize="11.5"
                                                VerticalAlignment="Center" Margin="0,0,6,0" />
                                     <Button x:Name="TerminalButton" Grid.Column="4" Classes="flat capsule" Click="OnToggleTerminal" AutomationProperties.Name="Abrir ou fechar o terminal" ToolTip.Tip="Terminal (Ctrl J)">
-                                        <Viewbox Width="13" Height="13">
-                                            <Path Stroke="{DynamicResource CapsuleInk}" StrokeThickness="1.5" Data="M2.5 4L6.5 8L2.5 12M8.5 12.5H13.5" />
+                                        <Viewbox Width="15" Height="15">
+                                            <Panel Width="16" Height="16">
+                                                <Path Stroke="{DynamicResource CapsuleInk}" StrokeThickness="1.5" Data="M2.5 4L6.5 8L2.5 12M8.5 12.5H13.5" />
+                                            </Panel>
                                         </Viewbox>
                                     </Button>
                                     <Button x:Name="FocusButton" Grid.Column="5" Classes="flat capsule" Click="OnToggleFocus" AutomationProperties.Name="Modo foco" ToolTip.Tip="Modo foco">
-                                        <Viewbox Width="13" Height="13">
-                                            <Path Stroke="{DynamicResource CapsuleInk}" StrokeThickness="1.5" Data="M2 5.5V2H5.5M10.5 2H14V5.5M14 10.5V14H10.5M5.5 14H2V10.5" />
+                                        <Viewbox Width="15" Height="15">
+                                            <Panel Width="16" Height="16">
+                                                <Path Stroke="{DynamicResource CapsuleInk}" StrokeThickness="1.5" Data="M2 5.5V2H5.5M10.5 2H14V5.5M14 10.5V14H10.5M5.5 14H2V10.5" />
+                                            </Panel>
                                         </Viewbox>
                                     </Button>
                                     <Button Grid.Column="6" Classes="flat capsule" Click="OnToggleTheme" AutomationProperties.Name="Trocar tema" ToolTip.Tip="Trocar tema">
