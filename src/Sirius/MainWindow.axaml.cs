@@ -166,6 +166,7 @@ public partial class MainWindow : Window
         _language.SetRoot(RootFolder);
         CloseDiff();
         CloseGit();
+        ResetHistory();
         _gitExcluded.Clear();
         _gitBaseTexts.Clear();
         GitState = null;
@@ -948,6 +949,7 @@ public partial class MainWindow : Window
                 actions.Add(("Enviar commits", "git push", () => _ = PushAsync()));
                 actions.Add(("Receber novidades", "git pull", () => _ = PullAsync()));
                 actions.Add(("Trocar de branch", "", () => _ = OpenBranchPickerAsync()));
+                actions.Add(("Histórico de commits", "", OpenGitHistory));
             }
             actions.Add(("Novo arquivo", "", () => _ = CreateFileAsync(DefaultTargetFolder())));
             actions.Add(("Nova pasta", "", () => _ = CreateFolderAsync(DefaultTargetFolder())));
@@ -1291,6 +1293,7 @@ public partial class MainWindow : Window
         TerminalHost.ApplyScheme(TerminalScheme.For(palette));
         RefreshProblems();
         RefreshGitRows();
+        RebuildHistoryRows();
 
         RefreshTabs();
         RefreshTree();

@@ -30,7 +30,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Projeto:** árvore de arquivos para criar, renomear e excluir, com busca e substituição em todo o projeto
 - **Terminal integrado:** a cápsula flutuante se abre em um terminal completo. O botão Executar detecta o comando do projeto, e os erros da saída são clicáveis. Em PHP, ele sobe o servidor e oferece abrir o site no navegador, ou o arquivo em uso em pastas sem `index.php`. Se o computador não tiver PHP, oferece a instalação
 - **Inteligência de código:** autocompletar, erros no código, ir para a definição, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação
-- **Git:** mudanças na árvore e na margem, comparação lado a lado, commit por arquivo, descartar, enviar, receber e branches
+- **Git:** mudanças na árvore e na margem, comparação lado a lado, commit por arquivo, descartar, enviar, receber, branches e histórico de commits, com o que mudou em cada um
 - **Sessão:** cada pasta reabre as suas abas, e a IDE acompanha o que outros programas mudam no disco
 - **Aviso de versão nova:** um aviso discreto na cápsula leva à página da versão, sem baixar nada sozinho. Dá para ignorar uma versão ou desligar o aviso pela barra de comando
 - **Cuidado com o seu trabalho:** salvar mantém a codificação original do arquivo e passa por um arquivo temporário, criar nunca sobrescreve e excluir vai para a Lixeira
@@ -109,7 +109,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 | <kbd>Ctrl</kbd> <kbd>.</kbd> | Modo foco |
 | <kbd>F5</kbd> | Executar ou parar o projeto |
 | <kbd>Ctrl</kbd> <kbd>J</kbd> | Abrir ou fechar o terminal |
-| <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>G</kbd> | Painel de Git: mudanças, comparação, commit, enviar e receber |
+| <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>G</kbd> | Painel de Git: mudanças, histórico, comparação, commit, enviar e receber |
 | <kbd>Ctrl</kbd> <kbd>+</kbd> e <kbd>Ctrl</kbd> <kbd>-</kbd> | Aumentar ou diminuir a fonte do editor (<kbd>Ctrl</kbd> <kbd>0</kbd> volta ao padrão). Em uma imagem, aproximar e afastar |
 | <kbd>Ctrl</kbd> + roda do mouse | Mudar a fonte do editor ou o zoom da imagem |
 | Dois cliques na imagem | Alternar entre o tamanho real e caber na área |
@@ -127,7 +127,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 ## Limitações
 
 - Só funciona no Windows: o terminal, o instalador e a integração com o Explorer são específicos dele.
-- Ainda não tem depuração nem histórico de commits dentro da IDE.
+- Ainda não tem depuração dentro da IDE.
 - Conflitos de Git são resolvidos editando o arquivo.
 - Programas de tela cheia no terminal, como `vim`, não foram testados.
 - GIF animado mostra só o primeiro quadro, e o SVG ainda não tem prévia.

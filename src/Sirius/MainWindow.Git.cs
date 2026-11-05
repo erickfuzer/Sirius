@@ -62,6 +62,7 @@ public partial class MainWindow
     private void InitializeGit()
     {
         GitList.ItemsSource = _gitRows;
+        InitializeGitHistory();
         GitMessage.AddHandler(KeyDownEvent, OnGitMessageKeyDown, RoutingStrategies.Tunnel);
         _gitMarksDelay = new DispatcherTimer(TimeSpan.FromMilliseconds(300), DispatcherPriority.Normal, (_, _) =>
         {
@@ -123,6 +124,7 @@ public partial class MainWindow
             _gitRows.Clear();
             _gitBaseTexts.Clear();
             _gitHeadOid = null;
+            ResetHistory();
             GitEmptyPanel.IsVisible = true;
             GitRepoPanel.IsVisible = false;
             RefreshTree();
@@ -138,6 +140,8 @@ public partial class MainWindow
         {
             _gitHeadOid = status.HeadOid;
             _gitBaseTexts.Clear();
+            if (IsHistoryShown)
+                _ = LoadHistoryAsync();
         }
 
         var branch = status.Branch ?? (status.HeadOid is { } oid ? oid[..Math.Min(7, oid.Length)] : "sem commits");
@@ -157,6 +161,7 @@ public partial class MainWindow
 
         GitCount.Text = status.Changes.Count.ToString();
         GitCount.IsVisible = status.Changes.Count > 0;
+        GitChangesTab.Content = status.Changes.Count > 0 ? $"Mudanças {status.Changes.Count}" : "Mudanças";
         RefreshGitRows();
         RefreshTree();
         _ = UpdateGitMarksAsync();
@@ -221,6 +226,7 @@ public partial class MainWindow
         TreeView.IsVisible = false;
         SearchView.IsVisible = false;
         GitView.IsVisible = true;
+        ShowGitTab(history: false);
         _ = RefreshGitAsync();
         _ = FetchInBackgroundAsync();
         Dispatcher.UIThread.Post(() => GitMessage.Focus());
@@ -474,17 +480,24 @@ public partial class MainWindow
             return;
         }
 
-        var rows = await Task.Run(() =>
-        {
-            var a = LineDiff.SplitLines(left);
-            var b = LineDiff.SplitLines(right);
-            return LineDiff.Align(a, b, LineDiff.Compare(a, b));
-        });
-        ShowDiff(full, rows);
+        var rows = await AlignForDiffAsync(left, right);
+        ShowDiff(full, rows, "Último commit", "Agora");
     }
 
-    private void ShowDiff(string path, List<DiffRow> rows)
+    private static Task<List<DiffRow>> AlignForDiffAsync(string left, string right) => Task.Run(() =>
     {
+        var a = LineDiff.SplitLines(left);
+        var b = LineDiff.SplitLines(right);
+        return LineDiff.Align(a, b, LineDiff.Compare(a, b));
+    });
+
+    private void ShowDiff(string path, List<DiffRow> rows, string leftLabel, string rightLabel, string? title = null)
+    {
+        DiffLeftLabel.Text = leftLabel;
+        DiffRightLabel.Text = rightLabel;
+        // Um arquivo apagado depois daquele commit não tem mais o que abrir.
+        DiffOpenButton.IsVisible = File.Exists(path);
+
         _diffLeftKinds.Clear();
         _diffRightKinds.Clear();
         _diffLeftKinds.AddRange(rows.Select(row => row.LeftKind));
@@ -503,7 +516,7 @@ public partial class MainWindow
         DiffLeft.FontSize = CodeEditor.FontSize;
         DiffRight.FontSize = CodeEditor.FontSize;
 
-        DiffTitle.Text = GitState is { } snapshot ? Path.GetRelativePath(snapshot.TopLevel, path).Replace(Path.DirectorySeparatorChar, '/') : Path.GetFileName(path);
+        DiffTitle.Text = title ?? (GitState is { } snapshot ? Path.GetRelativePath(snapshot.TopLevel, path).Replace(Path.DirectorySeparatorChar, '/') : Path.GetFileName(path));
         DiffPath = path;
         DiffHost.IsVisible = true;
         ShowDocumentSurface();

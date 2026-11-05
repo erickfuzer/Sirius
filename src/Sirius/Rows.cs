@@ -14,6 +14,16 @@ public sealed record CommandRow(string Name, string Hint, IBrush Background, Act
 
 public sealed record GitRow(string Name, string Folder, string Letter, IBrush Brush, bool IsIncluded, Sirius.Core.GitChange Change);
 
+// O histórico mistura quatro tipos de linha: commit, arquivo dele, aviso e "carregar mais".
+public sealed record HistoryCommitRow(Sirius.Core.GitCommit Commit, string Detail, string Tip, Geometry Chevron);
+
+public sealed record HistoryFileRow(
+    Sirius.Core.GitCommit Commit, Sirius.Core.GitChange Change, string Name, string Folder, string Letter, IBrush Brush, IBrush Background);
+
+public sealed record HistoryNoteRow(string Text);
+
+public sealed record HistoryMoreRow(string Text);
+
 public sealed record ProblemRow(string Message, string Location, IBrush Brush, string FullPath, int Line, int Character);
 
 // Na busca, cada arquivo é uma linha de título seguida das linhas com resultado.

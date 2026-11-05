@@ -191,7 +191,7 @@
                             <Button Classes="secondary" Content="Voltar aos arquivos" Click="OnCloseGit" />
                         </StackPanel>
 
-                        <Grid x:Name="GitRepoPanel" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*">
+                        <Grid x:Name="GitRepoPanel" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*">
                             <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Height="28" Margin="4,0,0,0">
                                 <Button x:Name="GitBranchButton" Grid.Column="0" Classes="flat" Height="24" Padding="6,0" MaxWidth="140" FontWeight="SemiBold" FontSize="12"
                                         Click="OnBranchClick" ToolTip.Tip="Trocar de branch" />
@@ -203,19 +203,74 @@
                                     <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M0 0L8 8M8 0L0 8" />
                                 </Button>
                             </Grid>
-                            <Border Grid.Row="1" MinHeight="54" Margin="0,4,0,0" Padding="10,6" CornerRadius="10" Background="{DynamicResource Tint}">
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="2" Margin="4,4,4,0">
+                                <Button x:Name="GitChangesTab" Classes="flat segment on" Height="24" Padding="9,0" FontSize="12" Content="Mudanças" Click="OnGitChangesTab" />
+                                <Button x:Name="GitHistoryTab" Classes="flat segment" Height="24" Padding="9,0" FontSize="12" Content="Histórico" Click="OnGitHistoryTab" />
+                            </StackPanel>
+                            <Border x:Name="GitMessageBox" Grid.Row="2" MinHeight="54" Margin="0,6,0,0" Padding="10,6" CornerRadius="10" Background="{DynamicResource Tint}">
                                 <TextBox x:Name="GitMessage" Classes="bare" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120" FontSize="13"
                                          VerticalContentAlignment="Top" PlaceholderText="O que mudou? (Ctrl Enter faz o commit)" Foreground="{DynamicResource Ink}"
                                          AutomationProperties.Name="Mensagem do commit" />
                             </Border>
-                            <Button Grid.Row="2" Classes="primary" Margin="0,6,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Fazer commit" Click="OnCommitClick" />
-                            <TextBlock x:Name="GitStatusLine" Grid.Row="3" Margin="8,6,8,2" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
-                            <StackPanel Grid.Row="4">
+                            <Button x:Name="GitCommitButton" Grid.Row="3" Classes="primary" Margin="0,6,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Fazer commit" Click="OnCommitClick" />
+                            <TextBlock x:Name="GitStatusLine" Grid.Row="4" Margin="8,6,8,2" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                            <TextBlock x:Name="GitHistoryEmpty" Grid.Row="5" IsVisible="False" Margin="8,4" FontSize="12" Foreground="{DynamicResource Muted}" Text="Nenhum commit ainda." />
+                            <StackPanel x:Name="GitNotices" Grid.Row="5">
                                 <TextBlock x:Name="GitConflictNotice" IsVisible="False" Margin="8,2,8,6" FontSize="12" Foreground="{DynamicResource Error}" TextWrapping="Wrap"
                                            Text="Há conflitos. Edite os arquivos com !, escolha o que fica entre as marcas e faça o commit." />
                                 <TextBlock x:Name="GitNothing" IsVisible="False" Margin="8,4" FontSize="12" Foreground="{DynamicResource Muted}" Text="Nenhuma mudança desde o último commit." />
                             </StackPanel>
-                            <ItemsControl x:Name="GitList" Grid.Row="5" Margin="0,2,0,0">
+                            <ItemsControl x:Name="GitHistoryList" Grid.Row="6" Margin="0,2,0,0" IsVisible="False">
+                                <ItemsControl.Template>
+                                    <ControlTemplate TargetType="ItemsControl">
+                                        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                                            <ItemsPresenter Name="PART_ItemsPresenter" />
+                                        </ScrollViewer>
+                                    </ControlTemplate>
+                                </ItemsControl.Template>
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.DataTemplates>
+                                    <DataTemplate x:DataType="s:HistoryCommitRow">
+                                        <Button Classes="flat" Height="42" CornerRadius="6" HorizontalAlignment="Stretch" Click="OnHistoryCommitClick" ToolTip.Tip="{Binding Tip}">
+                                            <Button.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Copiar código do commit" Click="OnHistoryCopyOid" />
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
+                                            <Grid ColumnDefinitions="Auto,*" Margin="4,0,8,0">
+                                                <Path Grid.Column="0" Width="12" Margin="0,0,5,0" VerticalAlignment="Center"
+                                                      Stroke="{DynamicResource Muted}" StrokeThickness="1.2" Data="{Binding Chevron}" />
+                                                <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Commit.Subject}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                    <DataTemplate x:DataType="s:HistoryFileRow">
+                                        <Button Classes="flat" Height="26" CornerRadius="6" HorizontalAlignment="Stretch" Background="{Binding Background}" Click="OnHistoryFileClick"
+                                                ToolTip.Tip="Comparar com a versão anterior">
+                                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="21,0,8,0">
+                                                <TextBlock Grid.Column="0" Text="{Binding Name}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Folder}" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Letter}" Foreground="{Binding Brush}" Margin="6,0,0,0" MinWidth="8" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                    <DataTemplate x:DataType="s:HistoryNoteRow">
+                                        <TextBlock Text="{Binding Text}" Margin="21,4,8,6" FontSize="11" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                    </DataTemplate>
+                                    <DataTemplate x:DataType="s:HistoryMoreRow">
+                                        <Button Classes="flat" Height="28" CornerRadius="6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="0,2,0,12"
+                                                FontSize="12" Foreground="{DynamicResource Muted}" Content="{Binding Text}" Click="OnHistoryMoreClick" />
+                                    </DataTemplate>
+                                </ItemsControl.DataTemplates>
+                            </ItemsControl>
+                            <ItemsControl x:Name="GitList" Grid.Row="6" Margin="0,2,0,0">
                                 <ItemsControl.Template>
                                     <ControlTemplate TargetType="ItemsControl">
                                         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
@@ -311,14 +366,14 @@
                             <Grid x:Name="DiffHost" IsVisible="False" RowDefinitions="Auto,*" Background="{DynamicResource Sheet}">
                                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Height="28" Margin="14,0,8,0">
                                     <TextBlock x:Name="DiffTitle" Grid.Column="0" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                    <Button Grid.Column="1" Classes="flat" Height="24" Padding="8,0" FontSize="12" Foreground="{DynamicResource Muted}" Content="Abrir arquivo" Click="OnDiffOpenFile" />
+                                    <Button x:Name="DiffOpenButton" Grid.Column="1" Classes="flat" Height="24" Padding="8,0" FontSize="12" Foreground="{DynamicResource Muted}" Content="Abrir arquivo" Click="OnDiffOpenFile" />
                                     <Button Grid.Column="2" Classes="flat option" Click="OnCloseDiff" AutomationProperties.Name="Fechar comparação" ToolTip.Tip="Fechar (Esc)">
                                         <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M0 0L8 8M8 0L0 8" />
                                     </Button>
                                 </Grid>
                                 <Grid Grid.Row="1" RowDefinitions="Auto,*" ColumnDefinitions="*,1,*">
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Último commit" FontSize="11" Foreground="{DynamicResource Muted}" Margin="14,0,0,4" />
-                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Agora" FontSize="11" Foreground="{DynamicResource Muted}" Margin="14,0,0,4" />
+                                    <TextBlock x:Name="DiffLeftLabel" Grid.Row="0" Grid.Column="0" Text="Último commit" FontSize="11" Foreground="{DynamicResource Muted}" Margin="14,0,0,4" />
+                                    <TextBlock x:Name="DiffRightLabel" Grid.Row="0" Grid.Column="2" Text="Agora" FontSize="11" Foreground="{DynamicResource Muted}" Margin="14,0,0,4" />
                                     <ae:TextEditor x:Name="DiffLeft" Grid.Row="1" Grid.Column="0" IsReadOnly="True" Background="Transparent" BorderThickness="0"
                                                    Foreground="{DynamicResource Ink}" FontFamily="{DynamicResource CodeFont}" FontSize="13.5"
                                                    HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />

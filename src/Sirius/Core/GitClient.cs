@@ -202,10 +202,30 @@ public sealed class GitClient(string folder, IReadOnlyDictionary<string, string>
     }
 
     // O conteúdo do arquivo no último commit. Null quando ele ainda não existe lá.
-    public async Task<byte[]?> ShowHeadAsync(string path)
+    public Task<byte[]?> ShowHeadAsync(string path) => ShowAtAsync("HEAD", path);
+
+    // O conteúdo do arquivo em um commit. Null quando ele não existe lá.
+    public async Task<byte[]?> ShowAtAsync(string revision, string path)
     {
-        var result = await RunAsync(["show", "--no-textconv", "HEAD:" + path]);
+        var result = await RunAsync(["show", "--no-textconv", revision + ":" + path]);
         return result.Ok ? result.OutputBytes : null;
+    }
+
+    // Null se o Git falhar. Vai do mais novo ao mais antigo, a partir do commit atual.
+    // Sem assinatura: mostrá-la executaria o programa que a configuração do repositório indicar.
+    public async Task<List<GitCommit>?> LogAsync(int skip, int count)
+    {
+        var result = await RunAsync(["log", "--no-show-signature", "--no-notes", "--no-color", "--encoding=UTF-8",
+            "--format=tformat:" + GitHistory.LogFormat, $"--skip={skip}", $"--max-count={count}", "HEAD", "--"]);
+        return result.Ok ? GitHistory.ParseLog(result.Output) : null;
+    }
+
+    // Null se o Git falhar. O primeiro commit do repositório não tem com o que comparar, e aí vale o "--root".
+    public async Task<List<GitChange>?> CommitChangesAsync(GitCommit commit)
+    {
+        string[] revisions = commit.FirstParent is { } parent ? [parent, commit.Oid] : ["--root", commit.Oid];
+        var result = await RunAsync(["diff-tree", "--no-ext-diff", "--no-commit-id", "-r", "-z", "-M", "--name-status", .. revisions]);
+        return result.Ok ? GitHistory.ParseChanges(result.Output) : null;
     }
 
     public async Task<GitResult> CommitAsync(string message, IReadOnlyList<GitChange> changes, bool isMerging)
