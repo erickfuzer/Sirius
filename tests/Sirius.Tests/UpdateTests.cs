@@ -70,6 +70,7 @@ public class UpdateTests
     [InlineData("0.1.0-rc.1", "0.1.0")]
     [InlineData("0.1.0", "0.1.1")]
     [InlineData("0.1.9", "0.2.0")]
+    [InlineData("0.1.0-alpha.7", "0.2.0")]
     [InlineData("0.9.0", "0.10.0")]
     [InlineData("0.99.99", "1.0.0-alpha.1")]
     public void Versoes_ficam_na_ordem_certa(string older, string newer)

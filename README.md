@@ -17,7 +17,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 </div>
 
 > [!NOTE]
-> A Sirius está em **Alpha**: funciona no dia a dia, mas espere arestas. Faça commit do seu trabalho e relate o que encontrar em [Issues](https://github.com/erickfuzer/Sirius/issues).
+> A Sirius ainda está em desenvolvimento: funciona no dia a dia, mas espere arestas. Faça commit do seu trabalho e relate o que encontrar em [Issues](https://github.com/erickfuzer/Sirius/issues).
 
 ## Funcionalidades
 
