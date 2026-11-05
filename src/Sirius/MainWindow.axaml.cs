@@ -108,6 +108,7 @@ public partial class MainWindow : Window
         InitializeGit();
         InitializeColors();
         InitializeImages();
+        InitializeDrop();
         CodeEditor.AddHandler(PointerWheelChangedEvent, OnEditorWheel, RoutingStrategies.Tunnel);
         ApplyEditorFontSize(_settings.EditorFontSize);
         DialogInput.AddHandler(KeyDownEvent, OnDialogInputKeyDown, RoutingStrategies.Tunnel);
@@ -509,7 +510,13 @@ public partial class MainWindow : Window
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Abrir pasta", AllowMultiple = false });
         var path = folders.FirstOrDefault()?.TryGetLocalPath();
-        if (path is null || !await ConfirmStopTaskAsync())
+        if (path is not null)
+            await SwitchFolderAsync(path);
+    }
+
+    private async Task SwitchFolderAsync(string path)
+    {
+        if (!await ConfirmStopTaskAsync())
             return;
 
         // Fechar as abas aqui é por causa da troca de pasta: a sessão da pasta atual continua valendo.
@@ -609,7 +616,11 @@ public partial class MainWindow : Window
 
     private string BreadcrumbFor(string path)
     {
-        var relative = Path.GetRelativePath(RootFolder!, Path.GetDirectoryName(path)!);
+        var folder = Path.GetDirectoryName(path)!;
+        var relative = Path.GetRelativePath(RootFolder!, folder);
+        // Arquivo de fora do projeto: o caminho inteiro diz mais que uma fila de "..".
+        if (relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative))
+            return folder;
         return relative == "." ? "" : relative.Replace(Path.DirectorySeparatorChar.ToString(), " / ");
     }
 
@@ -1309,7 +1320,7 @@ public partial class MainWindow : Window
         EmptyState.IsVisible = ActiveDocument is null;
         EmptyOpenFolder.IsVisible = RootFolder is null;
         EmptyTitle.Text = RootFolder is null ? "Abra uma pasta para começar" : "Escolha um arquivo";
-        EmptyHint.Text = RootFolder is null ? "Ctrl O abre uma pasta, Ctrl K mostra os comandos." : "Clique na lista ao lado ou use Ctrl K para encontrar.";
+        EmptyHint.Text = RootFolder is null ? "Use Ctrl O ou arraste uma pasta para cá. Ctrl K mostra os comandos." : "Clique na lista ao lado, use Ctrl K ou arraste um arquivo para cá.";
     }
 
     private void ShowStatus(string message)

@@ -498,5 +498,17 @@
                 </StackPanel>
             </Border>
         </Panel>
+
+        <!-- Arrastar arquivos: só aparece e não pega o mouse, para o soltar chegar na janela. -->
+        <Panel x:Name="DropOverlay" IsVisible="False" IsHitTestVisible="False">
+            <Border Background="{DynamicResource Veil}" />
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center" Padding="18,12" CornerRadius="14" Background="{DynamicResource Pop}">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.5" VerticalAlignment="Center"
+                          Data="M8 1V10M4.5 6.5L8 10L11.5 6.5M1.5 11V14H14.5V11" />
+                    <TextBlock Text="Solte para abrir" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </Panel>
     </Panel>
 </Window>

@@ -5,8 +5,8 @@
   #define AppVersion "0.0.0"
 #endif
 
-; Tipos que a Sirius abre como texto. "Abrir com Sirius" aparece só neles e em pastas.
-#define public Extensions "txt;md;log;csv;json;jsonc;xml;yml;yaml;toml;ini;cfg;conf;env;sql;php;html;htm;css;scss;sass;less;js;jsx;mjs;ts;tsx;vue;svelte;cs;csproj;sln;slnx;axaml;xaml;py;rb;go;rs;java;kt;swift;c;h;cpp;hpp;lua;sh;bat;cmd;ps1;gitignore;editorconfig;"
+; Tipos que a Sirius abre, como texto ou imagem. "Abrir com Sirius" aparece só neles e em pastas.
+#define public Extensions "txt;md;log;csv;json;jsonc;xml;yml;yaml;toml;ini;cfg;conf;env;sql;php;html;htm;css;scss;sass;less;js;jsx;mjs;ts;tsx;vue;svelte;cs;csproj;sln;slnx;axaml;xaml;py;rb;go;rs;java;kt;swift;c;h;cpp;hpp;lua;sh;bat;cmd;ps1;gitignore;editorconfig;svg;png;jpg;jpeg;jfif;gif;webp;bmp;ico;"
 #sub AddExtension
   #define public Current Copy(Extensions, 1, Pos(";", Extensions) - 1)
   #define public Extensions Copy(Extensions, Pos(";", Extensions) + 1)
@@ -70,7 +70,7 @@ Root: HKCU; Subkey: "Software\Classes\Directory\shell\Sirius\command"; ValueType
 Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\Sirius"; ValueType: string; ValueData: "{cm:OpenWith}"; Flags: uninsdeletekey; Tasks: contextmenu
 Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\Sirius"; ValueName: "Icon"; ValueType: string; ValueData: "{app}\Sirius.exe"; Tasks: contextmenu
 Root: HKCU; Subkey: "Software\Classes\Directory\Background\shell\Sirius\command"; ValueType: string; ValueData: """{app}\Sirius.exe"" ""%V"""; Tasks: contextmenu
-; A primeira versão aparecia em todos os arquivos, até em fotos. Atualizar limpa isso.
+; A primeira versão aparecia em todos os arquivos, mesmo os que a Sirius não abre. Atualizar limpa isso.
 Root: HKCU; Subkey: "Software\Classes\*\shell\Sirius"; ValueType: none; Flags: deletekey
 #for {0; Len(Extensions) > 0; 0} AddExtension
 
