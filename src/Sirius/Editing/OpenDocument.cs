@@ -33,6 +33,38 @@ public sealed class OpenDocument
     public bool IsDirty => !Document.UndoStack.IsOriginalFile;
     public bool MissingReported { get; set; }
 
+    // Âncoras, e não números: o ponto acompanha a linha quando se escreve acima dela.
+    private readonly List<TextAnchor> _breakpoints = new();
+
+    public IReadOnlyList<int> BreakpointLines =>
+        _breakpoints.Where(anchor => !anchor.IsDeleted).Select(anchor => anchor.Line).Distinct().Order().ToList();
+
+    public void SetBreakpoints(IEnumerable<int> lines)
+    {
+        _breakpoints.Clear();
+        foreach (var line in lines.Where(line => line >= 1 && line <= Document.LineCount))
+            AddBreakpoint(line);
+    }
+
+    // Devolve se a linha ficou marcada.
+    public bool ToggleBreakpoint(int line)
+    {
+        if (BreakpointLines.Contains(line))
+        {
+            _breakpoints.RemoveAll(anchor => anchor.IsDeleted || anchor.Line == line);
+            return false;
+        }
+        AddBreakpoint(line);
+        return true;
+    }
+
+    private void AddBreakpoint(int line)
+    {
+        var anchor = Document.CreateAnchor(Document.GetLineByNumber(line).Offset);
+        anchor.MovementType = AnchorMovementType.AfterInsertion;
+        _breakpoints.Add(anchor);
+    }
+
     public bool ChangedOnDisk =>
         !IsUntitled && File.Exists(FullPath) && File.GetLastWriteTimeUtc(FullPath) != LastWriteUtc;
 

@@ -207,7 +207,8 @@ public partial class MainWindow
 
         var key = SessionKey(RootFolder);
         var files = _documents.Where(document => !document.IsUntitled).ToList();
-        if (files.Count == 0)
+        var breakpoints = BreakpointsSnapshot();
+        if (files.Count == 0 && breakpoints.Count == 0)
         {
             _settings.Sessions.Remove(key);
         }
@@ -216,6 +217,7 @@ public partial class MainWindow
             _settings.Sessions[key] = new SessionState
             {
                 ActivePath = ActiveDocument is { IsUntitled: false } current ? current.FullPath : null,
+                Breakpoints = breakpoints.ToDictionary(pair => pair.Key, pair => pair.Value.ToList(), StringComparer.OrdinalIgnoreCase),
                 Files = files.Select(document => new SessionFile
                 {
                     Path = document.FullPath,
@@ -231,6 +233,10 @@ public partial class MainWindow
     {
         if (RootFolder is null || !_settings.Sessions.TryGetValue(SessionKey(RootFolder), out var session))
             return;
+
+        // Antes de abrir as abas, que pegam daqui os pontos de cada arquivo.
+        foreach (var (path, lines) in session.Breakpoints)
+            _closedBreakpoints[path] = lines;
 
         _restoringSession = true;
         try

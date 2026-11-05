@@ -1,0 +1,923 @@
+using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text;
+using Avalonia;
+using Avalonia.Headless;
+using Avalonia.Headless.XUnit;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using Sirius.Core;
+using Sirius.Editing;
+using Sirius.Theming;
+
+namespace Sirius.Tests;
+
+public class XdebugSetupTests
+{
+    private const string Info82 = "phpinfo()\nPHP Version => 8.2.12\n\nArchitecture => x64\nPHP Extension Build => API20220829,TS,VS16\n";
+
+    [Fact]
+    public void Reconhece_o_php_pela_saida_do_phpinfo()
+    {
+        Assert.Equal(new PhpBuild("8.2", true, 16, true), XdebugSetup.ParseInfo(Info82));
+        Assert.Equal(new PhpBuild("8.4", false, 17, true),
+            XdebugSetup.ParseInfo("PHP Version => 8.4.3\nArchitecture => x64\nPHP Extension Build => API20240924,NTS,VS17\n"));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("PHP Version => 8.2.12\n")]
+    [InlineData("PHP Extension Build => API20220829,TS,VS16\n")]
+    public void Texto_sem_as_informacoes_nao_vira_um_php(string info) => Assert.Null(XdebugSetup.ParseInfo(info));
+
+    [Fact]
+    public void Escolhe_o_arquivo_exato_de_cada_php()
+    {
+        var release = XdebugCatalog.Find(new PhpBuild("8.2", true, 16, true))!;
+
+        Assert.Equal($"php_xdebug-{XdebugCatalog.Version}-8.2-ts-vs16-x86_64.dll", release.FileName);
+        Assert.StartsWith("https://xdebug.org/files/", release.Url);
+        Assert.Equal(64, release.Sha256.Length);
+        Assert.Contains("-8.4-nts-vs17-", XdebugCatalog.Find(new PhpBuild("8.4", false, 17, true))!.FileName);
+    }
+
+    [Theory]
+    [InlineData("7.4", true, 15, true)]
+    [InlineData("8.2", true, 17, true)]
+    [InlineData("9.0", true, 17, true)]
+    [InlineData("8.2", true, 16, false)]
+    public void Php_sem_arquivo_conhecido_nao_baixa_nada(string version, bool threadSafe, int compiler, bool is64) =>
+        Assert.Null(XdebugCatalog.Find(new PhpBuild(version, threadSafe, compiler, is64)));
+
+    private static XdebugRelease ReleaseOf(byte[] content) => new("teste.dll", Convert.ToHexString(SHA256.HashData(content)));
+
+    [Fact]
+    public async Task Baixa_e_guarda_quando_o_codigo_confere()
+    {
+        using var folder = new TempFolder();
+        var content = Encoding.UTF8.GetBytes("conteudo");
+        var release = ReleaseOf(content);
+
+        var path = await XdebugSetup.DownloadAsync(release, folder.Path, (_, _) => Task.FromResult(content));
+
+        Assert.Equal(content, File.ReadAllBytes(path!));
+        Assert.Equal(path, XdebugSetup.InstalledFile(release, folder.Path));
+    }
+
+    [Fact]
+    public async Task Arquivo_diferente_do_esperado_nunca_vai_para_o_disco()
+    {
+        using var folder = new TempFolder();
+        var release = ReleaseOf(Encoding.UTF8.GetBytes("o certo"));
+
+        var path = await XdebugSetup.DownloadAsync(release, folder.Path, (_, _) => Task.FromResult(Encoding.UTF8.GetBytes("o errado")));
+
+        Assert.Null(path);
+        Assert.Empty(Directory.GetFiles(folder.Path));
+    }
+
+    [Fact]
+    public async Task Internet_que_falha_nao_derruba_nada()
+    {
+        using var folder = new TempFolder();
+        var release = ReleaseOf([1]);
+
+        Assert.Null(await XdebugSetup.DownloadAsync(release, folder.Path, (_, _) => throw new HttpRequestException()));
+    }
+
+    [Fact]
+    public void Arquivo_alterado_no_disco_nao_vale_mais()
+    {
+        using var folder = new TempFolder();
+        var release = ReleaseOf(Encoding.UTF8.GetBytes("inteiro"));
+        File.WriteAllText(folder.File(release.FileName), "pela metade");
+
+        Assert.Null(XdebugSetup.InstalledFile(release, folder.Path));
+    }
+
+    [Fact]
+    public void Configuracao_carrega_o_arquivo_e_liga_a_depuracao()
+    {
+        var ini = XdebugSetup.IniText(@"C:\Pasta Com Espaço\x.dll");
+
+        Assert.Contains("zend_extension=\"C:/Pasta Com Espaço/x.dll\"", ini);
+        Assert.Contains("xdebug.mode=debug", ini);
+        Assert.Contains("xdebug.start_with_request=yes", ini);
+        Assert.Contains("xdebug.client_host=127.0.0.1", ini);
+    }
+
+    [Fact]
+    public void Php_que_ja_tem_xdebug_nao_carrega_outro()
+    {
+        Assert.DoesNotContain("zend_extension", XdebugSetup.IniText(null));
+    }
+
+    [Fact]
+    public void Comando_so_ganha_variaveis_na_frente()
+    {
+        var command = XdebugSetup.Command("php -S localhost:8000", @"C:\ini", 9123);
+
+        Assert.EndsWith("&& php -S localhost:8000", command);
+        Assert.Contains("set \"PHP_INI_SCAN_DIR=C:\\ini\"", command);
+        Assert.Contains("set \"XDEBUG_CONFIG=client_port=9123\"", command);
+        Assert.Contains("set \"XDEBUG_MODE=debug\"", command);
+    }
+}
+
+public class DbgpParserTests
+{
+    private const string Ns = "xmlns=\"urn:debugger_protocol_v1\"";
+
+    private static List<DebugVariable> Variables(string inner) =>
+        DbgpParser.Variables(DbgpParser.Parse($"<response {Ns}>{inner}</response>"));
+
+    private static string Base64(string text) => Convert.ToBase64String(Encoding.UTF8.GetBytes(text));
+
+    [Fact]
+    public void Mostra_cada_tipo_como_se_escreve_em_php()
+    {
+        var variables = Variables(
+            "<property name=\"$a\" fullname=\"$a\" type=\"int\"><![CDATA[7]]></property>" +
+            "<property name=\"$b\" fullname=\"$b\" type=\"float\"><![CDATA[1.75]]></property>" +
+            $"<property name=\"$c\" fullname=\"$c\" type=\"string\" encoding=\"base64\"><![CDATA[{Base64("olá")}]]></property>" +
+            "<property name=\"$d\" fullname=\"$d\" type=\"bool\"><![CDATA[1]]></property>" +
+            "<property name=\"$e\" fullname=\"$e\" type=\"bool\"><![CDATA[0]]></property>" +
+            "<property name=\"$f\" fullname=\"$f\" type=\"null\"></property>" +
+            "<property name=\"$g\" fullname=\"$g\" type=\"object\" classname=\"Catalogo\" numchildren=\"0\"></property>");
+
+        Assert.Equal(["7", "1.75", "'olá'", "true", "false", "null", "Catalogo"], variables.Select(v => v.Value));
+    }
+
+    [Fact]
+    public void Array_traz_os_itens_e_a_contagem()
+    {
+        var array = Assert.Single(Variables(
+            "<property name=\"$lista\" fullname=\"$lista\" type=\"array\" children=\"1\" numchildren=\"2\">" +
+            "<property name=\"0\" fullname=\"$lista[0]\" type=\"int\"><![CDATA[10]]></property>" +
+            "<property name=\"1\" fullname=\"$lista[1]\" type=\"int\"><![CDATA[20]]></property>" +
+            "</property>"));
+
+        Assert.Equal("array(2)", array.Value);
+        Assert.Equal(["$lista[0]", "$lista[1]"], array.Children.Select(c => c.FullName));
+    }
+
+    [Fact]
+    public void Variavel_que_ainda_nao_existe_nao_aparece()
+    {
+        var variables = Variables(
+            "<property name=\"$depois\" fullname=\"$depois\" type=\"uninitialized\"></property>" +
+            "<property name=\"$agora\" fullname=\"$agora\" type=\"int\"><![CDATA[1]]></property>");
+
+        Assert.Equal("$agora", Assert.Single(variables).Name);
+    }
+
+    [Fact]
+    public void Das_superglobais_so_ficam_as_uteis_e_com_conteudo()
+    {
+        var response = DbgpParser.Parse($"<response {Ns}>" +
+            "<property name=\"_POST\" fullname=\"$_POST\" type=\"array\" numchildren=\"1\"><property name=\"peso\" fullname=\"$_POST['peso']\" type=\"int\"><![CDATA[70]]></property></property>" +
+            "<property name=\"_GET\" fullname=\"$_GET\" type=\"array\" numchildren=\"0\"></property>" +
+            "<property name=\"_SERVER\" fullname=\"$_SERVER\" type=\"array\" numchildren=\"1\"><property name=\"x\" fullname=\"$_SERVER['x']\" type=\"int\"><![CDATA[1]]></property></property>" +
+            "</response>");
+
+        Assert.Equal("$_POST", Assert.Single(DbgpParser.Superglobals(response)).FullName);
+    }
+
+    [Fact]
+    public void Le_o_arquivo_e_a_linha_da_parada()
+    {
+        var response = DbgpParser.Parse($"<response {Ns}><stack where=\"{{main}}\" level=\"0\" type=\"file\" filename=\"file:///C:/a/b.php\" lineno=\"12\"></stack></response>");
+
+        Assert.Equal(("file:///C:/a/b.php", 12), DbgpParser.TopFrame(response));
+        Assert.Null(DbgpParser.TopFrame(DbgpParser.Parse($"<response {Ns}></response>")));
+    }
+
+    [Fact]
+    public void Xml_com_dtd_e_recusado()
+    {
+        Assert.Throws<System.Xml.XmlException>(() =>
+            DbgpParser.Parse("<!DOCTYPE a [<!ENTITY x \"y\">]><a>&x;</a>"));
+    }
+}
+
+// Faz o papel do Xdebug: conecta no servidor e responde pelo mesmo protocolo.
+public sealed class FakeXdebug : IDisposable
+{
+    public sealed record Stop(string File, int Line, string Variables = "", string Globals = "");
+
+    private readonly TcpClient _client = new();
+    private readonly Queue<Stop> _stops;
+    private Stop? _current;
+
+    public FakeXdebug(params Stop[] stops) => _stops = new Queue<Stop>(stops);
+
+    public ConcurrentQueue<string> Commands { get; } = new();
+    public Task Finished { get; private set; } = Task.CompletedTask;
+
+    public static string Int(string name, int value) =>
+        $"<property name=\"{name}\" fullname=\"{name}\" type=\"int\"><![CDATA[{value}]]></property>";
+
+    public void Connect(int port) => Finished = RunAsync(port);
+
+    private async Task RunAsync(int port)
+    {
+        await _client.ConnectAsync(IPAddress.Loopback, port);
+        var stream = _client.GetStream();
+        await WriteAsync(stream, "<init xmlns=\"urn:debugger_protocol_v1\" fileuri=\"file:///C:/x.php\"/>");
+
+        var text = new StringBuilder();
+        var buffer = new byte[4096];
+        while (true)
+        {
+            int read;
+            try
+            {
+                read = await stream.ReadAsync(buffer);
+            }
+            catch (IOException)
+            {
+                return;
+            }
+            if (read == 0)
+                return;
+            text.Append(Encoding.UTF8.GetString(buffer, 0, read));
+            int end;
+            while ((end = text.ToString().IndexOf('\0')) >= 0)
+            {
+                var command = text.ToString(0, end);
+                text.Remove(0, end + 1);
+                if (!await AnswerAsync(stream, command))
+                    return;
+            }
+        }
+    }
+
+    private async Task<bool> AnswerAsync(NetworkStream stream, string command)
+    {
+        Commands.Enqueue(command);
+        var parts = command.Split(' ');
+        var name = parts[0];
+        var id = parts[Array.IndexOf(parts, "-i") + 1];
+        var inner = "";
+        var attributes = "";
+        switch (name)
+        {
+            case "breakpoint_set":
+                attributes = $" id=\"{id}\"";
+                break;
+            case "run" or "step_over":
+                if (_stops.TryDequeue(out var next))
+                {
+                    _current = next;
+                    attributes = " status=\"break\" reason=\"ok\"";
+                }
+                else
+                {
+                    attributes = " status=\"stopping\" reason=\"ok\"";
+                }
+                break;
+            case "stack_get":
+                inner = $"<stack level=\"0\" type=\"file\" filename=\"{new Uri(_current!.File).AbsoluteUri}\" lineno=\"{_current.Line}\"></stack>";
+                break;
+            case "context_get":
+                inner = command.Contains("-c 1") ? _current!.Globals : _current!.Variables;
+                break;
+        }
+
+        await WriteAsync(stream, $"<response xmlns=\"urn:debugger_protocol_v1\" command=\"{name}\" transaction_id=\"{id}\"{attributes}>{inner}</response>");
+        if (name != "stop")
+            return true;
+        _client.Close();
+        return false;
+    }
+
+    private static async Task WriteAsync(NetworkStream stream, string xml)
+    {
+        var body = Encoding.UTF8.GetBytes(xml);
+        var head = Encoding.ASCII.GetBytes(body.Length + "\0");
+        await stream.WriteAsync(head.Concat(body).Append((byte)0).ToArray());
+    }
+
+    public void Dispose() => _client.Dispose();
+}
+
+public class XdebugServerTests
+{
+    private static async Task Until(Func<bool> condition)
+    {
+        var limit = DateTime.UtcNow.AddSeconds(20);
+        while (!condition())
+        {
+            Assert.True(DateTime.UtcNow < limit, "A condição não aconteceu a tempo.");
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+    }
+
+    private static Dictionary<string, IReadOnlyCollection<int>> Points(string file, params int[] lines) => new() { [file] = lines };
+
+    [Fact]
+    public void So_ouve_neste_computador_e_escolhe_uma_porta_livre()
+    {
+        using var first = new XdebugServer();
+        using var second = new XdebugServer();
+        first.Start();
+        second.Start();
+
+        Assert.NotEqual(0, first.Port);
+        Assert.NotEqual(first.Port, second.Port);
+    }
+
+    [Fact]
+    public async Task Marca_os_pontos_para_e_mostra_as_variaveis()
+    {
+        var file = @"C:\Meu Projeto\calculo.php";
+        using var server = new XdebugServer();
+        var pauses = new ConcurrentQueue<DebugPause>();
+        server.Paused += pauses.Enqueue;
+        server.SetBreakpoints(Points(file, 5));
+        server.Start();
+        using var php = new FakeXdebug(new FakeXdebug.Stop(file, 5, FakeXdebug.Int("$peso", 70)));
+
+        php.Connect(server.Port);
+        await Until(() => !pauses.IsEmpty);
+
+        pauses.TryPeek(out var pause);
+        Assert.Equal(file, pause!.Path);
+        Assert.Equal(5, pause.Line);
+        Assert.Equal("$peso", Assert.Single(pause.Variables).Name);
+        Assert.True(server.IsPaused);
+        Assert.Contains(php.Commands, c => c.StartsWith("breakpoint_set") && c.Contains("-f file:///C:/Meu%20Projeto/calculo.php") && c.EndsWith("-n 5"));
+
+        server.Continue();
+        await php.Finished;
+    }
+
+    [Fact]
+    public async Task Proxima_linha_e_continuar_vao_para_o_xdebug()
+    {
+        var file = @"C:\a.php";
+        using var server = new XdebugServer();
+        var pauses = new ConcurrentQueue<DebugPause>();
+        var ended = 0;
+        var resumed = 0;
+        server.Paused += pauses.Enqueue;
+        server.Resumed += () => Interlocked.Increment(ref resumed);
+        server.PageEnded += () => Interlocked.Increment(ref ended);
+        server.Start();
+        using var php = new FakeXdebug(new FakeXdebug.Stop(file, 1), new FakeXdebug.Stop(file, 2));
+        php.Connect(server.Port);
+
+        await Until(() => pauses.Count == 1);
+        server.StepOver();
+        await Until(() => pauses.Count == 2);
+        Assert.Contains(php.Commands, c => c.StartsWith("step_over"));
+        Assert.Equal(1, Volatile.Read(ref resumed));
+
+        server.Continue();
+        await Until(() => Volatile.Read(ref ended) == 1);
+
+        Assert.False(server.IsPaused);
+        Assert.Contains(php.Commands, c => c.StartsWith("stop"));
+    }
+
+    [Fact]
+    public async Task Botoes_fora_de_uma_parada_nao_mandam_nada()
+    {
+        using var server = new XdebugServer();
+        var pauses = new ConcurrentQueue<DebugPause>();
+        server.Paused += pauses.Enqueue;
+        server.Start();
+
+        server.Continue();
+        server.StepOver();
+
+        using var php = new FakeXdebug(new FakeXdebug.Stop(@"C:\a.php", 1));
+        php.Connect(server.Port);
+        await Until(() => !pauses.IsEmpty);
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+
+        // Continuou parado: os cliques de antes não valem para esta parada.
+        Assert.True(server.IsPaused);
+    }
+
+    [Fact]
+    public async Task Mudar_os_pontos_durante_a_parada_vale_na_hora()
+    {
+        var file = @"C:\a.php";
+        using var server = new XdebugServer();
+        var pauses = new ConcurrentQueue<DebugPause>();
+        server.Paused += pauses.Enqueue;
+        server.SetBreakpoints(Points(file, 1));
+        server.Start();
+        using var php = new FakeXdebug(new FakeXdebug.Stop(file, 1));
+        php.Connect(server.Port);
+        await Until(() => !pauses.IsEmpty);
+
+        server.SetBreakpoints(Points(file, 2));
+
+        await Until(() => php.Commands.Any(c => c.StartsWith("breakpoint_set") && c.EndsWith("-n 2")));
+        await Until(() => php.Commands.Any(c => c.StartsWith("breakpoint_remove")));
+    }
+
+    [Fact]
+    public async Task Cada_pagina_e_uma_conexao_e_a_seguinte_tambem_para()
+    {
+        var file = @"C:\a.php";
+        using var server = new XdebugServer();
+        var pauses = new ConcurrentQueue<DebugPause>();
+        server.Paused += pauses.Enqueue;
+        server.Start();
+
+        using var first = new FakeXdebug(new FakeXdebug.Stop(file, 1));
+        first.Connect(server.Port);
+        await Until(() => pauses.Count == 1);
+        server.Continue();
+        await first.Finished;
+
+        using var second = new FakeXdebug(new FakeXdebug.Stop(file, 3));
+        second.Connect(server.Port);
+        await Until(() => pauses.Count == 2);
+        Assert.Equal(3, pauses.Last().Line);
+        server.Continue();
+        await second.Finished;
+    }
+
+    [Fact]
+    public async Task Mensagem_invalida_encerra_so_aquela_pagina()
+    {
+        using var server = new XdebugServer();
+        var pauses = new ConcurrentQueue<DebugPause>();
+        var ended = 0;
+        server.Paused += pauses.Enqueue;
+        server.PageEnded += () => Interlocked.Increment(ref ended);
+        server.Start();
+
+        using (var bad = new TcpClient())
+        {
+            await bad.ConnectAsync(IPAddress.Loopback, server.Port, TestContext.Current.CancellationToken);
+            await bad.GetStream().WriteAsync(Encoding.ASCII.GetBytes("xyz\0nada\0"), TestContext.Current.CancellationToken);
+            await Until(() => Volatile.Read(ref ended) == 1);
+        }
+
+        using var php = new FakeXdebug(new FakeXdebug.Stop(@"C:\a.php", 1));
+        php.Connect(server.Port);
+        await Until(() => !pauses.IsEmpty);
+        server.Continue();
+        await php.Finished;
+    }
+
+    [Fact]
+    public async Task Fechar_com_uma_pagina_parada_solta_o_php()
+    {
+        var server = new XdebugServer();
+        var pauses = new ConcurrentQueue<DebugPause>();
+        server.Paused += pauses.Enqueue;
+        server.Start();
+        using var php = new FakeXdebug(new FakeXdebug.Stop(@"C:\a.php", 1));
+        php.Connect(server.Port);
+        await Until(() => !pauses.IsEmpty);
+
+        server.Dispose();
+
+        await php.Finished.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+    }
+}
+
+public class OpenDocumentBreakpointTests
+{
+    // Abrir um arquivo carrega as gramáticas, que são compartilhadas: fora da thread dos outros testes, elas quebram.
+    private static OpenDocument Document(TempFolder temp) =>
+        OpenDocument.Load(temp.File("a.php", "<?php\n$a = 1;\n$b = 2;\n$c = 3;\n"));
+
+    [AvaloniaFact]
+    public void Marca_e_desmarca_a_linha()
+    {
+        using var temp = new TempFolder();
+        var document = Document(temp);
+
+        Assert.True(document.ToggleBreakpoint(2));
+        Assert.True(document.ToggleBreakpoint(4));
+        Assert.Equal([2, 4], document.BreakpointLines);
+
+        Assert.False(document.ToggleBreakpoint(2));
+        Assert.Equal([4], document.BreakpointLines);
+    }
+
+    [AvaloniaFact]
+    public void O_ponto_acompanha_a_linha_quando_se_escreve_acima()
+    {
+        using var temp = new TempFolder();
+        var document = Document(temp);
+        document.ToggleBreakpoint(3);
+
+        document.Document.Insert(document.Document.GetLineByNumber(2).Offset, "// novo\n// outro\n");
+
+        Assert.Equal([5], document.BreakpointLines);
+    }
+
+    [AvaloniaFact]
+    public void Apagar_a_linha_inteira_com_outras_leva_o_ponto()
+    {
+        using var temp = new TempFolder();
+        var document = Document(temp);
+        document.ToggleBreakpoint(3);
+        var from = document.Document.GetLineByNumber(2).Offset;
+        var to = document.Document.GetLineByNumber(4).Offset;
+
+        document.Document.Remove(from, to - from);
+
+        Assert.Empty(document.BreakpointLines);
+    }
+
+    [AvaloniaFact]
+    public void Linhas_guardadas_fora_do_arquivo_sao_ignoradas()
+    {
+        using var temp = new TempFolder();
+        var document = Document(temp);
+
+        document.SetBreakpoints([2, 99, 0, -1]);
+
+        Assert.Equal([2], document.BreakpointLines);
+    }
+}
+
+// A janela de verdade com um Xdebug falso.
+public class DebugWindowTests
+{
+    private static async Task Until(Func<bool> condition)
+    {
+        var limit = DateTime.UtcNow.AddSeconds(20);
+        while (!condition())
+        {
+            Assert.True(DateTime.UtcNow < limit, "A condição não aconteceu a tempo.");
+            await Task.Delay(15);
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    private static MainWindow Open(TempFolder temp, TempFolder config, AppSettings? settings = null)
+    {
+        var window = new MainWindow(settings ?? new AppSettings(), Path.Combine(config.Path, "settings.json"), temp.Path);
+        window.Language.IsInstalled = _ => false;
+        window.OpenUrl = _ => true;
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        return window;
+    }
+
+    [AvaloniaFact]
+    public void Ponto_de_parada_so_vale_em_arquivo_php()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n");
+        var css = temp.File("a.css", "body {}\n");
+        var window = Open(temp, config);
+
+        window.OpenFile(css);
+        window.ToggleBreakpoint(1);
+        Assert.Empty(window.BreakpointsSnapshot());
+
+        window.OpenFile(php);
+        window.ToggleBreakpoint(2);
+        Assert.Equal([2], window.BreakpointsSnapshot()[php]);
+        window.Close();
+    }
+
+    private static void Click(MainWindow window, Point point)
+    {
+        window.MouseMove(point);
+        window.MouseDown(point, MouseButton.Left);
+        window.MouseUp(point, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static Avalonia.Controls.Button ButtonNamed(MainWindow window, string name) =>
+        window.GetVisualDescendants().OfType<Avalonia.Controls.Button>().Single(button => button.Name == name);
+
+    [AvaloniaFact]
+    public void Clique_na_margem_marca_a_linha_e_fora_dela_so_move_o_cursor()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n$b = 2;\n");
+        var window = Open(temp, config);
+        window.OpenFile(php);
+        Dispatcher.UIThread.RunJobs();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+        var gutter = window.GetVisualDescendants().OfType<GutterMargin>().Single();
+        var firstLine = gutter.TranslatePoint(new Point(10, 8), window)!.Value;
+
+        Click(window, firstLine);
+        Assert.Equal([1], window.ActiveDocument!.BreakpointLines);
+
+        Click(window, firstLine);
+        Assert.Empty(window.ActiveDocument!.BreakpointLines);
+
+        // Perto do fio, à direita dos números, continua sendo só ir para a linha.
+        Click(window, gutter.TranslatePoint(new Point(gutter.Bounds.Width - 4, 8), window)!.Value);
+        Assert.Empty(window.ActiveDocument!.BreakpointLines);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Margem_de_outros_arquivos_nao_marca_nada()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var css = temp.File("a.css", "body {}\n");
+        var window = Open(temp, config);
+        window.OpenFile(css);
+        Dispatcher.UIThread.RunJobs();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+        var gutter = window.GetVisualDescendants().OfType<GutterMargin>().Single();
+
+        Click(window, gutter.TranslatePoint(new Point(10, 8), window)!.Value);
+
+        Assert.Empty(window.ActiveDocument!.BreakpointLines);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Botoes_da_capsula_avancam_e_continuam()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n$b = 2;\n");
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        using var engine = new FakeXdebug(new FakeXdebug.Stop(php, 2), new FakeXdebug.Stop(php, 3));
+        engine.Connect(server.Port);
+        await Until(() => window.PausedLine == 2);
+
+        // A cápsula anima ao abrir, e sem tela a animação não anda: o clique físico é conferido na janela real.
+        ButtonNamed(window, "DebugNextButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+        await Until(() => window.PausedLine == 3);
+
+        ButtonNamed(window, "DebugContinueButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+        await Until(() => !window.IsDebugPaused);
+        window.EndDebug();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Fechar_a_aba_mantem_os_pontos_e_abrir_de_novo_retoma()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n");
+        var window = Open(temp, config);
+        window.OpenFile(php);
+        window.ToggleBreakpoint(2);
+
+        await window.CloseDocumentAsync(window.ActiveDocument!);
+        Assert.Equal([2], window.BreakpointsSnapshot()[php]);
+
+        window.OpenFile(php);
+        Assert.Equal([2], window.ActiveDocument!.BreakpointLines);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Pontos_voltam_ao_reabrir_a_pasta()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n");
+        var settings = new AppSettings();
+        var window = Open(temp, config, settings);
+        window.OpenFile(php);
+        window.ToggleBreakpoint(2);
+        window.Close();
+
+        // A pasta abre só depois de desligar os servidores reais, que prenderiam a pasta temporária.
+        var saved = AppSettings.Load(Path.Combine(config.Path, "settings.json"));
+        saved.LastFolder = null;
+        var reopened = new MainWindow(saved, Path.Combine(config.Path, "settings.json"), null);
+        reopened.Language.IsInstalled = _ => false;
+        reopened.Show();
+        reopened.OpenFolder(temp.Path);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal([2], reopened.BreakpointsSnapshot()[php]);
+        Assert.Equal([2], reopened.ActiveDocument!.BreakpointLines);
+        reopened.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Parar_abre_o_arquivo_na_linha_e_mostra_as_variaveis()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n$b = 2;\n");
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        window.ShowVariables();
+        Assert.Contains("linha marcada", window.VariablesHintText);
+        Assert.False(window.AreDebugButtonsVisible);
+
+        using var engine = new FakeXdebug(new FakeXdebug.Stop(php, 3, FakeXdebug.Int("$a", 1)));
+        engine.Connect(server.Port);
+        await Until(() => window.IsDebugPaused);
+
+        Assert.Equal(php, window.ActiveDocument!.FullPath);
+        Assert.Equal(3, window.CaretLine);
+        Assert.Equal(3, window.PausedLine);
+        Assert.True(window.AreDebugButtonsVisible);
+        Assert.True(window.IsShowingVariables);
+        Assert.Equal("Parado em a.php, linha 3", window.TerminalInfoText);
+        var row = Assert.Single(window.VariableRows);
+        Assert.Equal(("$a", "1", "int"), (row.Name, row.Value, row.Type));
+
+        window.DebugContinue();
+        await Until(() => !window.IsDebugPaused);
+        window.EndDebug();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Proxima_linha_destaca_so_o_que_mudou()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n$b = 2;\n$c = 3;\n");
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        using var engine = new FakeXdebug(
+            new FakeXdebug.Stop(php, 2, FakeXdebug.Int("$a", 1)),
+            new FakeXdebug.Stop(php, 3, FakeXdebug.Int("$a", 1) + FakeXdebug.Int("$b", 2)));
+        engine.Connect(server.Port);
+        await Until(() => window.PausedLine == 2);
+        Assert.All(window.VariableRows, row => Assert.NotEqual(Palette.Current.DiffAdded, row.Background));
+
+        window.DebugNext();
+        await Until(() => window.PausedLine == 3);
+
+        Assert.NotEqual(Palette.Current.DiffAdded, window.VariableRows.Single(r => r.Name == "$a").Background);
+        Assert.Equal(Palette.Current.DiffAdded, window.VariableRows.Single(r => r.Name == "$b").Background);
+        window.EndDebug();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Clique_abre_os_itens_de_um_array()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = [1];\n");
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        const string array = "<property name=\"$a\" fullname=\"$a\" type=\"array\" numchildren=\"1\"><property name=\"0\" fullname=\"$a[0]\" type=\"int\"><![CDATA[1]]></property></property>";
+        using var engine = new FakeXdebug(new FakeXdebug.Stop(php, 2, array));
+        engine.Connect(server.Port);
+        await Until(() => window.IsDebugPaused);
+        Assert.Single(window.VariableRows);
+        Assert.Equal("array(1)", window.VariableRows[0].Value);
+
+        window.ToggleVariable("$a");
+
+        Assert.Equal(["$a", "0"], window.VariableRows.Select(r => r.Name));
+        window.ToggleVariable("$a");
+        Assert.Single(window.VariableRows);
+        window.EndDebug();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task F5_continua_e_F10_avanca_quando_parado()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n$b = 2;\n");
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        using var engine = new FakeXdebug(new FakeXdebug.Stop(php, 2), new FakeXdebug.Stop(php, 3));
+        engine.Connect(server.Port);
+        await Until(() => window.PausedLine == 2);
+
+        window.KeyPressQwerty(PhysicalKey.F10, RawInputModifiers.None);
+        await Until(() => window.PausedLine == 3);
+
+        window.KeyPressQwerty(PhysicalKey.F5, RawInputModifiers.None);
+        await Until(() => !window.IsDebugPaused);
+
+        Assert.False(window.IsTaskRunning);
+        window.EndDebug();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Pagina_que_termina_avisa_e_encerrar_volta_ao_normal()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n");
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        window.ShowVariables();
+        using var engine = new FakeXdebug(new FakeXdebug.Stop(php, 2, FakeXdebug.Int("$a", 1)));
+        engine.Connect(server.Port);
+        await Until(() => window.IsDebugPaused);
+
+        window.DebugContinue();
+        await Until(() => window.TerminalInfoText.StartsWith("A página terminou"));
+        Assert.Empty(window.VariableRows);
+        Assert.False(window.AreDebugButtonsVisible);
+
+        window.EndDebug();
+        Assert.False(window.IsDebugging);
+        Assert.False(window.IsShowingVariables);
+        window.Close();
+    }
+
+    private static MainWindow OpenWithCommand(TempFolder temp, TempFolder config)
+    {
+        var settings = new AppSettings();
+        settings.RunCommands[temp.Path] = "php -v";
+        var window = Open(temp, config, settings);
+        window.IsPhpInstalled = () => true;
+        return window;
+    }
+
+    [AvaloniaFact]
+    public async Task Sem_pontos_o_executar_nao_prepara_a_depuracao()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var window = OpenWithCommand(temp, config);
+        var asked = false;
+        window.PrepareXdebug = () =>
+        {
+            asked = true;
+            return Task.FromResult(new DebugPreparation(false, null));
+        };
+
+        await window.RunProjectAsync();
+        await window.TaskFinished;
+
+        Assert.False(asked);
+        Assert.Null(window.LastDebugCommand);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Com_pontos_o_executar_roda_com_o_xdebug_ligado()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n");
+        var window = OpenWithCommand(temp, config);
+        window.OpenFile(php);
+        window.ToggleBreakpoint(2);
+        window.PrepareXdebug = () => Task.FromResult(new DebugPreparation(false, config.Path));
+
+        await window.RunProjectAsync();
+
+        Assert.Contains($"PHP_INI_SCAN_DIR={config.Path}", window.LastDebugCommand);
+        Assert.EndsWith("&& php -v", window.LastDebugCommand);
+        await Until(() => !window.IsTaskRunning);
+        Assert.False(window.IsDebugging);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Recusar_a_preparacao_nao_executa_nada()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n");
+        var window = OpenWithCommand(temp, config);
+        window.OpenFile(php);
+        window.ToggleBreakpoint(2);
+        window.PrepareXdebug = () => Task.FromResult(new DebugPreparation(true, null));
+
+        await window.RunProjectAsync();
+
+        Assert.False(window.IsTaskRunning);
+        Assert.Null(window.LastDebugCommand);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Sem_xdebug_o_projeto_ainda_executa_normalmente()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n");
+        var window = OpenWithCommand(temp, config);
+        window.OpenFile(php);
+        window.ToggleBreakpoint(2);
+        window.PrepareXdebug = () => Task.FromResult(new DebugPreparation(false, null));
+
+        await window.RunProjectAsync();
+        await window.TaskFinished;
+
+        Assert.Null(window.LastDebugCommand);
+        window.Close();
+    }
+}

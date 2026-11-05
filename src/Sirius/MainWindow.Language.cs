@@ -105,6 +105,7 @@ public partial class MainWindow
     {
         SetTerminalOpen(true);
         _showingProblems = true;
+        HideVariables();
         TerminalHost.IsVisible = false;
         ProblemsList.IsVisible = true;
         TaskTabButton.IsVisible = _task is not null;

@@ -50,7 +50,9 @@ public sealed class SyntaxHighlighter
             return new LineResult([], previous);
 
         var text = _document.GetText(line);
-        var result = _grammar.TokenizeLine(text, previous, LineTimeout);
+        ITokenizeLineResult result;
+        lock (GrammarCatalog.Gate)
+            result = _grammar.TokenizeLine(text, previous, LineTimeout);
         var tokens = new List<SyntaxToken>(result.Tokens.Length);
         foreach (var token in result.Tokens)
         {
@@ -88,7 +90,17 @@ internal static class GrammarCatalog
     private static readonly Registry GrammarRegistry = new(Options);
     private static readonly Dictionary<string, IGrammar?> Cache = new(StringComparer.Ordinal);
 
+    // As gramáticas são compartilhadas e montam suas regras aos poucos, conforme leem o texto.
+    // Duas threads ao mesmo tempo as quebram, o que nos testes em paralelo acontecia às vezes.
+    public static readonly object Gate = new();
+
     public static IGrammar? ForPath(string path)
+    {
+        lock (Gate)
+            return Load(path);
+    }
+
+    private static IGrammar? Load(string path)
     {
         var extension = Path.GetExtension(path).ToLowerInvariant();
         if (extension.Length == 0)

@@ -35,6 +35,19 @@ public sealed class GutterMargin : AbstractMargin
 
     public IReadOnlyDictionary<int, GitLineKind> LineMarks => _lineMarks ?? new Dictionary<int, GitLineKind>();
 
+    private const double BaseBreakpointX = 9;
+    private const double BreakpointRadius = 4;
+    private int? _hoverLine;
+
+    // Só em arquivo PHP: é null nos outros, em que clicar continua só movendo o cursor.
+    public Func<IReadOnlyList<int>>? Breakpoints { get; set; }
+    public event Action<int>? BreakpointClicked;
+
+    public void RedrawBreakpoints() => InvalidateVisual();
+
+    // À esquerda dos números e sobre eles: uma faixa fácil de acertar.
+    private bool IsBreakpointZone(Point point) => Breakpoints is not null && point.X <= NumberRight + 2;
+
     // As linhas que mudaram desde o último commit.
     public void SetLineMarks(IReadOnlyDictionary<int, GitLineKind>? marks)
     {
@@ -96,10 +109,39 @@ public sealed class GutterMargin : AbstractMargin
         var line = view.GetVisualLineFromVisualTop(e.GetPosition(this).Y + view.VerticalOffset);
         if (line is null)
             return;
+        if (IsBreakpointZone(e.GetPosition(this)))
+        {
+            BreakpointClicked?.Invoke(line.FirstDocumentLine.LineNumber);
+            InvalidateVisual();
+            e.Handled = true;
+            return;
+        }
         _area.Caret.Location = new TextLocation(line.FirstDocumentLine.LineNumber, 1);
         _area.ClearSelection();
         _area.Focus();
         e.Handled = true;
+    }
+
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+        var point = e.GetPosition(this);
+        var view = TextView;
+        int? hover = view is not null && IsBreakpointZone(point)
+            ? view.GetVisualLineFromVisualTop(point.Y + view.VerticalOffset)?.FirstDocumentLine.LineNumber
+            : null;
+        if (hover != _hoverLine)
+        {
+            _hoverLine = hover;
+            InvalidateVisual();
+        }
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        _hoverLine = null;
+        InvalidateVisual();
     }
 
     public override void Render(DrawingContext context)
@@ -112,9 +154,11 @@ public sealed class GutterMargin : AbstractMargin
             return;
 
         var caretLine = _area.Caret.Line;
+        var breakpoints = Breakpoints?.Invoke();
         foreach (var line in view.VisualLines)
         {
             var number = line.FirstDocumentLine.LineNumber;
+            DrawBreakpoint(context, palette, breakpoints, number, line.VisualTop - view.VerticalOffset + line.Height / 2);
             var active = number == caretLine;
             var text = new FormattedText(
                 number.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
@@ -125,6 +169,16 @@ public sealed class GutterMargin : AbstractMargin
         }
 
         DrawThread(context, view, caretLine, palette);
+    }
+
+    private void DrawBreakpoint(DrawingContext context, Palette palette, IReadOnlyList<int>? breakpoints, int number, double center)
+    {
+        var marked = breakpoints?.Contains(number) == true;
+        if (!marked && number != _hoverLine)
+            return;
+
+        var radius = BreakpointRadius * _scale;
+        context.DrawEllipse(marked ? palette.Error : palette.Faint, null, new Point(BaseBreakpointX * _scale, center), radius, radius);
     }
 
     private void DrawLineMark(DrawingContext context, Palette palette, int number, double top, double height)

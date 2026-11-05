@@ -24,6 +24,8 @@ public sealed record HistoryNoteRow(string Text);
 
 public sealed record HistoryMoreRow(string Text);
 
+public sealed record VariableRow(string Name, string Value, string Type, Thickness Indent, Geometry? Chevron, IBrush Background, Sirius.Core.DebugVariable Variable);
+
 public sealed record ProblemRow(string Message, string Location, IBrush Brush, string FullPath, int Line, int Character);
 
 // Na busca, cada arquivo é uma linha de título seguida das linhas com resultado.

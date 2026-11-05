@@ -128,6 +128,7 @@ public partial class MainWindow
         _showingProblems = false;
         ProblemsList.IsVisible = false;
         ProblemsTabButton.Classes.Set("on", false);
+        HideVariables();
         TerminalHost.IsVisible = true;
         TerminalHost.Session = session;
         TaskTabButton.IsVisible = _task is not null;
@@ -186,6 +187,19 @@ public partial class MainWindow
                 return;
         }
 
+        // Só quando há o que parar: sem pontos marcados, o Executar é o mesmo de sempre.
+        if (RunDetector.NeedsPhp(command) && BreakpointsSnapshot().Count > 0)
+        {
+            var preparation = await PrepareXdebug();
+            if (preparation.Cancelled)
+                return;
+            if (preparation.IniFolder is { } iniFolder)
+            {
+                StartDebugTask(command, iniFolder);
+                return;
+            }
+        }
+
         StartTask(command, null);
     }
 
@@ -220,15 +234,17 @@ public partial class MainWindow
 
     public string PhpOfferText => DialogBody.Text ?? "";
 
-    private void StartTask(string command, Action<int>? onExit)
+    // O que aparece e define o site é "command". "shellCommand" é o que roda de fato, com o preparo da depuração.
+    private void StartTask(string command, Action<int>? onExit, string? shellCommand = null)
     {
+        EndDebug();
         _task?.Dispose();
         _task = null;
         var wasOpen = _terminalOpen;
         SetTerminalOpen(true);
         try
         {
-            _task = TerminalSession.Start(RunDetector.WrapForShell(command), WorkingFolder(), TerminalHost.GridColumns, TerminalHost.GridRows);
+            _task = TerminalSession.Start(RunDetector.WrapForShell(shellCommand ?? command), WorkingFolder(), TerminalHost.GridColumns, TerminalHost.GridRows);
         }
         catch (System.ComponentModel.Win32Exception)
         {
@@ -257,6 +273,7 @@ public partial class MainWindow
         if (session != _task)
             return;
 
+        EndDebug();
         UpdateRunButton();
         UpdateTerminalInfo();
         ShowStatus(code == 0 ? "Concluído" : $"Terminou com erro (código {code})");
@@ -267,6 +284,9 @@ public partial class MainWindow
     {
         if (_task is not { IsRunning: true } session)
             return;
+
+        // Sem isto, uma página parada na depuração seguraria o PHP e o Ctrl C não chegaria nele.
+        EndDebug();
 
         // Primeiro pede com jeito, como o Ctrl C; se o programa ignorar, encerra à força.
         session.Write("\x03");
@@ -353,6 +373,7 @@ public partial class MainWindow
 
     private void StopAllSessions()
     {
+        EndDebug();
         _task?.Dispose();
         _shell?.Dispose();
         _task = null;

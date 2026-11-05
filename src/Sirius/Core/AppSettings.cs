@@ -13,6 +13,9 @@ public sealed class SessionState
 {
     public List<SessionFile> Files { get; set; } = new();
     public string? ActivePath { get; set; }
+
+    // Os pontos de parada de cada arquivo, mesmo o que não está aberto em aba.
+    public Dictionary<string, List<int>> Breakpoints { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class AppSettings

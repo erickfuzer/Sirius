@@ -109,6 +109,7 @@ public partial class MainWindow : Window
         InitializeColors();
         InitializeImages();
         InitializeDrop();
+        InitializeDebug();
         CodeEditor.AddHandler(PointerWheelChangedEvent, OnEditorWheel, RoutingStrategies.Tunnel);
         ApplyEditorFontSize(_settings.EditorFontSize);
         DialogInput.AddHandler(KeyDownEvent, OnDialogInputKeyDown, RoutingStrategies.Tunnel);
@@ -155,6 +156,7 @@ public partial class MainWindow : Window
     public void OpenFolder(string folder)
     {
         SaveSession();
+        _closedBreakpoints.Clear();
         RootFolder = Path.GetFullPath(folder);
         _settings.LastFolder = RootFolder;
         _settings.Save(_settingsPath);
@@ -467,6 +469,7 @@ public partial class MainWindow : Window
     private void Forget(OpenDocument document)
     {
         _language.DocumentClosed(document);
+        KeepBreakpoints(document);
         var index = _documents.IndexOf(document);
         _documents.RemoveAt(index);
         if (ActiveDocument == document)
@@ -566,6 +569,7 @@ public partial class MainWindow : Window
             if (ActiveDocument == document && document.Highlighter is not null && !_redrawDelay.IsEnabled)
                 _redrawDelay.Start();
         };
+        RestoreBreakpoints(document);
         _documents.Add(document);
         _language.DocumentOpened(document);
     }
@@ -593,6 +597,7 @@ public partial class MainWindow : Window
             Dispatcher.UIThread.Post(FocusActiveDocument);
         }
 
+        UpdateGutterBreakpoints();
         ShowDocumentSurface();
         RefreshImage();
         Breadcrumb.Text = document is null || RootFolder is null ? "" : BreadcrumbFor(document.FullPath);
@@ -789,7 +794,17 @@ public partial class MainWindow : Window
         if (e.Key == Key.F5)
         {
             e.Handled = true;
-            await RunOrStopAsync();
+            if (IsDebugPaused)
+                DebugContinue();
+            else
+                await RunOrStopAsync();
+            return;
+        }
+
+        if (e.Key == Key.F10 && IsDebugPaused)
+        {
+            e.Handled = true;
+            DebugNext();
             return;
         }
 
@@ -1294,6 +1309,7 @@ public partial class MainWindow : Window
         RefreshProblems();
         RefreshGitRows();
         RebuildHistoryRows();
+        RefreshVariableRows();
 
         RefreshTabs();
         RefreshTree();
