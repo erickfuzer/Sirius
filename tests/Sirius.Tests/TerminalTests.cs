@@ -241,6 +241,8 @@ public class TerminalKeysTests
 {
     [Theory]
     [InlineData(Key.Enter, KeyModifiers.None, "\r")]
+    [InlineData(Key.Enter, KeyModifiers.Shift, "\u001b\r")]
+    [InlineData(Key.Enter, KeyModifiers.Alt, "\u001b\r")]
     [InlineData(Key.Back, KeyModifiers.None, "\x7f")]
     [InlineData(Key.Tab, KeyModifiers.None, "\t")]
     [InlineData(Key.Tab, KeyModifiers.Shift, "\x1b[Z")]

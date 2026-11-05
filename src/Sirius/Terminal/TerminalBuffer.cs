@@ -68,6 +68,10 @@ public sealed class TerminalBuffer
     public bool CursorVisible { get; private set; } = true;
     public bool ApplicationCursorKeys { get; private set; }
     public bool BracketedPaste { get; private set; }
+
+    // O programa quer receber o mouse, como o Claude Code para rolar a conversa.
+    public bool MouseTracking { get; private set; }
+    public bool SgrMouse { get; private set; }
     public bool IsAlternateScreen => _alternate is not null;
     public int ScrollbackCount => IsAlternateScreen ? 0 : _scrollback.Count;
     public int TotalLines => ScrollbackCount + Rows;
@@ -606,6 +610,12 @@ public sealed class TerminalBuffer
                 case "2004":
                     BracketedPaste = on;
                     break;
+                case "1000" or "1002" or "1003":
+                    MouseTracking = on;
+                    break;
+                case "1006":
+                    SgrMouse = on;
+                    break;
             }
         }
     }
@@ -744,6 +754,8 @@ public sealed class TerminalBuffer
         CursorVisible = true;
         ApplicationCursorKeys = false;
         BracketedPaste = false;
+        MouseTracking = false;
+        SgrMouse = false;
     }
 
     private void ResizeScreen(ref TerminalLine[] screen, int columns, int rows, bool keepScrollback, int cursorRow, out int newCursorRow)

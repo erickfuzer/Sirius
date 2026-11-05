@@ -129,7 +129,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 - Só funciona no Windows: o terminal, o instalador e a integração com o Explorer são específicos dele.
 - Ainda não tem depuração dentro da IDE.
 - Conflitos de Git são resolvidos editando o arquivo.
-- Programas de tela cheia no terminal, como `vim`, não foram testados.
+- Entre os programas de tela cheia no terminal, o Claude Code foi testado, mas o `vim` não. O terminal repassa a roda do mouse a eles, mas não os cliques.
 - GIF animado mostra só o primeiro quadro, e o SVG ainda não tem prévia.
 - As atualizações ainda são manuais: a IDE avisa, mas você baixa e instala a versão nova por cima.
 

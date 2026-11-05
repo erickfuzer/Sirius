@@ -15,7 +15,8 @@ public static class TerminalKeys
         switch (key)
         {
             case Key.Enter:
-                return "\r";
+                // Esc antes do Enter é como os programas reconhecem "quebrar a linha sem enviar".
+                return shift || alt ? "\u001b\r" : "\r";
             case Key.Back:
                 return control ? "\x08" : alt ? "\x1b\x7f" : "\x7f";
             case Key.Tab:
@@ -68,6 +69,22 @@ public static class TerminalKeys
         }
 
         return null;
+    }
+
+    // O que um dente da roda manda ao programa. Null quando ela só rola o histórico do terminal.
+    public static string? Wheel(bool up, int column, int row, TerminalBuffer buffer)
+    {
+        if (buffer.MouseTracking)
+        {
+            var button = up ? 64 : 65;
+            if (buffer.SgrMouse)
+                return $"\u001b[<{button};{column + 1};{row + 1}M";
+            // O formato antigo guarda a posição em um caractere só, e não passa da coluna 223.
+            return "\u001b[M" + (char)(32 + button) + (char)(32 + Math.Min(column + 1, 223)) + (char)(32 + Math.Min(row + 1, 223));
+        }
+
+        // Tela cheia não tem histórico: um programa que não pede o mouse entende as setas.
+        return buffer.IsAlternateScreen ? Arrow(up ? 'A' : 'B', 1, buffer.ApplicationCursorKeys) : null;
     }
 
     private static readonly int[] FunctionCodes = [15, 17, 18, 19, 20, 21, 23, 24];

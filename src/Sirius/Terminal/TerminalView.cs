@@ -15,6 +15,9 @@ public sealed class TerminalView : Control
 {
     private const double FontSize = 12.5;
     private const int WheelLines = 3;
+
+    // Até aqui a fonte do terminal tem o caractere: letras com acento do português e afins.
+    private const int LastSameFontRune = 0x17F;
     private static readonly FontFamily Mono = new("avares://Sirius/Assets/Fonts#Geist Mono");
     private static readonly Typeface Regular = new(Mono);
     private static readonly Typeface Bold = new(Mono, FontStyle.Normal, FontWeight.SemiBold);
@@ -25,6 +28,7 @@ public sealed class TerminalView : Control
     private double _cellWidth = 7.5;
     private double _cellHeight = 17;
     private int _scrollOffset;
+    private double _wheelRemainder;
     private (int Line, int Column)? _selectionStart;
     private (int Line, int Column)? _selectionEnd;
     private bool _dragging;
@@ -151,18 +155,79 @@ public sealed class TerminalView : Control
             var (foreground, background) = Colors(style);
             if (background is not null)
                 context.FillRectangle(background, rect);
-            var value = text.ToString();
-            if (!string.IsNullOrWhiteSpace(value))
+            if (!string.IsNullOrWhiteSpace(text.ToString()))
             {
-                var typeface = style.Flags.HasFlag(CellFlags.Bold) ? Bold : Regular;
-                var formatted = new FormattedText(value, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface, FontSize, foreground);
-                context.DrawText(formatted, new Point(rect.X, y + (_cellHeight - formatted.Height) / 2));
+                DrawRun(context, cells, start, column, y, style, foreground);
                 if (style.Flags.HasFlag(CellFlags.Underline))
                     context.DrawLine(new Pen(foreground), new Point(rect.Left, rect.Bottom - 1), new Point(rect.Right, rect.Bottom - 1));
             }
         }
 
         DrawSelection(context, lineIndex, row, cells.Length);
+    }
+
+    // Um símbolo que vem de outra fonte tem outra largura. Desenhado junto com o texto, empurraria
+    // o resto da linha para fora das células, então ele vai sozinho, na célula dele.
+    private void DrawRun(DrawingContext context, Cell[] cells, int start, int end, double y, CellStyle style, IBrush foreground)
+    {
+        var segment = start;
+        for (var column = start; column < end; column++)
+        {
+            var rune = cells[column].Rune;
+            if (BlockElements.IsBlock(rune))
+            {
+                DrawSegment(context, cells, segment, column, y, style, foreground);
+                DrawBlock(context, rune, column, y, foreground);
+                segment = column + 1;
+            }
+            else if (rune > LastSameFontRune && rune is not (>= 0x2500 and <= 0x257F))
+            {
+                DrawSegment(context, cells, segment, column, y, style, foreground);
+                DrawSegment(context, cells, column, column + 1, y, style, foreground);
+                segment = column + 1;
+            }
+        }
+        DrawSegment(context, cells, segment, end, y, style, foreground);
+    }
+
+    private void DrawSegment(DrawingContext context, Cell[] cells, int start, int end, double y, CellStyle style, IBrush foreground)
+    {
+        // A segunda metade de um caractere largo não ocupa texto: o que vem depois começa na célula seguinte.
+        while (start < end && cells[start].Rune == -1)
+            start++;
+
+        var text = new StringBuilder();
+        for (var column = start; column < end; column++)
+        {
+            var rune = cells[column].Rune;
+            if (rune > 0)
+                text.Append(char.ConvertFromUtf32(rune));
+            else if (rune == 0)
+                text.Append(' ');
+        }
+
+        var value = text.ToString();
+        if (string.IsNullOrWhiteSpace(value))
+            return;
+        var typeface = style.Flags.HasFlag(CellFlags.Bold) ? Bold : Regular;
+        var formatted = new FormattedText(value, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, typeface, FontSize, foreground);
+        context.DrawText(formatted, new Point(start * _cellWidth, y + (_cellHeight - formatted.Height) / 2));
+    }
+
+    private void DrawBlock(DrawingContext context, int rune, int column, double y, IBrush foreground)
+    {
+        var (parts, opacity) = BlockElements.For(rune);
+        var brush = opacity < 1 && foreground is ISolidColorBrush solid ? new SolidColorBrush(solid.Color, solid.Opacity * opacity) : foreground;
+        var x = column * _cellWidth;
+        foreach (var part in parts)
+        {
+            // Bordas em pixel inteiro: em fração, a suavização deixaria uma linha clara entre as células.
+            var left = Math.Round(x + part.Left * _cellWidth);
+            var right = Math.Round(x + part.Right * _cellWidth);
+            var top = Math.Round(y + part.Top * _cellHeight);
+            var bottom = Math.Round(y + part.Bottom * _cellHeight);
+            context.FillRectangle(brush, new Rect(left, top, Math.Max(1, right - left), Math.Max(1, bottom - top)));
+        }
     }
 
     private void DrawSelection(DrawingContext context, int lineIndex, int row, int width)
@@ -323,7 +388,26 @@ public sealed class TerminalView : Control
     {
         base.OnPointerWheelChanged(e);
         e.Handled = true;
-        Scroll((int)Math.Round(e.Delta.Y * WheelLines));
+        if (_session is not { } session)
+            return;
+
+        var buffer = session.Buffer;
+        var point = e.GetPosition(this);
+        var column = Math.Clamp((int)(point.X / _cellWidth), 0, buffer.Columns - 1);
+        var row = Math.Clamp((int)(point.Y / _cellHeight), 0, buffer.Rows - 1);
+        var wheel = TerminalKeys.Wheel(e.Delta.Y > 0, column, row, buffer);
+        if (wheel is null)
+        {
+            Scroll((int)Math.Round(e.Delta.Y * WheelLines));
+            return;
+        }
+
+        // O touchpad manda frações de dente, que precisam somar até dar um.
+        _wheelRemainder += e.Delta.Y;
+        var notches = (int)_wheelRemainder;
+        _wheelRemainder -= notches;
+        for (var i = 0; i < Math.Abs(notches); i++)
+            SendInput(wheel);
     }
 
     private void Scroll(int lines)
