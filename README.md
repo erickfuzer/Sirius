@@ -36,6 +36,12 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Cuidado com o seu trabalho:** salvar mantém a codificação original do arquivo e passa por um arquivo temporário, criar nunca sobrescreve e excluir vai para a Lixeira
 - **Pronta para ABNT2:** o <kbd>AltGr</kbd> nunca aciona um atalho, então `?` e `/` funcionam normalmente
 
+### Com o Claude Code no terminal
+
+O terminal da Sirius é um terminal completo, então o [Claude Code](https://claude.com/claude-code) roda dentro dela, com cores, rolagem pela roda do mouse e acentos. Ele edita o projeto, e a mudança aparece na hora no editor e nas marcas do Git:
+
+<img src="docs/screenshot-claude.png" alt="Claude Code rodando no terminal da Sirius: ele adicionou a estrela Vega a um arquivo PHP, o diff aparece na cápsula e a linha nova aparece no editor com a marca do Git" width="760">
+
 <details>
 <summary>Ver as cores do CSS</summary>
 <br>
