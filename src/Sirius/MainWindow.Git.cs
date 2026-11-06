@@ -304,7 +304,7 @@ public partial class MainWindow
 
     public async Task<bool> CommitAsync()
     {
-        if (GitState is not { } snapshot)
+        if (GitState is null)
             return false;
 
         var message = (GitMessage.Text ?? "").Trim();
@@ -313,6 +313,19 @@ public partial class MainWindow
             SetGitMessage("Escreva uma mensagem para o commit.");
             return false;
         }
+
+        // O commit grava o que está no disco, então o que está só na tela precisa ir para lá antes.
+        // E a lista vem depois: um arquivo que só mudou na tela ainda não aparecia nela e ficaria de fora.
+        var dirty = _documents.Where(d => d.IsDirty && !d.IsUntitled).ToList();
+        foreach (var document in dirty)
+        {
+            if (!await SaveAsync(document))
+                return false;
+        }
+        if (dirty.Count > 0)
+            await RefreshGitAsync();
+        if (GitState is not { } snapshot)
+            return false;
 
         var selected = snapshot.Status.Changes.Where(change => !_gitExcluded.Contains(change.Path)).ToList();
         if (selected.Count == 0)
@@ -324,13 +337,6 @@ public partial class MainWindow
         {
             SetGitMessage("Durante um merge, o commit precisa levar todos os arquivos.");
             return false;
-        }
-
-        // O commit grava o que está no disco, então o que está só na tela precisa ir para lá antes.
-        foreach (var document in _documents.Where(d => d.IsDirty && !d.IsUntitled).ToList())
-        {
-            if (!await SaveAsync(document))
-                return false;
         }
 
         foreach (var change in selected.Where(c => c.Kind == GitChangeKind.Conflict))
@@ -688,11 +694,19 @@ public partial class MainWindow
     {
         await RefreshGitAsync();
         await CheckOpenDocumentsAsync();
-        if (GitState is { } snapshot && snapshot.Status.Changes.Any(c => c.Kind == GitChangeKind.Conflict))
-            SetGitMessage("Há conflitos. Edite os arquivos marcados e faça o commit.");
-        else
-            SetGitMessage(code == 0 ? success : "O Git não conseguiu concluir. Veja a saída no terminal.");
+        SetGitMessage(GitTaskMessage(code, success));
     }
+
+    // Com conflito, o aviso em vermelho do painel já explica o que fazer: repetir só atrapalha.
+    private string GitTaskMessage(int code, string success)
+    {
+        if (GitConflictNotice.IsVisible)
+            return "";
+        return code == 0 ? success : "O Git não conseguiu concluir. Veja a saída no terminal.";
+    }
+
+    public string GitTaskMessageForTest(int code, string success) => GitTaskMessage(code, success);
+    public bool IsGitConflictNoticeVisible => GitConflictNotice.IsVisible;
 
     public async Task InitRepositoryAsync()
     {

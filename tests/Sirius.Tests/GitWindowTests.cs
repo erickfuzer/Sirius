@@ -54,6 +54,50 @@ public class GitWindowTests
     }
 
     [AvaloniaFact]
+    public async Task Arquivo_mudado_so_na_tela_entra_no_commit_sem_estar_na_lista()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var path = temp.File("a.txt", "base");
+        var git = await CommittedRepository(temp);
+        var window = await Open(temp, config);
+        Assert.Empty(window.GitRows);
+        window.OpenFile(path);
+        window.ActiveDocument!.Document.Text = "da tela";
+        window.SetCommitMessage("só na tela");
+
+        Assert.True(await window.CommitAsync());
+
+        Assert.Equal("da tela", (await git.RunAsync(["show", "HEAD:a.txt"])).Output);
+        Assert.Empty(window.GitRows);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Arquivo_desmarcado_e_mudado_na_tela_continua_fora_do_commit()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var a = temp.File("a.txt", "a");
+        var b = temp.File("b.txt", "b");
+        var git = await CommittedRepository(temp);
+        File.WriteAllText(a, "a2");
+        File.WriteAllText(b, "b2");
+        var window = await Open(temp, config);
+        window.ToggleGitChange("b.txt");
+        window.OpenFile(b);
+        window.ActiveDocument!.Document.Text = "b da tela";
+        window.SetCommitMessage("só o a");
+
+        Assert.True(await window.CommitAsync());
+
+        Assert.Equal("a2", (await git.RunAsync(["show", "HEAD:a.txt"])).Output);
+        Assert.Equal("b", (await git.RunAsync(["show", "HEAD:b.txt"])).Output);
+        Assert.Equal("b da tela", File.ReadAllText(b));
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Pasta_sem_git_oferece_iniciar_repositorio()
     {
         using var temp = new TempFolder();
@@ -260,6 +304,9 @@ public class GitWindowTests
 
         Assert.True(window.GitState!.IsMerging);
         Assert.Equal("!", window.GitRows.Single().Letter);
+        // O aviso do painel basta: a linha de estado não repete o mesmo texto.
+        Assert.True(window.IsGitConflictNoticeVisible);
+        Assert.Equal("", window.GitTaskMessageForTest(1, "Atualizado."));
         window.SetCommitMessage("merge");
 
         Assert.False(await window.CommitAsync());
