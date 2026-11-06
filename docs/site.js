@@ -92,6 +92,7 @@
   var story = document.querySelector('.story');
   var win = document.querySelector('.win');
   var steps = all('.story-copy article');
+  var linePosition = document.querySelector('.bar-pos');
   var capsule = document.querySelector('.capsule');
   var pageThread = document.querySelector('.page-thread');
   var download = document.getElementById('baixar');
@@ -115,7 +116,9 @@
     var box = story.getBoundingClientRect();
     var p = clamp(-box.top / Math.max(1, box.height - vh), 0, 1);
     // A primeira parte é o fio descendo, linha por linha, até a linha 8.
-    win.style.setProperty('--line', p < .36 ? 1 + Math.round(p / .36 * 7) : 8);
+    var line = p < .36 ? 1 + Math.round(p / .36 * 7) : 8;
+    win.style.setProperty('--line', line);
+    linePosition.textContent = 'Ln ' + line + ', Col ' + (line === 8 ? 5 : 1);
     setStep(p < .36 ? 0 : p < .68 ? 1 : 2);
 
     var inStory = box.top < vh * .55 && box.bottom > vh * .45;

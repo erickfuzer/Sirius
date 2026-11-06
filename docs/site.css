@@ -161,7 +161,7 @@ h1 { margin: 22px auto 0; max-width: 13em; font-size: clamp(44px, 7.6vw, 108px);
 .win-name b { color: var(--ink); font-weight: 600; }
 .win-search { padding: .22em 1em; width: 25em; border-radius: 1em; background: var(--tint); color: var(--muted); font-size: .92em; }
 .win-controls { display: flex; justify-content: flex-end; gap: 1.5em; }
-.win-controls i { width: .7em; height: .7em; border: 1px solid var(--muted); border-radius: 1px; }
+.win-controls svg { width: .72em; height: .72em; fill: none; stroke: var(--muted); stroke-width: 1.1; }
 .win-body { display: grid; grid-template-columns: 11em 1fr; height: 35.5em; padding: 0 .55em .55em 0; }
 .win-tree { padding: .4em .5em; font-size: .94em; }
 .win-tree p { padding: .3em .7em; border-radius: .45em; }
