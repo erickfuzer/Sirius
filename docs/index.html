@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sirius: IDE nativa para Windows</title>
+<meta name="description" content="Editor, terminal, Git e depuração de PHP em uma IDE nativa para Windows, sem WebView nem Electron. Gratuita e de código aberto.">
+<meta name="theme-color" content="#0D0F13" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Sirius: IDE nativa para Windows">
+<meta property="og:description" content="Editor, terminal, Git e depuração de PHP, sem WebView nem Electron.">
+<meta property="og:url" content="https://erickfuzer.github.io/Sirius/">
+<meta property="og:image" content="https://erickfuzer.github.io/Sirius/social-preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="favicon.ico">
+<link rel="preload" href="fonts/Geist-SemiBold.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="site.css">
+<script>
+  // Antes de pintar: sem isso, quem prefere o tema escuro veria um clarão branco.
+  (function () {
+    var root = document.documentElement, saved = null;
+    root.classList.add('js');
+    try { saved = localStorage.getItem('sirius-tema'); } catch (e) {}
+    root.dataset.theme = saved || (matchMedia('(prefers-color-scheme: light)').matches ? 'claro' : 'grafite');
+  })();
+</script>
+</head>
+<body>
+
+<svg width="0" height="0" class="defs" aria-hidden="true">
+  <symbol id="estrela-dupla" viewBox="0 0 17.5 16.5"><path fill="currentColor" d="M7 0C7.6 4 9.2 6.4 14 7C9.2 7.6 7.6 10 7 14C6.4 10 4.8 7.6 0 7C4.800 6.4 6.4 4 7 0ZM17.5 15A1.5 1.5 0 1 1 14.5 15A1.5 1.5 0 1 1 17.500 15Z"/></symbol>
+  <symbol id="estrela" viewBox="0 0 12 12"><path fill="currentColor" d="M6 0C6.75 3 9 5.25 12 6C9 6.75 6.75 9 6 12C5.25 9 3 6.750 0 6C3 5.25 5.25 3 6 0Z"/></symbol>
+  <symbol id="play" viewBox="0 0 9 9"><path fill="currentColor" d="M0 0L8 4.5L0 9Z"/></symbol>
+  <symbol id="ramo" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.4" d="M5.8 3.500A1.800 1.800 0 1 1 2.200 3.500A1.800 1.800 0 1 1 5.800 3.500M5.800 12.500A1.800 1.800 0 1 1 2.200 12.500A1.800 1.800 0 1 1 5.800 12.500M13.800 5A1.800 1.800 0 1 1 10.200 5A1.800 1.800 0 1 1 13.800 5M4 5.300V10.700M12 6.800C12 9.800 4 8.300 4 10.800"/></symbol>
+  <symbol id="tema" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M8 2A6 6 0 0 1 8 14A6 6 0 0 1 8 2Z"/><path fill="currentColor" d="M8 2A6 6 0 0 1 8 14Z"/></symbol>
+  <symbol id="terminal" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M2.500 4L6.500 8L2.500 12M8.500 12.500H13.500"/></symbol>
+  <symbol id="foco" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" d="M2 5.500V2H5.500M10.500 2H14V5.500M14 10.500V14H10.500M5.500 14H2V10.500"/></symbol>
+</svg>
+
+<!-- O fio da IDE, descendo com a leitura da página -->
+<div class="page-thread" aria-hidden="true"><i></i><svg><use href="#estrela"/></svg></div>
+
+<!-- A cápsula da IDE faz o papel de menu -->
+<nav class="capsule" aria-label="Atalhos do site">
+  <a class="run" data-download href="https://github.com/erickfuzer/Sirius/releases/latest"><svg><use href="#play"/></svg>Baixar</a>
+  <a class="branch" href="https://github.com/erickfuzer/Sirius/releases/latest"><svg><use href="#ramo"/></svg><span data-version-short>última versão</span></a>
+  <a class="plain" href="https://github.com/erickfuzer/Sirius">GitHub</a>
+  <button class="icon" type="button" data-theme-toggle aria-label="Trocar tema" title="Trocar tema"><svg><use href="#tema"/></svg></button>
+</nav>
+
+<div class="toast" role="status" hidden>
+  <button type="button" class="toast-close" aria-label="Fechar">×</button>
+  <strong>O download começou.</strong>
+  <p>Ao abrir, o Windows pode mostrar um aviso azul, porque o instalador ainda não tem assinatura digital. Clique em <b>Mais informações</b> e depois em <b>Executar assim mesmo</b>.</p>
+</div>
+
+<header class="hero">
+  <div class="sky" aria-hidden="true"></div>
+  <div class="hero-copy">
+    <div class="mark"><svg aria-hidden="true"><use href="#estrela-dupla"/></svg><span>Sirius</span></div>
+    <h1>
+      <span class="w" style="--i:0">A</span> <span class="w" style="--i:1">IDE</span> <span class="w" style="--i:2">que</span> <span class="w" style="--i:3">sai</span> <span class="w" style="--i:4">da</span> <span class="w" style="--i:5">frente</span>
+      <span class="w" style="--i:6">do</span> <span class="w" style="--i:7">seu</span> <span class="w" style="--i:8">código.</span>
+    </h1>
+    <p class="lead">Editor, terminal, Git e depuração de PHP em uma única janela. Nativa para Windows, sem navegador por baixo.</p>
+    <div class="actions">
+      <a class="cta" data-download href="https://github.com/erickfuzer/Sirius/releases/latest">Baixar para Windows</a>
+      <a class="more" href="#fio">Ver como funciona <span aria-hidden="true">↓</span></a>
+    </div>
+    <p class="meta"><span data-version-full>Windows 10 e 11, 64 bits</span>. Gratuita e de código aberto.</p>
+  </div>
+  <figure class="hero-shot">
+    <img class="for-grafite" src="screenshot-editor.png" width="1320" height="860" alt="Sirius no tema grafite com um arquivo PHP aberto, a árvore de arquivos com marcas do Git e a cápsula de comandos na parte de baixo">
+    <img class="for-claro" src="screenshot-claro.png" width="1320" height="860" alt="Sirius no tema claro com um arquivo PHP aberto, a árvore de arquivos com marcas do Git e a cápsula de comandos na parte de baixo">
+  </figure>
+</header>
+
+<main>
+
+<!-- A história que anda com a rolagem. A janela é um desenho da interface real. -->
+<section class="story" id="fio">
+  <div class="stage">
+    <div class="story-copy">
+      <article data-step="0">
+        <h2>Um fio até onde você está.</h2>
+        <p>Uma linha desce pela margem até a linha ativa, com uma estrelinha na ponta. Você bate o olho e já sabe onde parou.</p>
+      </article>
+      <article data-step="1">
+        <h2>Uma cápsula que vira terminal.</h2>
+        <p>Os comandos ficam em uma cápsula flutuante. Em Executar, ela se abre em um terminal completo, com erros clicáveis. Em PHP, sobe o servidor e oferece abrir o site.</p>
+      </article>
+      <article data-step="2">
+        <h2>Parou na linha? Veja tudo.</h2>
+        <p>Clique na margem para marcar uma linha de PHP e abra a página. A Sirius para ali e mostra cada variável, inclusive <code>$_GET</code> e <code>$_POST</code>.</p>
+      </article>
+    </div>
+
+    <div class="win" data-stage="0" aria-hidden="true" style="--line:1">
+      <div class="win-title">
+        <span class="win-name"><svg><use href="#estrela-dupla"/></svg><b>Sirius</b> observatorio</span>
+        <span class="win-search">Ir para arquivo ou comando</span>
+        <span class="win-controls"><i></i><i></i><i></i></span>
+      </div>
+      <div class="win-body">
+        <div class="win-tree">
+          <p class="tree-head">Arquivos</p>
+          <p class="on">index.php</p>
+          <p>estilos.css</p>
+          <p>README.md</p>
+        </div>
+        <div class="win-sheet">
+          <div class="win-tabs"><span class="on">index.php <i>×</i></span><span>estilos.css <i>×</i></span></div>
+          <div class="code">
+            <div class="thread"><i></i><svg><use href="#estrela"/></svg></div>
+            <div class="paused-band"></div>
+            <div class="breakpoint"></div>
+            <div class="l"><b>1</b><span><u class="m">&lt;?php</u></span></div>
+            <div class="l"><b>2</b><span></span></div>
+            <div class="l"><b>3</b><span><em>// Estrelas mais brilhantes vistas da Terra.</em></span></div>
+            <div class="l"><b>4</b><span><u class="k">function</u> <u class="f">magnitude</u>(<u class="t">string</u> $nome): ?<u class="k">float</u></span></div>
+            <div class="l"><b>5</b><span>{</span></div>
+            <div class="l"><b>6</b><span>    $estrelas = [<u class="s">'Sirius'</u> =&gt; -<u class="n">1.46</u>, <u class="s">'Vega'</u> =&gt; <u class="n">0.03</u>];</span></div>
+            <div class="l"><b>7</b><span></span></div>
+            <div class="l"><b>8</b><span>    <u class="k">return</u> $estrelas[$nome] ?? <u class="k">null</u>;</span></div>
+            <div class="l"><b>9</b><span>}</span></div>
+            <div class="l"><b>10</b><span></span></div>
+            <div class="l"><b>11</b><span>$estrela = $_GET[<u class="s">'estrela'</u>] ?? <u class="s">'Sirius'</u>;</span></div>
+            <div class="l"><b>12</b><span>$brilho = <u class="f">magnitude</u>($estrela);</span></div>
+            <div class="l"><b>13</b><span></span></div>
+            <div class="l"><b>14</b><span><u class="k">echo</u> <u class="s">"$estrela tem magnitude $brilho"</u>;</span></div>
+          </div>
+          <div class="win-capsule">
+            <div class="sheet">
+              <div class="sheet-tabs">
+                <span class="tab-run">Execução</span><span>Terminal</span><span>Problemas</span><span class="tab-vars">Variáveis</span>
+                <small class="info-run">php -S localhost:8000</small>
+                <small class="info-vars">Parado em index.php, linha 8, em magnitude()</small>
+              </div>
+              <div class="sheet-run">
+                <p>[Thu Nov  5 21:10:00 2026] PHP 8.2 Development Server (http://localhost:8000) started</p>
+                <p>[Thu Nov  5 21:10:03 2026] [::1]:52114 Accepted</p>
+                <p>[Thu Nov  5 21:10:03 2026] [::1]:52114 [200]: GET /?estrela=Vega</p>
+                <p>[Thu Nov  5 21:10:03 2026] [::1]:52114 Closing</p>
+              </div>
+              <div class="sheet-vars">
+                <p><i>›</i><b>$estrelas</b><span>array(2)</span><small>array</small></p>
+                <p><b>$nome</b><span>'Vega'</span><small>string</small></p>
+                <p><i>›</i><b>$_GET</b><span>array(1)</span><small>array</small></p>
+              </div>
+            </div>
+            <div class="bar">
+              <span class="bar-run"><svg class="i-play"><use href="#play"/></svg><i class="i-stop"></i><span class="lbl-exec">Executar</span><span class="lbl-stop">Parar</span></span>
+              <span class="bar-branch"><svg><use href="#ramo"/></svg>main</span>
+              <span class="bar-site">Abrir site</span>
+              <span class="bar-debug"><span>Continuar</span><span>Próxima linha</span><span>Entrar</span><span>Sair</span></span>
+              <span class="bar-end"><span class="bar-pos">Ln 8, Col 5</span><svg><use href="#terminal"/></svg><svg><use href="#foco"/></svg><svg><use href="#tema"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="recursos">
+  <h2 class="big reveal">Tudo no mesmo lugar.</h2>
+  <p class="sub reveal">Sem instalar extensão atrás de extensão para começar.</p>
+
+  <div class="bento">
+    <article class="card wide reveal">
+      <div class="card-text">
+        <h3>Depuração de PHP de verdade.</h3>
+        <p>Avance linha por linha, entre nas funções e pare o mouse sobre uma variável para ver o valor. O Xdebug é baixado na primeira vez, se você aceitar, sem mexer na sua instalação do PHP.</p>
+      </div>
+      <div class="shot">
+        <img class="for-grafite" loading="lazy" src="screenshot-depuracao.png" width="1320" height="860" alt="Sirius parada em uma linha de PHP dentro de uma função, com a linha destacada e as variáveis na cápsula">
+        <img class="for-claro" loading="lazy" src="screenshot-depuracao-claro.png" width="1320" height="860" alt="A mesma parada de depuração no tema claro">
+      </div>
+    </article>
+
+    <article class="card reveal">
+      <div class="card-text">
+        <h3>Um quadradinho em cada cor.</h3>
+        <p>Clique nele e um seletor altera o texto na hora, em CSS, SCSS, Sass e Less, e dentro de HTML e PHP.</p>
+      </div>
+      <div class="shot shot-end">
+        <img loading="lazy" src="screenshot-cores.png" width="900" height="640" alt="Arquivo CSS com um quadradinho na frente de cada cor e o seletor aberto">
+      </div>
+    </article>
+
+    <article class="card reveal" data-emmet>
+      <div class="card-text">
+        <h3>Emmet sem instalar nada.</h3>
+        <p>Escreva a abreviação, aperte Tab e o HTML sai pronto. O Tab seguinte pula para o próximo campo vazio.</p>
+      </div>
+      <div class="emmet" aria-label="Exemplo: div.cartao>h2+p vira uma div com um título e um parágrafo">
+        <pre class="emmet-typed" aria-hidden="true"><span></span><i class="caret"></i></pre>
+        <pre class="emmet-out" aria-hidden="true"><u class="k">&lt;div</u> <u class="t">class</u>=<u class="s">"cartao"</u><u class="k">&gt;</u>
+    <u class="k">&lt;h2&gt;&lt;/h2&gt;</u>
+    <u class="k">&lt;p&gt;&lt;/p&gt;</u>
+<u class="k">&lt;/div&gt;</u></pre>
+        <kbd class="emmet-key" aria-hidden="true">Tab</kbd>
+      </div>
+    </article>
+
+    <article class="card wide reveal">
+      <div class="card-text">
+        <h3>Git sem sair do código.</h3>
+        <p>Mudanças na árvore e na margem, comparação lado a lado, commit por arquivo, enviar, receber, branches e histórico.</p>
+      </div>
+      <div class="shot">
+        <img loading="lazy" src="screenshot-git.png" width="1320" height="860" alt="Painel de Git com a lista de mudanças e a comparação lado a lado de um arquivo PHP">
+      </div>
+    </article>
+
+    <article class="card reveal">
+      <div class="card-text">
+        <h3>Inteligência de código.</h3>
+        <p>Autocompletar, erros, definição, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação.</p>
+      </div>
+      <ul class="chips">
+        <li>PHP</li><li>HTML</li><li>CSS</li><li>JavaScript</li><li>TypeScript</li><li>Python</li><li>C#</li>
+      </ul>
+    </article>
+
+    <article class="card reveal">
+      <div class="card-text">
+        <h3>Tudo a um <kbd>Ctrl</kbd> <kbd>K</kbd>.</h3>
+        <p>A barra de comando encontra arquivos e executa ações sem tirar a mão do teclado.</p>
+      </div>
+      <div class="shot shot-top">
+        <img loading="lazy" src="screenshot-comando.png" width="1320" height="860" alt="Barra de comando aberta sobre o editor, listando arquivos e ações com seus atalhos">
+      </div>
+    </article>
+
+    <article class="card wide reveal">
+      <div class="card-text">
+        <h3>O Claude Code roda aqui dentro.</h3>
+        <p>O terminal é completo, com cores, rolagem e acentos. Você pede na cápsula, e a mudança aparece na hora no editor e nas marcas do Git.</p>
+      </div>
+      <div class="shot">
+        <img loading="lazy" src="screenshot-claude.png" width="1320" height="860" alt="Claude Code no terminal da Sirius, depois de adicionar uma linha a um arquivo PHP, com a mudança aparecendo no editor">
+      </div>
+    </article>
+  </div>
+</section>
+
+<section class="themes">
+  <h2 class="big reveal">Claro ou grafite.</h2>
+  <p class="sub reveal">Arraste a estrela para comparar.</p>
+  <div class="compare reveal" style="--x:50%">
+    <img loading="lazy" src="screenshot-editor.png" width="1320" height="860" alt="Sirius no tema grafite">
+    <img class="compare-top" loading="lazy" src="screenshot-claro.png" width="1320" height="860" alt="Sirius no tema claro">
+    <div class="compare-handle" aria-hidden="true"><i></i><svg><use href="#estrela"/></svg></div>
+    <input type="range" min="0" max="100" value="50" aria-label="Comparar o tema claro e o tema grafite">
+  </div>
+</section>
+
+<section class="band care">
+  <h2 class="big reveal">Nativa de verdade.<br><span>Cuidadosa de verdade.</span></h2>
+  <div class="facts">
+    <div class="reveal"><h3>Sem navegador por baixo.</h3><p>A interface é desenhada pelo Avalonia, sem WebView nem Electron. O terminal usa o ConPTY, o mesmo mecanismo do Windows.</p></div>
+    <div class="reveal"><h3>Instala sem administrador.</h3><p>O instalador fica só no seu usuário e já leva o .NET junto. "Abrir com Sirius" aparece no Explorer, e arrastar arquivos para a janela também funciona.</p></div>
+    <div class="reveal"><h3>Seu trabalho em primeiro lugar.</h3><p>Salvar mantém a codificação do arquivo e passa por um arquivo temporário. Criar nunca sobrescreve, e excluir vai para a Lixeira.</p></div>
+    <div class="reveal"><h3>Seu projeto fica com você.</h3><p>A única consulta que ela faz por conta própria é perguntar ao GitHub qual é a última versão. Nada do projeto vai junto, e dá para desligar.</p></div>
+  </div>
+</section>
+
+<section class="download" id="baixar">
+  <svg class="download-star reveal" aria-hidden="true"><use href="#estrela-dupla"/></svg>
+  <h2 class="big reveal">Experimente a Sirius.</h2>
+  <a class="cta reveal" data-download href="https://github.com/erickfuzer/Sirius/releases/latest">Baixar para Windows</a>
+  <p class="meta reveal"><span data-version-full>Windows 10 versão 1809 ou mais recente, 64 bits</span>. <a data-release-notes href="https://github.com/erickfuzer/Sirius/releases/latest">Novidades desta versão</a></p>
+  <div class="notes reveal">
+    <p><b>Ainda em desenvolvimento.</b> Ela funciona no dia a dia, mas espere arestas. Faça commit do seu trabalho e relate o que encontrar em <a href="https://github.com/erickfuzer/Sirius/issues">Issues</a>.</p>
+    <p><b>O Windows pode avisar.</b> O instalador ainda não tem assinatura digital. Se aparecer um aviso azul, clique em Mais informações e depois em Executar assim mesmo.</p>
+    <p><b>Só para Windows.</b> O terminal, o instalador e a integração com o Explorer são específicos dele.</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p><a href="https://github.com/erickfuzer/Sirius">Código no GitHub</a><a href="https://github.com/erickfuzer/Sirius/releases">Versões</a><a href="https://github.com/erickfuzer/Sirius/issues">Relatar um problema</a><a href="https://github.com/erickfuzer/Sirius/blob/main/LICENSE">Licença MIT</a></p>
+  <p class="fine">Feito por <a href="https://github.com/erickfuzer">Erick Fuzer</a>, com o auxílio do <a href="https://claude.ai">Claude</a>. Fontes <a href="https://vercel.com/font">Geist</a> e <a href="https://www.ibm.com/plex/">IBM Plex Mono</a>, sob a licença SIL Open Font.</p>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>

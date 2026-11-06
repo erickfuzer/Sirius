@@ -13,6 +13,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 <br><br>
 
 [![Baixar o instalador](https://img.shields.io/badge/▶_Baixar_o_instalador-3F5F8F?style=for-the-badge)](https://github.com/erickfuzer/Sirius/releases/latest)
+[![Ver o site](https://img.shields.io/badge/Ver_o_site-16171A?style=for-the-badge)](https://erickfuzer.github.io/Sirius/)
 
 </div>
 
@@ -85,7 +86,7 @@ O terminal roda no ConPTY, o mesmo mecanismo de terminal do próprio Windows. A 
 
 A depuração de PHP usa o [Xdebug](https://xdebug.org): a Sirius baixa o arquivo certo para o seu PHP, confere o código dele com uma lista fixa no programa e o liga só durante a execução, sem alterar o `php.ini`. A conversa com o Xdebug fica dentro do computador.
 
-A única consulta que a Sirius faz por conta própria é perguntar à API pública do GitHub qual é a última versão, cada vez que ela abre. Ela não envia nada do seu projeto e pode ser desligada em "Aviso de versão nova", na barra de comando.
+A única consulta que a Sirius faz por conta própria é perguntar à API pública do GitHub qual é a última versão, ao abrir e ao voltar para a janela, no máximo uma vez por hora. Ela não envia nada do seu projeto e pode ser desligada em "Aviso de versão nova", na barra de comando.
 
 ## Como usar
 
@@ -163,7 +164,7 @@ Sirius/
 │   └── Assets/             # ícone e fontes
 ├── tests/Sirius.Tests/     # testes da lógica e da janela
 ├── installer/              # script do instalador (Inno Setup), build.ps1 e notas das versões
-├── docs/                   # prints do README e da prévia de link
+├── docs/                   # site (GitHub Pages), prints do README e prévia de link
 ├── LICENSE
 └── README.md
 ```
