@@ -623,6 +623,10 @@ public partial class MainWindow
     [GeneratedRegex(@"^[A-Za-z0-9._-]+$")]
     private static partial Regex SafeRemoteName();
 
+    // Vai no texto de um comando do cmd, e o Git aceita nomes com & e %.
+    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._/-]*$")]
+    private static partial Regex SafeBranchName();
+
     private bool CanStartGitTask()
     {
         if (!IsTaskRunning)
@@ -635,6 +639,13 @@ public partial class MainWindow
     {
         if (GitState is not { } snapshot || !CanStartGitTask())
             return;
+
+        // Sem isso, a pessoa colaria o endereço para só depois ver o Git falhar.
+        if (snapshot.Status.HeadOid is null)
+        {
+            SetGitMessage("Faça um commit antes de enviar.");
+            return;
+        }
 
         var remote = snapshot.Remotes.FirstOrDefault();
         if (remote is null)
@@ -667,17 +678,30 @@ public partial class MainWindow
             return;
         }
 
-        StartTask(command, code => FinishGitTask(code, "Enviado."));
+        StartTask(command, FinishPush);
     }
 
     public async Task PullAsync()
     {
         if (GitState is not { } snapshot || !CanStartGitTask())
             return;
+
+        var command = "git pull --no-rebase --no-edit";
+        var success = "Atualizado.";
         if (snapshot.Status.Upstream is null)
         {
-            SetGitMessage("Este branch ainda não está ligado ao remoto. Envie primeiro.");
-            return;
+            SetGitMessage("Consultando o repositório remoto…");
+            if (await FirstPullCommandAsync(snapshot) is not { } first)
+            {
+                SetGitMessage("Este branch ainda não está ligado ao remoto. Envie primeiro.");
+                return;
+            }
+            // Juntar as duas histórias cria um commit, e ele precisa de um autor.
+            if (!await EnsureGitIdentityAsync())
+                return;
+            SetGitMessage("");
+            command = first;
+            success = "Recebido. Agora clique em Enviar.";
         }
 
         // Receber mexe nos arquivos do disco, então o que está só na tela vai para lá antes.
@@ -687,7 +711,20 @@ public partial class MainWindow
                 return;
         }
 
-        StartTask("git pull --no-rebase --no-edit", code => FinishGitTask(code, "Atualizado."));
+        StartTask(command, code => FinishGitTask(code, success));
+    }
+
+    // Um branch sem ligação só recebe o branch de mesmo nome. Assim, o repositório criado no GitHub
+    // com README se junta ao projeto, e um branch novo nunca recebe o main sem a pessoa pedir.
+    private async Task<string?> FirstPullCommandAsync(GitSnapshot snapshot)
+    {
+        if (snapshot.Remotes.FirstOrDefault() is not { } remote || snapshot.Status.Branch is not { } branch)
+            return null;
+        if (!SafeRemoteName().IsMatch(remote) || !SafeBranchName().IsMatch(branch))
+            return null;
+        if (await Git().RemoteBranchOidAsync(remote, branch) is null)
+            return null;
+        return $"git pull --no-rebase --no-edit --allow-unrelated-histories {remote} {branch}";
     }
 
     private async void FinishGitTask(int code, string success)
@@ -695,6 +732,37 @@ public partial class MainWindow
         await RefreshGitAsync();
         await CheckOpenDocumentsAsync();
         SetGitMessage(GitTaskMessage(code, success));
+    }
+
+    private async void FinishPush(int code)
+    {
+        await RefreshGitAsync();
+        await CheckOpenDocumentsAsync();
+        SetGitMessage(code == 0
+            ? GitTaskMessage(code, "Enviado.")
+            : await PushRefusalMessageAsync() ?? GitTaskMessage(code, "Enviado."));
+    }
+
+    // Só explica quando o motivo é mesmo esse: falta de permissão não se resolve com Receber.
+    private async Task<string?> PushRefusalMessageAsync()
+    {
+        if (GitState is not { } snapshot)
+            return null;
+
+        if (snapshot.Status.Upstream is not null)
+        {
+            if (!(await Git().FetchQuietlyAsync()).Ok)
+                return null;
+            await RefreshGitAsync();
+            return GitState is { Status.Behind: > 0 }
+                ? "O repositório remoto tem commits novos. Clique em Receber e depois em Enviar."
+                : null;
+        }
+
+        if (snapshot.Remotes.FirstOrDefault() is not { } remote || snapshot.Status.Branch is not { } branch
+            || await Git().RemoteBranchOidAsync(remote, branch) is not { } oid || await Git().HeadContainsAsync(oid))
+            return null;
+        return "O repositório remoto já tem commits que este projeto não tem, como um README criado junto. Clique em Receber e depois em Enviar.";
     }
 
     // Com conflito, o aviso em vermelho do painel já explica o que fazer: repetir só atrapalha.

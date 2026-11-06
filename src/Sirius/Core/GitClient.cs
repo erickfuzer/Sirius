@@ -290,6 +290,18 @@ public sealed class GitClient(string folder, IReadOnlyDictionary<string, string>
     public Task<GitResult> FetchQuietlyAsync() =>
         RunAsync(["fetch", "--quiet", "--no-tags", "--no-write-fetch-head"], null, TimeSpan.FromSeconds(30), quiet: true);
 
+    // Sem pedir login: aqui só importa saber o que já existe lá, e falhar vale como não saber.
+    public async Task<string?> RemoteBranchOidAsync(string remote, string branch)
+    {
+        var result = await RunAsync(["ls-remote", "--exit-code", "--heads", "--", remote, "refs/heads/" + branch], null, TimeSpan.FromSeconds(30), quiet: true);
+        var oid = result.Output.Split('\t', 2)[0].Trim();
+        return result.Ok && oid.Length > 0 ? oid : null;
+    }
+
+    // Um commit que este repositório nem conhece também responde que não.
+    public async Task<bool> HeadContainsAsync(string oid) =>
+        (await RunAsync(["merge-base", "--is-ancestor", oid, "HEAD"], null, null, quiet: true)).Ok;
+
     public async Task<string?> ConfigAsync(string key)
     {
         var result = await RunAsync(["config", "--get", key]);

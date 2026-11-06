@@ -97,6 +97,132 @@ public class GitWindowTests
         window.Close();
     }
 
+    // Como o repositório criado no site com README: um commit que o projeto não conhece.
+    private static async Task SeedRemote(TempFolder bare, TempFolder seed, string readme = "# Do site\n")
+    {
+        Assert.True((await new GitClient(bare.Path).RunAsync(["init", "--bare", "-b", "main"])).Ok);
+        Assert.True((await new GitClient(Path.GetDirectoryName(seed.Path)!).RunAsync(["clone", bare.Path, seed.Path])).Ok);
+        var git = new GitClient(seed.Path);
+        await git.RunAsync(["switch", "-c", "main"]);
+        await git.RunAsync(["config", "user.name", "Site"]);
+        await git.RunAsync(["config", "user.email", "site@example.com"]);
+        File.WriteAllText(Path.Combine(seed.Path, "README.md"), readme);
+        await git.RunAsync(["add", "-A"]);
+        Assert.True((await git.RunAsync(["commit", "-m", "Initial commit"])).Ok);
+        Assert.True((await git.RunAsync(["push", "origin", "main"])).Ok);
+    }
+
+    [AvaloniaFact]
+    public async Task Remoto_criado_com_readme_recusa_explica_e_junta_ao_receber()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        using var bare = new TempFolder();
+        using var seed = new TempFolder();
+        await SeedRemote(bare, seed);
+        var index = temp.File("index.php", "<?php\n");
+        var git = await CommittedRepository(temp);
+        Assert.True((await git.AddRemoteAsync(bare.Path)).Ok);
+        var window = await Open(temp, config);
+
+        await window.PushAsync();
+        await Until(() => window.GitStatusMessage.Contains("Clique em Receber"), 60);
+
+        await window.PullAsync();
+        await Until(() => window.GitStatusMessage.Contains("Agora clique em Enviar"), 60);
+        Assert.True(File.Exists(Path.Combine(temp.Path, "README.md")));
+        Assert.True(File.Exists(index));
+
+        await window.PushAsync();
+        await Until(() => window.GitStatusMessage == "Enviado.", 60);
+        Assert.Equal("origin/main", window.GitState!.Status.Upstream);
+        Assert.Contains("index.php", (await new GitClient(bare.Path).RunAsync(["ls-tree", "--name-only", "main"])).Output);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Receber_em_branch_novo_nao_traz_o_main()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        using var bare = new TempFolder();
+        using var seed = new TempFolder();
+        await SeedRemote(bare, seed);
+        var git = await CommittedRepository(temp);
+        await git.AddRemoteAsync(bare.Path);
+        await git.RunAsync(["switch", "-c", "ideia"]);
+        var window = await Open(temp, config);
+
+        await window.PullAsync();
+
+        Assert.False(window.IsTaskRunning);
+        Assert.Contains("Envie primeiro", window.GitStatusMessage);
+        Assert.False(File.Exists(Path.Combine(temp.Path, "README.md")));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Nome_de_branch_com_simbolo_do_cmd_nao_vai_para_o_comando()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        using var bare = new TempFolder();
+        using var seed = new TempFolder();
+        await SeedRemote(bare, seed);
+        var git = await CommittedRepository(temp);
+        await git.AddRemoteAsync(bare.Path);
+        Assert.True((await git.RunAsync(["switch", "-c", "a&calc"])).Ok);
+        // O remoto também tem esse nome: só o formato pode barrar.
+        Assert.True((await git.RunAsync(["push", "origin", "HEAD"])).Ok);
+        var window = await Open(temp, config);
+
+        await window.PullAsync();
+
+        Assert.False(window.IsTaskRunning);
+        Assert.Contains("Envie primeiro", window.GitStatusMessage);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Envio_recusado_por_outro_motivo_nao_manda_receber()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        using var bare = new TempFolder();
+        using var seed = new TempFolder();
+        await SeedRemote(bare, seed);
+        var git = await GitClientTests.Repository(temp);
+        await git.AddRemoteAsync(bare.Path);
+        Assert.True((await git.RunAsync(["fetch", "origin"])).Ok);
+        Assert.True((await git.RunAsync(["reset", "--hard", "origin/main"])).Ok);
+        temp.File("meu.txt", "x");
+        await git.RunAsync(["add", "-A"]);
+        Assert.True((await git.RunAsync(["commit", "-m", "meu"])).Ok);
+        // Como quem pode ler, mas não pode enviar: o projeto já contém tudo o que há lá.
+        File.WriteAllText(Path.Combine(bare.Path, "hooks", "pre-receive"), "#!/bin/sh\nexit 1\n");
+        var window = await Open(temp, config);
+
+        await window.PushAsync();
+        await Until(() => window.GitStatusMessage.Contains("não conseguiu concluir"), 60);
+        Assert.DoesNotContain("Receber", window.GitStatusMessage);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Enviar_sem_nenhum_commit_pede_um_antes_do_endereco()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        await GitClientTests.Repository(temp);
+        var window = await Open(temp, config);
+
+        await window.PushAsync();
+
+        Assert.False(window.IsDialogOpen);
+        Assert.Equal("Faça um commit antes de enviar.", window.GitStatusMessage);
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task Pasta_sem_git_oferece_iniciar_repositorio()
     {
