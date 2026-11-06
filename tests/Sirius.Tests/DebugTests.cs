@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
@@ -829,6 +830,52 @@ public class DebugWindowTests
         Assert.Equal([2], reopened.BreakpointsSnapshot()[php]);
         Assert.Equal([2], reopened.ActiveDocument!.BreakpointLines);
         reopened.Close();
+    }
+
+    [AvaloniaFact]
+    public void Mouse_na_metade_direita_da_ultima_letra_ainda_aponta_para_ela()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$n = 1;\n");
+        var window = Open(temp, config);
+        window.OpenFile(php);
+        Dispatcher.UIThread.RunJobs();
+        var view = window.FindControl<AvaloniaEdit.TextEditor>("CodeEditor")!.TextArea.TextView;
+        view.EnsureVisualLines();
+
+        // A letra n fica entre as colunas 2 e 3 da linha 2.
+        var left = view.GetVisualPosition(new AvaloniaEdit.TextViewPosition(2, 2), AvaloniaEdit.Rendering.VisualYPosition.TextMiddle);
+        var right = view.GetVisualPosition(new AvaloniaEdit.TextViewPosition(2, 3), AvaloniaEdit.Rendering.VisualYPosition.TextMiddle);
+        Assert.True(right.X > left.X);
+        var point = new Point(left.X + (right.X - left.X) * 0.8, left.Y) - view.ScrollOffset;
+
+        Assert.Equal(window.ActiveDocument!.Document.Text.IndexOf("n =", StringComparison.Ordinal), window.OffsetAt(point));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Parar_com_a_janela_minimizada_volta_maximizada_e_sem_ficar_sempre_visivel()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n$b = 2;\n");
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        window.WindowState = WindowState.Maximized;
+        window.WindowState = WindowState.Minimized;
+
+        using var engine = new FakeXdebug(new FakeXdebug.Stop(php, 3, FakeXdebug.Int("$a", 1)));
+        engine.Connect(server.Port);
+        await Until(() => window.IsDebugPaused);
+
+        Assert.Equal(WindowState.Maximized, window.WindowState);
+        Assert.False(window.Topmost);
+
+        window.DebugContinue();
+        await Until(() => !window.IsDebugPaused);
+        window.EndDebug();
+        window.Close();
     }
 
     [AvaloniaFact]

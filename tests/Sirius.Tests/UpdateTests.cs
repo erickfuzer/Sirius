@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Sirius.Core;
@@ -163,6 +164,72 @@ public class UpdateTests
         Assert.Equal("0.1.0-alpha.2", fixture.Window.PendingUpdateText);
         var saved = AppSettings.Load(fixture.SettingsPath);
         Assert.Equal("v0.1.0-alpha.2", saved.LatestVersion);
+    }
+
+    [AvaloniaFact]
+    public void Janela_aberta_antes_da_versao_nova_avisa_ao_voltar_depois_de_uma_hora()
+    {
+        var now = new DateTime(2026, 11, 5, 12, 0, 0, DateTimeKind.Utc);
+        using var fixture = new Fixture();
+        fixture.Window.UpdateClock = () => now;
+        fixture.Window.StartUpdateChecks();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(1, fixture.Fetches);
+        Assert.False(fixture.Window.IsUpdateNoticeVisible);
+
+        // Falhou: tenta logo, mas sem insistir a cada troca de janela.
+        fixture.Latest = "v0.1.0-alpha.2";
+        now = now.AddMinutes(4);
+        fixture.Window.CheckForUpdatesIfDue();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(1, fixture.Fetches);
+
+        now = now.AddMinutes(1);
+        fixture.Window.CheckForUpdatesIfDue();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(2, fixture.Fetches);
+        Assert.True(fixture.Window.IsUpdateNoticeVisible);
+
+        // Respondeu: a próxima consulta só depois de uma hora.
+        now = now.AddMinutes(59);
+        fixture.Window.CheckForUpdatesIfDue();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(2, fixture.Fetches);
+
+        // Passou o tempo: voltar para a janela é o que dispara a consulta.
+        now = now.AddMinutes(1);
+        ((Window)fixture.Window).Activate();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(3, fixture.Fetches);
+    }
+
+    [AvaloniaFact]
+    public void Aviso_desligado_nao_consulta_ao_voltar_para_a_janela()
+    {
+        using var fixture = new Fixture(new AppSettings { CheckForUpdates = false });
+        fixture.Window.CheckForUpdatesIfDue();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(0, fixture.Fetches);
+    }
+
+    [AvaloniaFact]
+    public void Aviso_cabe_inteiro_mesmo_com_muitos_problemas_na_capsula()
+    {
+        using var fixture = new Fixture(new AppSettings { LatestVersion = "v0.1.0-alpha.2" });
+        fixture.Window.StartUpdateChecks();
+        fixture.Window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        var notice = fixture.Window.FindControl<Button>("UpdateButton")!;
+        var natural = notice.Bounds.Width;
+        Assert.True(natural > 0);
+
+        var problems = fixture.Window.FindControl<Button>("ProblemsButton")!;
+        problems.Content = "120 erros, 300 avisos, 500 dicas, 700 erros, 900 avisos, 1000 dicas, 2000 erros";
+        problems.IsVisible = true;
+        fixture.Window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(natural, notice.Bounds.Width);
     }
 
     [AvaloniaFact]

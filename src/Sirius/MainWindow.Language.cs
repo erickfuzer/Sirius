@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -336,10 +337,14 @@ public partial class MainWindow
         }
     }
 
-    private int? OffsetAt(PointerEventArgs e)
+    private int? OffsetAt(PointerEventArgs e) => OffsetAt(e.GetPosition(CodeEditor.TextArea.TextView));
+
+    // O caractere sob o mouse. GetPosition arredonda para a emenda mais próxima, e assim a metade
+    // direita da última letra contava como fora da palavra: em $n, é um bom pedaço do alvo.
+    public int? OffsetAt(Point point)
     {
         var view = CodeEditor.TextArea.TextView;
-        if (ActiveDocument is not { } document || view.GetPosition(e.GetPosition(view) + view.ScrollOffset) is not { } position)
+        if (ActiveDocument is not { } document || view.GetPositionFloor(point + view.ScrollOffset) is not { } position)
             return null;
         return document.Document.GetOffset(position.Location);
     }

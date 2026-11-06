@@ -230,6 +230,16 @@ public partial class MainWindow
         return server;
     }
 
+    // Para a janela maximizada voltar maximizada, e não no tamanho menor.
+    private WindowState _stateBeforeMinimize = WindowState.Normal;
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == WindowStateProperty && change.GetNewValue<WindowState>() == WindowState.Minimized)
+            _stateBeforeMinimize = change.GetOldValue<WindowState>();
+    }
+
     private void OnDebugPaused(XdebugServer server, DebugPause pause)
     {
         if (server != _debug)
@@ -245,8 +255,19 @@ public partial class MainWindow
         TerminalInfo.Text = $"Parado em {Path.GetFileName(pause.Path)}, linha {pause.Line}{function}";
         UpdateDebugButtons();
 
-        // A pessoa está no navegador, olhando a página carregar: a Sirius precisa aparecer.
+        BringToFrontForPause();
+    }
+
+    // A pessoa está no navegador, olhando a página carregar: a Sirius precisa aparecer.
+    // O Windows recusa o foco a quem está em segundo plano, por isso só o Activate não bastava.
+    // Ligar e desligar o "sempre visível" sobe a janela sem tirar o foco de onde a pessoa digita.
+    private void BringToFrontForPause()
+    {
+        if (WindowState == WindowState.Minimized)
+            WindowState = _stateBeforeMinimize;
         base.Activate();
+        Topmost = true;
+        Topmost = false;
     }
 
     private void OnDebugResumed(XdebugServer server)

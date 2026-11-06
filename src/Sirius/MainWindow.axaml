@@ -490,10 +490,11 @@
                                                 </StackPanel>
                                             </Button>
                                         </StackPanel>
+                                        <!-- Primeiro da fila: sem espaço na cápsula, o último é quem desaparece. -->
+                                        <Button x:Name="UpdateButton" DockPanel.Dock="Left" Classes="flat terminaltab" Foreground="{DynamicResource CapsuleInk}" IsVisible="False" Click="OnUpdateClick" ToolTip.Tip="Ver a versão nova" />
                                         <Button x:Name="ProblemsButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnShowProblems" ToolTip.Tip="Ver problemas" />
                                         <Button x:Name="OpenSiteButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnOpenSite" Content="Abrir site" />
                                         <Button x:Name="InstallButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnInstallServer" />
-                                        <Button x:Name="UpdateButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnUpdateClick" ToolTip.Tip="Ver a versão nova" />
                                         <TextBlock x:Name="CapsuleStatus" FontSize="12" Foreground="{DynamicResource CapsuleMuted}" TextTrimming="CharacterEllipsis"
                                                    VerticalAlignment="Center" Margin="4,0,0,0" />
                                     </DockPanel>

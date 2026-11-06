@@ -5,13 +5,20 @@ namespace Sirius;
 
 public partial class MainWindow
 {
+    // O GitHub aceita 60 consultas por hora sem login: uma por hora sobra, mesmo com várias janelas.
+    private static readonly TimeSpan RecheckAfterAnswer = TimeSpan.FromHours(1);
+    private static readonly TimeSpan RecheckAfterFailure = TimeSpan.FromMinutes(5);
+
     private AppVersion? _pendingUpdate;
     private bool _checkingForUpdate;
+    private bool _recheckingOnReturn;
+    private DateTime _nextUpdateCheck = DateTime.MinValue;
 
     // Trocados nos testes, que nunca usam a internet nem abrem o navegador.
     public Func<CancellationToken, Task<string?>> FetchLatestTag { get; set; } = UpdateChecker.FetchLatestTagAsync;
     public Func<string, bool> OpenUrl { get; set; } = UpdateChecker.OpenInBrowser;
     public AppVersion CurrentVersion { get; set; } = AppVersion.Current;
+    public Func<DateTime> UpdateClock { get; set; } = () => DateTime.UtcNow;
 
     public string? PendingUpdateText => _pendingUpdate?.Text;
     public string UpdateNoticeLabel => UpdateButton.Content as string ?? "";
@@ -24,6 +31,19 @@ public partial class MainWindow
     {
         RefreshUpdateNotice();
         if (_settings.CheckForUpdates)
+            _ = CheckForUpdatesAsync(manual: false);
+
+        // Uma janela que fica aberta por dias só consultaria uma vez, antes de a versão nova existir.
+        if (!_recheckingOnReturn)
+        {
+            _recheckingOnReturn = true;
+            Activated += (_, _) => CheckForUpdatesIfDue();
+        }
+    }
+
+    public void CheckForUpdatesIfDue()
+    {
+        if (_settings.CheckForUpdates && UpdateClock() >= _nextUpdateCheck)
             _ = CheckForUpdatesAsync(manual: false);
     }
 
@@ -39,6 +59,7 @@ public partial class MainWindow
                 ShowStatus("Procurando versão nova...");
 
             var tag = await FetchLatestTag(CancellationToken.None);
+            _nextUpdateCheck = UpdateClock() + (tag is null ? RecheckAfterFailure : RecheckAfterAnswer);
             if (tag is null)
             {
                 if (manual)
