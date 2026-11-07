@@ -26,7 +26,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Edição do dia a dia:** comentar linhas, duplicar e mover linhas, ir para uma linha e formatar o arquivo inteiro, pelo teclado, pela barra de comando ou pelo botão direito do mouse no editor
 - **Cores do CSS:** um quadradinho mostra cada cor no código, e clicar nele abre um seletor que altera o texto na hora. Funciona em CSS, SCSS, Sass e Less, e dentro de `<style>` e `style="..."` em HTML e PHP
 - **Emmet:** em HTML e PHP, `div.cartao>h2+p` + <kbd>Tab</kbd> vira o HTML pronto, e `!` cria a página inicial. O <kbd>Tab</kbd> seguinte pula para o próximo campo vazio, e isso funciona sem instalar nada
-- **Imagens:** PNG, JPG, GIF, WebP, BMP e ICO abrem em uma aba, com zoom, arrastar, xadrez atrás da transparência e a foto na posição certa. O SVG continua abrindo como código, para poder editar
+- **Imagens:** PNG, JPG, GIF, WebP, BMP e ICO abrem em uma aba, com zoom, arrastar, xadrez atrás da transparência e a foto na posição certa. O SVG abre como código, para poder editar, com o desenho ao lado acompanhando a digitação. A prévia nunca busca nada fora do arquivo
 - **Abrir de fora:** arraste arquivos ou pastas do Explorer para a janela, ou clique com o botão direito neles e use "Abrir com Sirius". Isso vale para código, texto, imagens e pastas. Com a Sirius já aberta, o arquivo vira uma aba da mesma janela, mesmo vários de uma vez, e a pasta abre uma janela nova
 - **Barra de comando:** <kbd>Ctrl</kbd> + <kbd>K</kbd> encontra arquivos e executa ações sem tirar a mão do teclado
 - **Projeto:** árvore de arquivos para criar, renomear e excluir, com busca e substituição em todo o projeto
@@ -157,7 +157,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 - A depuração é só de PHP e começa pelo botão Executar.
 - Conflitos de Git são resolvidos editando o arquivo.
 - Entre os programas de tela cheia no terminal, o Claude Code foi testado, mas o `vim` não. O terminal repassa a roda do mouse a eles, mas não os cliques.
-- GIF animado mostra só o primeiro quadro, e o SVG ainda não tem prévia.
+- GIF animado mostra só o primeiro quadro. Na prévia do SVG, imagens e fontes de outros endereços não aparecem, de propósito.
 - O instalador ainda não tem assinatura digital. A atualização confere o arquivo com o registro do GitHub, mas isso confia na conta do GitHub do projeto, como o download manual.
 
 ## Estrutura
@@ -181,7 +181,7 @@ Sirius/
 
 ## Créditos
 
-Interface feita com [Avalonia](https://avaloniaui.net) e [AvaloniaEdit](https://github.com/AvaloniaUI/AvaloniaEdit), com sintaxe pelo [TextMateSharp](https://github.com/danipen/TextMateSharp), todos sob a licença MIT. As fontes [Geist](https://vercel.com/font) e [IBM Plex Mono](https://www.ibm.com/plex/) são distribuídas sob a licença SIL Open Font, com os textos em `src/Sirius/Assets/Fonts`. Desenvolvido com o auxílio do [Claude](https://claude.ai) (Anthropic).
+Interface feita com [Avalonia](https://avaloniaui.net) e [AvaloniaEdit](https://github.com/AvaloniaUI/AvaloniaEdit), com sintaxe pelo [TextMateSharp](https://github.com/danipen/TextMateSharp) e prévia de SVG pelo [Svg.Skia](https://github.com/wieslawsoltes/Svg.Skia), todos sob a licença MIT, que usa também o [SVG.NET](https://github.com/svg-net/SVG), sob a licença MS-PL. As fontes [Geist](https://vercel.com/font) e [IBM Plex Mono](https://www.ibm.com/plex/) são distribuídas sob a licença SIL Open Font, com os textos em `src/Sirius/Assets/Fonts`. Desenvolvido com o auxílio do [Claude](https://claude.ai) (Anthropic).
 
 ## Licença
 

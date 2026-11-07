@@ -56,6 +56,7 @@ public partial class MainWindow
         CodeEditor.IsVisible = ActiveDocument is not null && !image && !IsDiffOpen;
         CodeEditor.IsReadOnly = image;
         ImageHost.IsVisible = image && !IsDiffOpen;
+        UpdateSvgPane();
     }
 
     private void FocusActiveDocument()

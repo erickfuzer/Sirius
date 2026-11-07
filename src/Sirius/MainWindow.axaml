@@ -335,7 +335,7 @@
                 <!-- Folha do editor -->
                 <Border x:Name="SheetBorder" Grid.Column="2" Background="{DynamicResource Sheet}" CornerRadius="12" ClipToBounds="True">
                     <Grid RowDefinitions="Auto,*">
-                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" MinHeight="34" Margin="6,2,14,0">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" MinHeight="34" Margin="6,2,14,0">
                             <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                                 <ItemsControl x:Name="TabList">
                                     <ItemsControl.ItemsPanel>
@@ -361,12 +361,25 @@
                                 </ItemsControl>
                             </ScrollViewer>
                             <TextBlock x:Name="Breadcrumb" Grid.Column="1" Margin="12,0,0,0" MaxWidth="320" TextTrimming="CharacterEllipsis" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
+                            <Button x:Name="SvgToggle" Grid.Column="2" Classes="flat segment" Height="24" Padding="9,0" Margin="10,0,0,0" FontSize="12"
+                                    Content="Prévia" IsVisible="False" Click="OnSvgToggle" ToolTip.Tip="Mostrar ou esconder o desenho do SVG" />
                         </Grid>
 
                         <Panel x:Name="SheetHost" Grid.Row="1">
-                            <ae:TextEditor x:Name="CodeEditor" IsVisible="False" Background="Transparent" BorderThickness="0"
-                                           Foreground="{DynamicResource Ink}" FontFamily="{DynamicResource CodeFont}" FontSize="13.5"
-                                           Padding="0,8,0,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+                            <!-- Num .svg, o desenho aparece à direita do código e acompanha a digitação. -->
+                            <Grid x:Name="EditorGrid" ColumnDefinitions="*,Auto,0">
+                                <ae:TextEditor x:Name="CodeEditor" Grid.Column="0" IsVisible="False" Background="Transparent" BorderThickness="0"
+                                               Foreground="{DynamicResource Ink}" FontFamily="{DynamicResource CodeFont}" FontSize="13.5"
+                                               Padding="0,8,0,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+                                <Border x:Name="SvgDivider" Grid.Column="1" Width="1" Background="{DynamicResource Tint}" IsVisible="False" />
+                                <Panel x:Name="SvgPane" Grid.Column="2" IsVisible="False">
+                                    <e:ImagePreview x:Name="SvgView" ClipToBounds="True" AutomationProperties.Name="Prévia do SVG" />
+                                    <TextBlock x:Name="SvgMessage" Margin="24,0" IsVisible="False" Foreground="{DynamicResource Muted}" FontSize="12" TextWrapping="Wrap"
+                                               TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="SvgNote" Margin="14,10,14,0" IsVisible="False" Foreground="{DynamicResource Muted}" FontSize="11" TextWrapping="Wrap"
+                                               VerticalAlignment="Top" Text="Este trecho ainda não forma um desenho. A prévia mostra a última versão que funcionou." />
+                                </Panel>
+                            </Grid>
 
                             <!-- Aba de imagem -->
                             <Panel x:Name="ImageHost" IsVisible="False">

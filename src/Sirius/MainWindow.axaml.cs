@@ -111,6 +111,7 @@ public partial class MainWindow : Window
         InitializeDrop();
         InitializeDebug();
         InitializeEditing();
+        InitializeSvg();
         CodeEditor.AddHandler(PointerWheelChangedEvent, OnEditorWheel, RoutingStrategies.Tunnel);
         ApplyEditorFontSize(_settings.EditorFontSize);
         DialogInput.AddHandler(KeyDownEvent, OnDialogInputKeyDown, RoutingStrategies.Tunnel);
@@ -1071,6 +1072,8 @@ public partial class MainWindow : Window
             actions.Add(("Mover linha para cima", "Alt ↑", () => MoveLines(up: true)));
             actions.Add(("Mover linha para baixo", "Alt ↓", () => MoveLines(up: false)));
             actions.Add(("Formatar arquivo", "Shift Alt F", () => _ = FormatDocumentAsync()));
+            if (SvgRender.Supports(active.FullPath))
+                actions.Insert(1, (_settings.SvgPreview ? "Esconder a prévia do SVG" : "Mostrar a prévia do SVG", "", ToggleSvgPreview));
             actions.Add(("Ir para a linha", "Ctrl G", OpenGoToLine));
             actions.Add(("Ir para a definição", "F12", () => _ = GoToDefinitionAsync()));
             actions.Add(("Encontrar todos os usos", "Shift F12", () => _ = FindUsesAsync()));
@@ -1406,6 +1409,7 @@ public partial class MainWindow : Window
         CodeEditor.TextArea.TextView.Redraw();
         _gutter.InvalidateVisual();
         ImageView.InvalidateVisual();
+        SvgView.InvalidateVisual();
     }
 
     private void OnToggleFocus(object? sender, RoutedEventArgs e) => ToggleFocus();

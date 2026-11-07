@@ -35,6 +35,9 @@ public sealed class AppSettings
     // Aspas, parênteses, chaves e tags de HTML que se fecham ao digitar.
     public bool AutoClosePairs { get; set; } = true;
 
+    // O desenho ao lado do código, nos arquivos .svg.
+    public bool SvgPreview { get; set; } = true;
+
     // As últimas pastas abertas, a mais recente primeiro.
     public List<string> RecentFolders { get; set; } = new();
 
