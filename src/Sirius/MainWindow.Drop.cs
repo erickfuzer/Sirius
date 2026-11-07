@@ -50,6 +50,17 @@ public partial class MainWindow
         Dispatcher.UIThread.Post(() => _ = OpenDroppedAsync(paths));
     }
 
+    // Arquivos que outra Sirius, aberta pelo "Abrir com Sirius", entregou a esta janela. Só arquivos que existem:
+    // o caminho veio de outro programa.
+    public void ReceiveForwarded(IReadOnlyList<string> paths)
+    {
+        var files = paths.Where(File.Exists).ToList();
+        if (files.Count == 0)
+            return;
+        BringToFrontForPause();
+        _ = OpenDroppedAsync(files);
+    }
+
     public async Task OpenDroppedAsync(IReadOnlyList<string> paths)
     {
         ClosePalette();

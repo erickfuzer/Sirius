@@ -27,7 +27,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Cores do CSS:** um quadradinho mostra cada cor no código, e clicar nele abre um seletor que altera o texto na hora. Funciona em CSS, SCSS, Sass e Less, e dentro de `<style>` e `style="..."` em HTML e PHP
 - **Emmet:** em HTML e PHP, `div.cartao>h2+p` + <kbd>Tab</kbd> vira o HTML pronto, e `!` cria a página inicial. O <kbd>Tab</kbd> seguinte pula para o próximo campo vazio, e isso funciona sem instalar nada
 - **Imagens:** PNG, JPG, GIF, WebP, BMP e ICO abrem em uma aba, com zoom, arrastar, xadrez atrás da transparência e a foto na posição certa. O SVG continua abrindo como código, para poder editar
-- **Abrir de fora:** arraste arquivos ou pastas do Explorer para a janela, ou clique com o botão direito neles e use "Abrir com Sirius". Isso vale para código, texto, imagens e pastas
+- **Abrir de fora:** arraste arquivos ou pastas do Explorer para a janela, ou clique com o botão direito neles e use "Abrir com Sirius". Isso vale para código, texto, imagens e pastas. Com a Sirius já aberta, o arquivo vira uma aba da mesma janela, mesmo vários de uma vez, e a pasta abre uma janela nova
 - **Barra de comando:** <kbd>Ctrl</kbd> + <kbd>K</kbd> encontra arquivos e executa ações sem tirar a mão do teclado
 - **Projeto:** árvore de arquivos para criar, renomear e excluir, com busca e substituição em todo o projeto
 - **Terminal integrado:** a cápsula flutuante se abre em um terminal completo. O botão Executar detecta o comando do projeto, e os erros da saída são clicáveis. Em PHP, ele sobe o servidor e oferece abrir o site no navegador, ou o arquivo em uso em pastas sem `index.php`. Se o computador não tiver PHP, oferece a instalação

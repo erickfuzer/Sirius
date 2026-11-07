@@ -115,7 +115,9 @@ public class DropTests
         Assert.Equal(photo, window.ActiveDocument!.FullPath);
         Assert.True(window.ActiveDocument.IsImage);
         Assert.True(window.IsImageShown);
-        Assert.Equal(outside.Path, window.BreadcrumbText);
+        // De fora do projeto: só o fim do caminho, para não empurrar as abas.
+        Assert.Equal(MainWindow.ShortFolder(outside.Path), window.BreadcrumbText);
+        Assert.StartsWith("…", window.BreadcrumbText);
         Assert.True(File.Exists(photo));
         window.Close();
     }

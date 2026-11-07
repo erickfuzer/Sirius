@@ -604,6 +604,7 @@ public partial class MainWindow : Window
         ShowDocumentSurface();
         RefreshImage();
         Breadcrumb.Text = document is null || RootFolder is null ? "" : BreadcrumbFor(document.FullPath);
+        ToolTip.SetTip(Breadcrumb, document is { IsUntitled: false } ? Path.GetDirectoryName(document.FullPath) : null);
         ExpandTo(document?.FullPath);
         RefreshTabs();
         RefreshTree();
@@ -627,9 +628,9 @@ public partial class MainWindow : Window
     {
         var folder = Path.GetDirectoryName(path)!;
         var relative = Path.GetRelativePath(RootFolder!, folder);
-        // Arquivo de fora do projeto: o caminho inteiro diz mais que uma fila de "..".
+        // Arquivo de fora do projeto: o fim do caminho diz mais que uma fila de "..", e o inteiro empurraria as abas.
         if (relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative))
-            return folder;
+            return ShortFolder(folder);
         return relative == "." ? "" : relative.Replace(Path.DirectorySeparatorChar.ToString(), " / ");
     }
 

@@ -360,7 +360,7 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </ScrollViewer>
-                            <TextBlock x:Name="Breadcrumb" Grid.Column="1" Margin="12,0,0,0" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
+                            <TextBlock x:Name="Breadcrumb" Grid.Column="1" Margin="12,0,0,0" MaxWidth="320" TextTrimming="CharacterEllipsis" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
                         </Grid>
 
                         <Panel x:Name="SheetHost" Grid.Row="1">
