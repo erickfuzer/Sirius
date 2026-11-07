@@ -76,3 +76,11 @@ Root: HKCU; Subkey: "Software\Classes\*\shell\Sirius"; ValueType: none; Flags: d
 
 [Run]
 Filename: "{app}\Sirius.exe"; Description: "{cm:LaunchProgram,Sirius}"; Flags: nowait postinstall skipifsilent
+; A atualização feita pela própria Sirius instala em silêncio com /relaunch=1 e a abre de novo no fim.
+Filename: "{app}\Sirius.exe"; Flags: nowait; Check: ShouldRelaunch
+
+[Code]
+function ShouldRelaunch: Boolean;
+begin
+  Result := WizardSilent and (ExpandConstant('{param:relaunch|0}') = '1');
+end;

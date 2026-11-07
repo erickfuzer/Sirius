@@ -36,7 +36,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Git:** mudanças na árvore e na margem, comparação lado a lado, commit por arquivo, descartar, enviar, receber, branches e histórico de commits, com o que mudou em cada um. Se o computador não tiver Git, oferece a instalação
 - **Sessão:** cada pasta reabre as suas abas, e a IDE acompanha o que outros programas mudam no disco. As pastas recentes ficam na tela inicial e no nome da pasta, no topo da janela
 - **Preferências:** tema, tamanho da letra, recuo (2 ou 4 espaços, ou Tab), fechar aspas e tags, quebra de linha e aviso de versão nova, pelo botão de ajustes ao lado de minimizar, no topo da janela. Cada escolha vale na hora
-- **Aviso de versão nova:** um aviso discreto na cápsula leva à página da versão, sem baixar nada sozinho. Dá para ignorar uma versão ou desligar o aviso pela barra de comando
+- **Atualizar pela própria IDE:** um aviso discreto na cápsula anuncia a versão nova. Em "Atualizar agora", a Sirius baixa o instalador da página de Releases, confere que ele é exatamente o arquivo que o GitHub registrou, fecha, instala por cima e abre de novo. Nada é baixado sem o seu clique, e o aviso pode ser desligado nas preferências
 - **Cuidado com o seu trabalho:** salvar mantém a codificação original do arquivo e passa por um arquivo temporário, criar nunca sobrescreve e excluir vai para a Lixeira
 - **Pronta para ABNT2:** o <kbd>AltGr</kbd> nunca aciona um atalho, então `?` e `/` funcionam normalmente
 
@@ -88,7 +88,7 @@ O terminal roda no ConPTY, o mesmo mecanismo de terminal do próprio Windows. A 
 
 A depuração de PHP usa o [Xdebug](https://xdebug.org): a Sirius baixa o arquivo certo para o seu PHP, confere o código dele com uma lista fixa no programa e o liga só durante a execução, sem alterar o `php.ini`. A conversa com o Xdebug fica dentro do computador.
 
-A única consulta que a Sirius faz por conta própria é perguntar à API pública do GitHub qual é a última versão, ao abrir e ao voltar para a janela, no máximo uma vez por hora. Ela não envia nada do seu projeto e pode ser desligada em "Aviso de versão nova", na barra de comando.
+A única consulta que a Sirius faz por conta própria é perguntar à API pública do GitHub qual é a última versão, ao abrir e ao voltar para a janela, no máximo uma vez por hora. Ela não envia nada do seu projeto e pode ser desligada em "Aviso de versão nova", nas preferências. O instalador só é baixado quando você clica em "Atualizar agora".
 
 ## Como usar
 
@@ -158,7 +158,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 - Conflitos de Git são resolvidos editando o arquivo.
 - Entre os programas de tela cheia no terminal, o Claude Code foi testado, mas o `vim` não. O terminal repassa a roda do mouse a eles, mas não os cliques.
 - GIF animado mostra só o primeiro quadro, e o SVG ainda não tem prévia.
-- As atualizações ainda são manuais: a IDE avisa, mas você baixa e instala a versão nova por cima.
+- O instalador ainda não tem assinatura digital. A atualização confere o arquivo com o registro do GitHub, mas isso confia na conta do GitHub do projeto, como o download manual.
 
 ## Estrutura
 

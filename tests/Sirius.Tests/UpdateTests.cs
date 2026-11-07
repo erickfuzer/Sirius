@@ -30,6 +30,17 @@ public class UpdateTests
                     Opened.Add(url);
                     return OpenResult;
                 },
+                // Nunca baixa nem roda instalador de verdade.
+                DownloadUpdate = (version, progress, _) =>
+                {
+                    Downloaded.Add(version.Tag);
+                    return DownloadStep?.Invoke(progress) ?? Task.FromResult(DownloadResult);
+                },
+                RunInstaller = path =>
+                {
+                    Installers.Add(path);
+                    return InstallerResult;
+                },
             };
             Window.Language.IsInstalled = _ => false;
             Window.Show();
@@ -43,6 +54,11 @@ public class UpdateTests
         public int Fetches { get; private set; }
         public List<string> Opened { get; } = [];
         public bool OpenResult { get; set; } = true;
+        public List<string> Downloaded { get; } = [];
+        public string? DownloadResult { get; set; } = @"C:\atualizacao\Sirius-Setup.exe";
+        public Func<IProgress<double>, Task<string?>>? DownloadStep { get; set; }
+        public List<string> Installers { get; } = [];
+        public bool InstallerResult { get; set; } = true;
 
         public void Dispose()
         {
@@ -332,16 +348,23 @@ public class UpdateTests
         Assert.True(AppSettings.Load(fixture.SettingsPath).CheckForUpdates);
     }
 
-    [AvaloniaFact]
-    public async Task Abrir_a_pagina_usa_o_navegador_e_nao_baixa_nada()
+    private static Fixture Pending()
     {
-        using var fixture = new Fixture { Latest = "v0.1.0-alpha.2" };
+        var fixture = new Fixture { Latest = "v0.1.0-alpha.2" };
         fixture.Window.StartUpdateChecks();
         Dispatcher.UIThread.RunJobs();
+        return fixture;
+    }
 
-        await Answer(fixture.Window, primary: true, fixture.Window.ShowUpdateAsync());
+    [AvaloniaFact]
+    public async Task Ver_as_novidades_abre_a_pagina_e_nao_baixa_nada()
+    {
+        using var fixture = Pending();
+
+        await Answer(fixture.Window, primary: false, fixture.Window.ShowUpdateAsync());
 
         Assert.Equal(["https://github.com/erickfuzer/Sirius/releases/tag/v0.1.0-alpha.2"], fixture.Opened);
+        Assert.Empty(fixture.Downloaded);
         // O aviso continua até a versão nova estar instalada.
         Assert.True(fixture.Window.IsUpdateNoticeVisible);
     }
@@ -349,37 +372,205 @@ public class UpdateTests
     [AvaloniaFact]
     public async Task Navegador_que_nao_abre_avisa_na_capsula()
     {
-        using var fixture = new Fixture { Latest = "v0.1.0-alpha.2", OpenResult = false };
-        fixture.Window.StartUpdateChecks();
-        Dispatcher.UIThread.RunJobs();
+        using var fixture = Pending();
+        fixture.OpenResult = false;
 
-        await Answer(fixture.Window, primary: true, fixture.Window.ShowUpdateAsync());
+        await Answer(fixture.Window, primary: false, fixture.Window.ShowUpdateAsync());
 
         Assert.Contains("navegador", fixture.Window.StatusText);
     }
 
     [AvaloniaFact]
-    public async Task Ignorar_esconde_ate_sair_outra_versao()
+    public async Task Atualizar_baixa_roda_o_instalador_e_fecha()
     {
-        using var fixture = new Fixture { Latest = "v0.1.0-alpha.2" };
-        fixture.Window.StartUpdateChecks();
+        using var fixture = Pending();
+
+        await Answer(fixture.Window, primary: true, fixture.Window.ShowUpdateAsync());
         Dispatcher.UIThread.RunJobs();
 
-        await Answer(fixture.Window, primary: false, fixture.Window.ShowUpdateAsync());
+        Assert.Equal(["v0.1.0-alpha.2"], fixture.Downloaded);
+        Assert.Equal([@"C:\atualizacao\Sirius-Setup.exe"], fixture.Installers);
+        Assert.False(fixture.Window.IsVisible);
+    }
 
-        Assert.Empty(fixture.Opened);
+    [AvaloniaFact]
+    public async Task Andamento_aparece_no_botao_durante_o_download()
+    {
+        using var fixture = Pending();
+        var release = new TaskCompletionSource<string?>();
+        fixture.DownloadStep = progress =>
+        {
+            progress.Report(0.42);
+            return release.Task;
+        };
+
+        var updating = fixture.Window.InstallUpdateAsync(AppVersion.Parse("v0.1.0-alpha.2")!);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("Baixando 42%", fixture.Window.UpdateNoticeLabel);
+        Assert.True(fixture.Window.IsUpdating);
+
+        // Uma consulta no meio não troca o andamento.
+        fixture.Window.StartUpdateChecks();
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("Baixando 42%", fixture.Window.UpdateNoticeLabel);
+
+        release.SetResult(null);
+        await updating;
+        Assert.False(fixture.Window.IsUpdating);
+        Assert.Contains("Não foi possível baixar", fixture.Window.StatusText);
+        Assert.Empty(fixture.Installers);
+        Assert.True(fixture.Window.IsVisible);
+        Assert.Equal("Versão 0.1.0-alpha.2 disponível", fixture.Window.UpdateNoticeLabel);
+    }
+
+    [AvaloniaFact]
+    public async Task Arquivo_sem_salvar_pergunta_antes_de_instalar()
+    {
+        using var fixture = Pending();
+        fixture.Window.NewUntitled();
+        fixture.Window.ActiveDocument!.Document.Text = "rascunho";
+
+        var updating = fixture.Window.InstallUpdateAsync(AppVersion.Parse("v0.1.0-alpha.2")!);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(fixture.Window.IsDialogOpen);
+
+        // Fechar a pergunta sem escolher adia a atualização, sem perder nada.
+        fixture.Window.CancelDialog();
+        await updating;
+        Assert.Empty(fixture.Installers);
+        Assert.Contains("adiada", fixture.Window.StatusText);
+        Assert.Equal("rascunho", fixture.Window.ActiveDocument?.Document.Text);
+        Assert.True(fixture.Window.IsVisible);
+    }
+
+    [AvaloniaFact]
+    public async Task Instalador_que_nao_abre_deixa_a_sirius_aberta()
+    {
+        using var fixture = Pending();
+        fixture.InstallerResult = false;
+
+        await fixture.Window.InstallUpdateAsync(AppVersion.Parse("v0.1.0-alpha.2")!);
+
+        Assert.True(fixture.Window.IsVisible);
+        Assert.Contains("instalador", fixture.Window.StatusText);
+        Assert.True(fixture.Window.IsUpdateNoticeVisible);
+    }
+
+    [AvaloniaFact]
+    public void Ignorar_esconde_ate_sair_outra_versao()
+    {
+        using var fixture = Pending();
+        Assert.Contains("Atualizar a Sirius", fixture.Window.PaletteCommandNames("sirius"));
+
+        fixture.Window.IgnorePendingUpdate();
+
         Assert.False(fixture.Window.IsUpdateNoticeVisible);
         Assert.Equal("v0.1.0-alpha.2", AppSettings.Load(fixture.SettingsPath).DismissedVersion);
-
-        fixture.Window.StartUpdateChecks();
-        Dispatcher.UIThread.RunJobs();
-        Assert.False(fixture.Window.IsUpdateNoticeVisible);
+        Assert.DoesNotContain("Atualizar a Sirius", fixture.Window.PaletteCommandNames("sirius"));
 
         fixture.Latest = "v0.1.0-alpha.3";
         fixture.Window.StartUpdateChecks();
         Dispatcher.UIThread.RunJobs();
         Assert.True(fixture.Window.IsUpdateNoticeVisible);
         Assert.Equal("0.1.0-alpha.3", fixture.Window.PendingUpdateText);
+    }
+
+    // Baixar e conferir o instalador
+
+    private const string Hash = "6d752e3c4d433d9e4d4e0178900902ba164f452614aad0cb90cd1227c1a4be85";
+
+    private static string Release(string name = "Sirius-0.7.0-Setup.exe", string url = "https://github.com/erickfuzer/Sirius/releases/download/v0.7.0/Sirius-0.7.0-Setup.exe",
+        string? digest = "sha256:" + Hash, long size = 42541308) =>
+        $$"""{"assets":[{"name":"Sirius.zip","browser_download_url":"https://github.com/erickfuzer/Sirius/releases/download/v0.7.0/Sirius.zip","size":1,"digest":"sha256:{{Hash}}"},{"name":"{{name}}","browser_download_url":"{{url}}","size":{{size}}{{(digest is null ? "" : $",\"digest\":\"{digest}\"")}}}]}""";
+
+    [Fact]
+    public void Acha_o_instalador_da_versao_com_o_registro_do_github()
+    {
+        var package = UpdateDownload.ParsePackage(Release(), V("v0.7.0"));
+
+        Assert.NotNull(package);
+        Assert.Equal("Sirius-0.7.0-Setup.exe", package.Name);
+        Assert.Equal(42541308, package.Size);
+        Assert.Equal(Hash, package.Sha256);
+    }
+
+    [Theory]
+    [InlineData("https://github.com/outra-pessoa/Sirius/releases/download/v0.7.0/Sirius-0.7.0-Setup.exe", "sha256:" + Hash, 10)]
+    [InlineData("https://github.com/erickfuzer/Sirius/releases/download/v0.6.0/Sirius-0.7.0-Setup.exe", "sha256:" + Hash, 10)]
+    [InlineData("http://github.com/erickfuzer/Sirius/releases/download/v0.7.0/Sirius-0.7.0-Setup.exe", "sha256:" + Hash, 10)]
+    [InlineData("https://github.com/erickfuzer/Sirius/releases/download/v0.7.0/Sirius-0.7.0-Setup.exe", null, 10)]
+    [InlineData("https://github.com/erickfuzer/Sirius/releases/download/v0.7.0/Sirius-0.7.0-Setup.exe", "md5:abc", 10)]
+    [InlineData("https://github.com/erickfuzer/Sirius/releases/download/v0.7.0/Sirius-0.7.0-Setup.exe", "sha256:" + Hash, 0)]
+    [InlineData("https://github.com/erickfuzer/Sirius/releases/download/v0.7.0/Sirius-0.7.0-Setup.exe", "sha256:" + Hash, 999_999_999)]
+    public void Recusa_instalador_de_fora_ou_sem_registro(string url, string? digest, long size) =>
+        Assert.Null(UpdateDownload.ParsePackage(Release(url: url, digest: digest, size: size), V("v0.7.0")));
+
+    [Theory]
+    [InlineData("..\\Sirius-Setup.exe")]
+    [InlineData("Sirius-0.7.0.zip")]
+    public void Recusa_nome_estranho(string name) =>
+        Assert.Null(UpdateDownload.ParsePackage(Release(name: name.Replace("\\", "\\\\")), V("v0.7.0")));
+
+    private static UpdatePackage Package(byte[] content) =>
+        new("Sirius-9.9.9-Setup.exe", new Uri("https://github.com/x"), content.Length, Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content)));
+
+    private static Func<Uri, CancellationToken, Task<Stream>> Serve(byte[] content, Action? opened = null) => (_, _) =>
+    {
+        opened?.Invoke();
+        return Task.FromResult<Stream>(new MemoryStream(content));
+    };
+
+    [Fact]
+    public async Task Baixa_e_confere_o_arquivo()
+    {
+        using var folder = new TempFolder();
+        var old = folder.File("Sirius-0.1.0-Setup.exe", "velho");
+        var content = "instalador"u8.ToArray();
+        var reports = new List<double>();
+
+        var path = await UpdateDownload.DownloadAsync(Package(content), folder.Path, Serve(content), new SyncProgress(reports.Add), CancellationToken.None);
+
+        Assert.Equal(Path.Combine(folder.Path, "Sirius-9.9.9-Setup.exe"), path);
+        Assert.Equal(content, File.ReadAllBytes(path!));
+        Assert.False(File.Exists(old));
+        Assert.Equal(1, reports.Last());
+    }
+
+    [Fact]
+    public async Task Arquivo_diferente_do_registrado_e_descartado()
+    {
+        using var folder = new TempFolder();
+        var package = Package("instalador"u8.ToArray());
+
+        Assert.Null(await UpdateDownload.DownloadAsync(package, folder.Path, Serve("instalad0r"u8.ToArray()), null, CancellationToken.None));
+        Assert.Null(await UpdateDownload.DownloadAsync(package, folder.Path, Serve("instalador e mais"u8.ToArray()), null, CancellationToken.None));
+        Assert.Null(await UpdateDownload.DownloadAsync(package, folder.Path, Serve("inst"u8.ToArray()), null, CancellationToken.None));
+        Assert.Empty(Directory.EnumerateFiles(folder.Path));
+    }
+
+    [Fact]
+    public async Task Instalador_ja_baixado_e_aproveitado()
+    {
+        using var folder = new TempFolder();
+        var content = "instalador"u8.ToArray();
+        var package = Package(content);
+        var opens = 0;
+
+        await UpdateDownload.DownloadAsync(package, folder.Path, Serve(content, () => opens++), null, CancellationToken.None);
+        var again = await UpdateDownload.DownloadAsync(package, folder.Path, Serve(content, () => opens++), null, CancellationToken.None);
+
+        Assert.NotNull(again);
+        Assert.Equal(1, opens);
+    }
+
+    [Fact]
+    public void Instalador_roda_em_silencio_e_reabre_a_sirius() =>
+        Assert.Equal("/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /LANG=ptbr /relaunch=1", UpdateDownload.InstallerArguments);
+
+    // Progress<T> manda para a thread da interface. Aqui o relato precisa chegar na hora.
+    private sealed class SyncProgress(Action<double> report) : IProgress<double>
+    {
+        public void Report(double value) => report(value);
     }
 
     [AvaloniaFact]
@@ -401,7 +592,7 @@ public class UpdateTests
     {
         using var fixture = new Fixture(new AppSettings { DismissedVersion = "v0.1.0-alpha.2" }) { Latest = "v0.1.0-alpha.2" };
 
-        await Answer(fixture.Window, primary: true, fixture.Window.CheckForUpdatesAsync(manual: true));
+        await Answer(fixture.Window, primary: false, fixture.Window.CheckForUpdatesAsync(manual: true));
 
         Assert.Null(fixture.Settings.DismissedVersion);
         Assert.Single(fixture.Opened);

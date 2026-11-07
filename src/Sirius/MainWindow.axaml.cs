@@ -1044,6 +1044,12 @@ public partial class MainWindow : Window
         actions.Add((_terminalOpen ? "Fechar terminal" : "Abrir terminal", "Ctrl J", ToggleTerminal));
         actions.Add(("Nova aba", "Ctrl N", NewUntitled));
         actions.Add(("Procurar versão nova", $"Versão {CurrentVersion}", () => _ = CheckForUpdatesAsync(manual: true)));
+        if (_pendingUpdate is { } update)
+        {
+            actions.Insert(0, ("Atualizar a Sirius", $"Versão {update}", () => _ = InstallUpdateAsync(update)));
+            actions.Add(("Ver as novidades da versão nova", $"Versão {update}", () => OpenReleasePage(update)));
+            actions.Add(("Ignorar a versão nova", $"Versão {update}", IgnorePendingUpdate));
+        }
         actions.Add(("Aviso de versão nova", _settings.CheckForUpdates ? "Ligado" : "Desligado", ToggleUpdateChecks));
         if (ActiveDocument is { IsImage: true } image)
         {
@@ -1517,6 +1523,7 @@ public partial class MainWindow : Window
 
     // Usado pelos testes para responder a uma confirmação aberta.
     public void AnswerDialog(bool primary) => FinishDialog(primary ? DialogChoice.Primary : DialogChoice.Secondary);
+    public void CancelDialog() => FinishDialog(DialogChoice.Cancel);
 
     // Janela
 

@@ -89,6 +89,9 @@ public partial class MainWindow
 
     private void RefreshUpdateNotice()
     {
+        // Durante o download, o botão mostra o andamento, e uma consulta no meio não pode trocá-lo.
+        if (_updating)
+            return;
         _pendingUpdate = _settings.CheckForUpdates
             ? UpdateChecker.Pending(CurrentVersion, _settings.LatestVersion, _settings.DismissedVersion)
             : null;
@@ -105,23 +108,93 @@ public partial class MainWindow
 
     public async Task ShowUpdateAsync()
     {
-        if (_pendingUpdate is not { } version)
+        if (_pendingUpdate is not { } version || _updating)
             return;
 
         var choice = await AskAsync($"Sirius {version} disponível",
-            $"Você está na versão {CurrentVersion}. O navegador vai abrir a página da versão nova, com as novidades e o instalador.\n\nPara atualizar, instale por cima desta. Suas preferências continuam.",
-            "Abrir a página", "Ignorar esta versão");
+            $"Você está na versão {CurrentVersion}. A Sirius baixa a versão nova do GitHub, fecha, instala por cima e abre de novo. Suas preferências e abas continuam.",
+            "Atualizar agora", "Ver as novidades");
 
         if (choice == DialogChoice.Primary)
-        {
-            if (!OpenUrl(UpdateChecker.ReleasePageFor(version)))
-                ShowStatus("Não foi possível abrir o navegador.");
-        }
+            await InstallUpdateAsync(version);
         else if (choice == DialogChoice.Secondary)
+            OpenReleasePage(version);
+    }
+
+    private void OpenReleasePage(AppVersion version)
+    {
+        if (!OpenUrl(UpdateChecker.ReleasePageFor(version)))
+            ShowStatus("Não foi possível abrir o navegador.");
+    }
+
+    public void IgnorePendingUpdate()
+    {
+        if (_pendingUpdate is not { } version)
+            return;
+        _settings.DismissedVersion = version.Tag;
+        _settings.Save(_settingsPath);
+        RefreshUpdateNotice();
+        ShowStatus($"A versão {version} não será mais anunciada.");
+    }
+
+    // Atualizar pela própria Sirius
+
+    private bool _updating;
+
+    // Trocados nos testes, que nunca baixam nem rodam instalador.
+    public Func<AppVersion, IProgress<double>, CancellationToken, Task<string?>> DownloadUpdate { get; set; } = UpdateDownload.DownloadVersionAsync;
+    public Func<string, bool> RunInstaller { get; set; } = UpdateDownload.StartInstaller;
+    public bool IsUpdating => _updating;
+
+    public async Task InstallUpdateAsync(AppVersion version)
+    {
+        if (_updating)
+            return;
+        _updating = true;
+        UpdateButton.IsEnabled = false;
+        var closing = false;
+        try
         {
-            _settings.DismissedVersion = version.Tag;
-            _settings.Save(_settingsPath);
-            RefreshUpdateNotice();
+            UpdateButton.Content = "Baixando 0%";
+            var progress = new Progress<double>(part => UpdateButton.Content = $"Baixando {(int)(part * 100)}%");
+            var installer = await DownloadUpdate(version, progress, CancellationToken.None);
+            if (installer is null)
+            {
+                ShowStatus("Não foi possível baixar a versão nova. Tente de novo ou use Ver as novidades.");
+                return;
+            }
+
+            // O mesmo cuidado de fechar a janela: programa rodando e arquivos sem salvar perguntam antes.
+            UpdateButton.Content = "Instalando...";
+            SaveSession();
+            _sessionFrozen = true;
+            if (!await ConfirmStopTaskAsync() || !await CloseAllAsync())
+            {
+                _sessionFrozen = false;
+                ShowStatus("Atualização adiada. O instalador já baixado fica guardado.");
+                return;
+            }
+
+            if (!RunInstaller(installer))
+            {
+                _sessionFrozen = false;
+                ShowStatus("Não foi possível abrir o instalador.");
+                return;
+            }
+
+            // O instalador espera a Sirius fechar para trocar os arquivos, e depois a abre de novo.
+            closing = true;
+            _allowClose = true;
+            Close();
+        }
+        finally
+        {
+            if (!closing)
+            {
+                _updating = false;
+                UpdateButton.IsEnabled = true;
+                RefreshUpdateNotice();
+            }
         }
     }
 
