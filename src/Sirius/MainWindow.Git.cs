@@ -792,6 +792,7 @@ public partial class MainWindow
     public Func<bool> IsGitInstalled { get; set; } = () => LanguageServerCatalog.FindExecutable("git") is not null;
     public string? GitInstallCommand { get; set; }
     public string GitEmptyTitleText => GitEmptyTitle.Text ?? "";
+    public string GitEmptyMessageText => GitEmptyMessage.Text ?? "";
     public bool IsGitInitOffered => GitInitButton.IsVisible;
     public bool IsGitInstallOffered => GitInstallButton.IsVisible;
 
@@ -802,7 +803,7 @@ public partial class MainWindow
         GitEmptyTitle.Text = installed ? "Esta pasta não usa Git" : "O Git não está instalado";
         GitEmptyMessage.Text = installed
             ? "O Git guarda o histórico do projeto e permite publicar no GitHub."
-            : "O Git guarda o histórico do projeto e permite publicar no GitHub. A Sirius instala para você, sem pedir administrador.";
+            : "O Git guarda o histórico do projeto e permite publicar no GitHub. A Sirius instala para você. Numa conta de administrador, o Windows pede uma confirmação.";
         GitInitButton.IsVisible = installed;
         GitInstallButton.IsVisible = !installed;
     }
@@ -812,8 +813,9 @@ public partial class MainWindow
     public async Task OfferGitInstallAsync()
     {
         var command = GitInstallCommand ?? ToolPaths.GitInstallCommand;
+        // O instalador do Git pede o nível mais alto que a conta tem: administrador confirma, e conta comum instala só para si.
         var choice = await AskAsync("Instalar o Git?",
-            $"O comando vai rodar no terminal:\n\n{command}",
+            $"Se a sua conta for de administrador, o Windows vai pedir uma confirmação para o instalador do Git. Pode aceitar.\n\nO comando vai rodar no terminal:\n\n{command}",
             "Instalar", null);
         if (choice != DialogChoice.Primary)
             return;

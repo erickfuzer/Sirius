@@ -14,7 +14,10 @@ public static class ToolPaths
     public static string PhpInstallCommand(bool hasVisualCpp) =>
         hasVisualCpp ? PhpInstall + " --skip-dependencies" : PhpInstall;
 
-    // Por usuário, para não pedir administrador, que num PC de escola nunca seria aprovado.
+    // O "--scope user" não basta para evitar o administrador: o instalador do Git pede o nível mais alto da conta
+    // (ElevationRequirement: elevatesSelf no manifesto). Numa conta comum, como num PC de escola, ele instala só
+    // para a pessoa, em Programs\Git, sem pedir nada. Numa de administrador, o Windows pede uma confirmação e ele
+    // vai para Program Files. Os dois lugares estão em Folders.
     public const string GitInstallCommand = "winget install --id Git.Git --exact --source winget --scope user --silent --accept-package-agreements --accept-source-agreements";
 
     public static bool HasVisualCpp => File.Exists(Path.Combine(Environment.SystemDirectory, "vcruntime140.dll"));

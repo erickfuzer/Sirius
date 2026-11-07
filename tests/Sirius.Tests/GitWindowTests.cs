@@ -240,11 +240,15 @@ public class GitWindowTests
         Assert.Equal("O Git não está instalado", window.GitEmptyTitleText);
         Assert.False(window.IsGitInitOffered);
         Assert.True(window.IsGitInstallOffered);
+        // O instalador do Git pede confirmação numa conta de administrador, como no notebook do dono: o texto avisa.
+        Assert.Contains("administrador, o Windows pede uma confirmação", window.GitEmptyMessageText);
+        Assert.DoesNotContain("sem pedir administrador", window.GitEmptyMessageText);
 
         var offer = window.OfferGitInstallAsync();
         Dispatcher.UIThread.RunJobs();
         Assert.True(window.IsDialogOpen);
         Assert.Contains("exit 0", window.PhpOfferText);
+        Assert.Contains("o Windows vai pedir uma confirmação", window.PhpOfferText);
         window.AnswerDialog(primary: true);
         await offer;
 
