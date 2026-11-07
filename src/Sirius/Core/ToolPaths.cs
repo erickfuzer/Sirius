@@ -14,6 +14,9 @@ public static class ToolPaths
     public static string PhpInstallCommand(bool hasVisualCpp) =>
         hasVisualCpp ? PhpInstall + " --skip-dependencies" : PhpInstall;
 
+    // Por usuário, para não pedir administrador, que num PC de escola nunca seria aprovado.
+    public const string GitInstallCommand = "winget install --id Git.Git --exact --source winget --scope user --silent --accept-package-agreements --accept-source-agreements";
+
     public static bool HasVisualCpp => File.Exists(Path.Combine(Environment.SystemDirectory, "vcruntime140.dll"));
 
     // Encontrar não basta: sem o Visual C++, o php.exe existe mas não abre.
@@ -49,6 +52,7 @@ public static class ToolPaths
             yield return Path.Combine(programFiles, "dotnet");
             yield return Path.Combine(programFiles, "nodejs");
             yield return Path.Combine(programFiles, "Git", "cmd");
+            yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Git", "cmd");
             yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotnet", "tools");
             yield return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "npm");
             // O XAMPP traz o PHP, mas não o coloca no PATH.

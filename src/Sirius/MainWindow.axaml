@@ -185,9 +185,10 @@
                     <!-- Git -->
                     <Panel x:Name="GitView" IsVisible="False" Margin="0,2,0,0">
                         <StackPanel x:Name="GitEmptyPanel" Spacing="10" Margin="8,16" IsVisible="False">
-                            <TextBlock Text="Esta pasta não usa Git" FontWeight="SemiBold" />
+                            <TextBlock x:Name="GitEmptyTitle" Text="Esta pasta não usa Git" FontWeight="SemiBold" />
                             <TextBlock x:Name="GitEmptyMessage" Text="O Git guarda o histórico do projeto e permite publicar no GitHub." Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
-                            <Button Classes="primary" Content="Iniciar repositório" Click="OnGitInitClick" />
+                            <Button x:Name="GitInitButton" Classes="primary" Content="Iniciar repositório" Click="OnGitInitClick" />
+                            <Button x:Name="GitInstallButton" Classes="primary" Content="Instalar o Git" IsVisible="False" Click="OnGitInstallClick" />
                             <Button Classes="secondary" Content="Voltar aos arquivos" Click="OnCloseGit" />
                         </StackPanel>
 
@@ -426,8 +427,16 @@
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
                                         </ScrollViewer>
-                                        <TextBlock x:Name="VariablesHint" Grid.Row="1" Margin="10,10,0,0" FontSize="12" IsVisible="False" Foreground="{DynamicResource CapsuleMuted}" TextWrapping="Wrap" />
-                                        <ScrollViewer x:Name="VariablesScroll" Grid.Row="1" Margin="0,6,0,4" IsVisible="{Binding #VariablesList.IsVisible}">
+                                        <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+                                        <DockPanel x:Name="PageOutputBox" Grid.Column="1" Width="280" Margin="12,8,0,4" IsVisible="False">
+                                            <TextBlock DockPanel.Dock="Top" Text="A página escreveu até aqui" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CapsuleInk}" />
+                                            <TextBlock DockPanel.Dock="Top" Text="O navegador só costuma mostrar quando ela termina." FontSize="11" Foreground="{DynamicResource CapsuleMuted}" TextWrapping="Wrap" />
+                                            <ScrollViewer x:Name="PageOutputScroll" Margin="0,4,0,0">
+                                                <TextBlock x:Name="PageOutputText" FontFamily="{DynamicResource CodeFont}" FontSize="12" Foreground="{DynamicResource CapsuleInk}" TextWrapping="Wrap" />
+                                            </ScrollViewer>
+                                        </DockPanel>
+                                        <TextBlock x:Name="VariablesHint" Grid.Column="0" Margin="10,10,0,0" FontSize="12" IsVisible="False" Foreground="{DynamicResource CapsuleMuted}" TextWrapping="Wrap" />
+                                        <ScrollViewer x:Name="VariablesScroll" Grid.Column="0" Margin="0,6,0,4" IsVisible="{Binding #VariablesList.IsVisible}">
                                             <ItemsControl x:Name="VariablesList" IsVisible="False">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="s:VariableRow">
@@ -444,6 +453,7 @@
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
                                         </ScrollViewer>
+                                        </Grid>
                                     </Grid>
                                     <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" Margin="4">
                                     <Button x:Name="RunButton" Grid.Column="0" Classes="flat run" Click="OnRunClick" Width="96"

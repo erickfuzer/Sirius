@@ -22,7 +22,22 @@ public partial class MainWindow
         if (ActiveDocument is not { } document || !area.IsKeyboardFocusWithin || !area.Selection.IsEmpty)
             return false;
 
-        return JumpToNextEmmetStop(document) || ExpandEmmetAtCaret(document);
+        if (JumpToNextEmmetStop(document) || ExpandEmmetAtCaret(document))
+            return true;
+
+        ExplainRefusedPage(document);
+        return false;
+    }
+
+    // Sem isto, o Tab só anda alguns espaços, e parece que o Emmet não funciona.
+    private void ExplainRefusedPage(OpenDocument document)
+    {
+        var text = document.Document.Text;
+        if (!Emmet.IsPageRequest(text, CodeEditor.TextArea.Caret.Offset))
+            return;
+        ShowStatus(Emmet.Supports(document.FullPath)
+            ? "O ! só vira página fora de <?php, <style> e <script>."
+            : "O ! só vira página em arquivos .html e .php.");
     }
 
     private bool ExpandEmmetAtCaret(OpenDocument document)
@@ -31,7 +46,11 @@ public partial class MainWindow
         var text = document.Document;
         var newline = TextUtilities.GetNewLineFromDocument(text, area.Caret.Line);
 
-        if (Emmet.TryExpandAt(text.Text, area.Caret.Offset, document.FullPath, CodeEditor.Options.IndentationString, newline) is not { } expansion)
+        // Na aba sem nome ainda não há extensão. O "!" sozinho já diz que é uma página nova.
+        var content = text.Text;
+        var path = document.IsUntitled && Emmet.IsPageRequest(content, area.Caret.Offset) ? "pagina.html" : document.FullPath;
+
+        if (Emmet.TryExpandAt(content, area.Caret.Offset, path, CodeEditor.Options.IndentationString, newline) is not { } expansion)
             return false;
 
         CloseCompletion();

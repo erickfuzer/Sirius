@@ -41,7 +41,10 @@ public partial class MainWindow
     {
         var area = CodeEditor.TextArea;
         ProblemsList.ItemsSource = _problemRows;
+        area.TextEntering += OnPairTextEntering;
         area.TextEntered += OnTextEntered;
+        area.TextEntered += OnTagTextEntered;
+        area.Caret.PositionChanged += (_, _) => ForgetPairsOnOtherLine();
         area.TextView.BackgroundRenderers.Add(new DiagnosticRenderer(area.TextView, ActiveDiagnostics));
         area.TextView.PointerHover += OnEditorHover;
         area.TextView.PointerHoverStopped += OnEditorHoverStopped;
@@ -182,10 +185,15 @@ public partial class MainWindow
 
     private void OnTextEntered(object? sender, TextInputEventArgs e)
     {
-        if (_completion is not null || string.IsNullOrEmpty(e.Text) || ActiveDocument is not { } document)
+        if (!string.IsNullOrEmpty(e.Text))
+            SuggestAfterTyping(e.Text[^1]);
+    }
+
+    private void SuggestAfterTyping(char typed)
+    {
+        if (_completion is not null || ActiveDocument is not { } document)
             return;
 
-        var typed = e.Text[^1];
         var client = _language.ClientForDocument(document);
         if (client is { SupportsCompletion: true } && ((IsWordChar(typed) && !char.IsDigit(typed)) || client.CompletionTriggers.Contains(typed)))
             _ = RequestCompletionAsync();
@@ -318,7 +326,7 @@ public partial class MainWindow
             if (await client.DefinitionAsync(document.FullPath, line, character, cancel.Token) is { } location)
                 GoToLocation(location.Path, location.Line + 1, location.Character + 1);
             else
-                ShowStatus("Definição não encontrada.");
+                ShowStatus("Nenhuma definição aqui. Ponha o cursor no nome de uma função.");
         }
         catch (Exception e) when (e is LspException or OperationCanceledException)
         {

@@ -69,12 +69,13 @@ public static class Emmet
             return null;
 
         var lineStart = text.LastIndexOf('\n', caret - 1) + 1;
-        if (FindStart(text, lineStart, caret) is not { } start)
+        var end = PastClosers(text, lineStart, caret);
+        if (FindStart(text, lineStart, end) is not { } start)
             return null;
         if (!IsPlainMarkup(text, start))
             return null;
 
-        var abbreviation = text[start..caret];
+        var abbreviation = text[start..end];
         var leading = LeadingWhitespace(text, lineStart);
 
         // A página inicial só faz sentido sozinha na linha.
@@ -84,8 +85,50 @@ public static class Emmet
 
         if (Expand(abbreviation, indent, newline, leading) is not { } expanded)
             return null;
-        return new EmmetExpansion(start, caret - start, expanded.Text, expanded.Stops.Select(stop => start + stop).ToList());
+        return new EmmetExpansion(start, end - start, expanded.Text, expanded.Stops.Select(stop => start + stop).ToList());
     }
+
+    // O fechamento automático deixa o cursor antes do que a própria abreviação precisa, como em div{oi|}.
+    private static int PastClosers(string text, int lineStart, int caret)
+    {
+        var open = new Stack<char>();
+        for (var i = lineStart; i < caret; i++)
+        {
+            var c = text[i];
+            if (open.TryPeek(out var top) && top is '"' or '\'')
+            {
+                if (c == top)
+                    open.Pop();
+            }
+            else if (AutoPairs.CloserFor(c) is { } closer)
+            {
+                open.Push(closer);
+            }
+            else if (open.TryPeek(out top) && c == top)
+            {
+                open.Pop();
+            }
+        }
+
+        var end = caret;
+        while (end < text.Length && open.TryPeek(out var closer) && text[end] == closer)
+        {
+            open.Pop();
+            end++;
+        }
+        return end;
+    }
+
+    // O "!" sozinho na linha é um pedido claro da página inicial, mesmo quando ela não pode vir aqui.
+    public static bool IsPageRequest(string text, int caret)
+    {
+        if (caret <= 0 || caret > text.Length)
+            return false;
+        var lineStart = text.LastIndexOf('\n', caret - 1) + 1;
+        return text.AsSpan(lineStart, caret - lineStart).Trim() is "!";
+    }
+
+    public static bool IsVoidTag(string name) => VoidTags.Contains(name.ToLowerInvariant());
 
     private static string LeadingWhitespace(string text, int lineStart)
     {
@@ -137,14 +180,14 @@ public static class Emmet
         return before < lineStart || text[before] == '>' ? start : null;
     }
 
-    private static bool IsPlainMarkup(string text, int offset)
+    public static bool IsPlainMarkup(string text, int offset)
     {
         return !IsOpen(text, offset, "<?", "?>")
             && !IsOpen(text, offset, "<!--", "-->")
             && !IsOpen(text, offset, "<style", "</style")
             && !IsOpen(text, offset, "<script", "</script")
             // Dentro de uma tag, como no valor de um atributo.
-            && text.LastIndexOf('<', Math.Max(0, offset - 1)) <= text.LastIndexOf('>', Math.Max(0, offset - 1));
+            && (offset == 0 || text.LastIndexOf('<', offset - 1) <= text.LastIndexOf('>', offset - 1));
     }
 
     private static bool IsOpen(string text, int offset, string open, string close)

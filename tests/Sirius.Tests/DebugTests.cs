@@ -294,7 +294,7 @@ public class DebugValuesTests
 // Faz o papel do Xdebug: conecta no servidor e responde pelo mesmo protocolo.
 public sealed class FakeXdebug : IDisposable
 {
-    public sealed record Stop(string File, int Line, string Variables = "", string Globals = "", string? Function = null);
+    public sealed record Stop(string File, int Line, string Variables = "", string Globals = "", string? Function = null, byte[][]? Output = null, string? Held = null);
 
     private readonly TcpClient _client = new();
     private readonly Queue<Stop> _stops;
@@ -361,6 +361,9 @@ public sealed class FakeXdebug : IDisposable
                 {
                     _current = next;
                     attributes = " status=\"break\" reason=\"ok\"";
+                    // O que a linha escreveu chega antes da resposta de que ela parou.
+                    foreach (var piece in next.Output ?? [])
+                        await WriteAsync(stream, $"<stream xmlns=\"urn:debugger_protocol_v1\" type=\"stdout\" encoding=\"base64\">{Convert.ToBase64String(piece)}</stream>");
                 }
                 else
                 {
@@ -376,6 +379,12 @@ public sealed class FakeXdebug : IDisposable
                 break;
             case "context_get":
                 inner = command.Contains("-c 1") ? _current!.Globals : _current!.Variables;
+                break;
+            case "eval":
+                // Sem buffer aberto, ob_get_contents() devolve false.
+                inner = _current!.Held is { } held
+                    ? $"<property type=\"string\" encoding=\"base64\"><![CDATA[{Convert.ToBase64String(Encoding.UTF8.GetBytes(held))}]]></property>"
+                    : "<property type=\"bool\"><![CDATA[0]]></property>";
                 break;
         }
 
@@ -504,6 +513,44 @@ public class XdebugServerTests
 
         server.Continue();
         await php.Finished;
+    }
+
+    [Fact]
+    public async Task Pede_a_saida_e_junta_o_acento_partido_entre_dois_pedacos()
+    {
+        var file = @"C:\a.php";
+        using var server = new XdebugServer();
+        var pieces = new ConcurrentQueue<string>();
+        var pauses = new ConcurrentQueue<DebugPause>();
+        server.OutputWritten += pieces.Enqueue;
+        server.Paused += pauses.Enqueue;
+        server.Start();
+
+        // "á" em UTF-8 são dois bytes, aqui em pedaços separados.
+        var word = Encoding.UTF8.GetBytes("olá");
+        using var php = new FakeXdebug(new FakeXdebug.Stop(file, 2, Output: [word[..3], word[3..], Encoding.UTF8.GetBytes(" mundo")]));
+        php.Connect(server.Port);
+        await Until(() => !pauses.IsEmpty);
+
+        Assert.Contains(php.Commands, command => command.StartsWith("stdout") && command.EndsWith("-c 1"));
+        Assert.Equal("olá mundo", string.Concat(pieces));
+        Assert.Equal("", pauses.Last().HeldOutput);
+    }
+
+    [Fact]
+    public async Task Le_o_que_o_php_ainda_segura_na_parada()
+    {
+        var file = @"C:\a.php";
+        using var server = new XdebugServer();
+        var pauses = new ConcurrentQueue<DebugPause>();
+        server.Paused += pauses.Enqueue;
+        server.Start();
+
+        using var php = new FakeXdebug(new FakeXdebug.Stop(file, 2, Held: "ação "));
+        php.Connect(server.Port);
+        await Until(() => !pauses.IsEmpty);
+
+        Assert.Equal("ação ", pauses.Last().HeldOutput);
     }
 
     [Fact]
@@ -1035,6 +1082,98 @@ public class DebugWindowTests
 
         ButtonNamed(window, "DebugOutButton").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
         await Until(() => window.PausedLine == 3);
+        window.EndDebug();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Sair_no_corpo_principal_avisa_e_nao_solta_o_programa()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\necho 1;\necho 2;\n");
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        using var engine = new FakeXdebug(new FakeXdebug.Stop(php, 2));
+        engine.Connect(server.Port);
+        await Until(() => window.PausedLine == 2);
+
+        window.KeyPressQwerty(PhysicalKey.F11, RawInputModifiers.Shift);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(2, window.PausedLine);
+        Assert.Contains("função", window.StatusText);
+        Assert.DoesNotContain(engine.Commands, command => command.StartsWith("step_out"));
+        window.EndDebug();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Mostra_o_que_a_pagina_escreveu_e_troca_na_pagina_seguinte()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\necho 'um';\necho 'dois';\n");
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        window.ShowVariables();
+        Assert.False(window.IsPageOutputVisible);
+
+        using var first = new FakeXdebug(
+            new FakeXdebug.Stop(php, 2),
+            new FakeXdebug.Stop(php, 3, Output: [System.Text.Encoding.UTF8.GetBytes("um")]));
+        first.Connect(server.Port);
+        await Until(() => window.PausedLine == 2);
+        window.DebugNext();
+        await Until(() => window.PausedLine == 3);
+
+        Assert.Equal("um", window.PageOutputShown);
+        Assert.True(window.IsPageOutputVisible);
+
+        window.DebugContinue();
+        await first.Finished;
+        await Until(() => !window.IsDebugPaused);
+        // Com a página terminada, o que ela escreveu continua à vista.
+        Assert.Equal("um", window.PageOutputShown);
+
+        using var second = new FakeXdebug(new FakeXdebug.Stop(php, 2, Output: [System.Text.Encoding.UTF8.GetBytes("novo")]));
+        second.Connect(server.Port);
+        await Until(() => window.PausedLine == 2);
+        Assert.Equal("novo", window.PageOutputShown);
+
+        window.EndDebug();
+        Assert.False(window.IsPageOutputVisible);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Texto_que_o_php_segura_aparece_sem_repetir_quando_ele_entrega()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\necho 'um';\necho 'dois';\n");
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        window.ShowVariables();
+
+        using var first = new FakeXdebug(new FakeXdebug.Stop(php, 2, Held: "um"), new FakeXdebug.Stop(php, 3, Held: "umdois"));
+        first.Connect(server.Port);
+        await Until(() => window.PausedLine == 2);
+        Assert.Equal("um", window.PageOutputShown);
+
+        window.DebugNext();
+        await Until(() => window.PausedLine == 3);
+        Assert.Equal("umdois", window.PageOutputShown);
+        window.DebugContinue();
+        await first.Finished;
+        await Until(() => !window.IsDebugPaused && window.TerminalInfoText.StartsWith("A página terminou"));
+
+        // A página nova parou antes de escrever: o texto antigo não pode ficar como se fosse dela.
+        using var second = new FakeXdebug(new FakeXdebug.Stop(php, 2, Output: [System.Text.Encoding.UTF8.GetBytes("já foi")], Held: " e guardado"));
+        second.Connect(server.Port);
+        await Until(() => window.PausedLine == 2);
+        Assert.Equal("já foi e guardado", window.PageOutputShown);
+
         window.EndDebug();
         window.Close();
     }

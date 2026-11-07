@@ -12,7 +12,8 @@ namespace Sirius.Core;
 public sealed record DebugVariable(string Name, string FullName, string Type, string Value, IReadOnlyList<DebugVariable> Children);
 
 // Function é null no corpo principal do arquivo. Depth diz quantas funções há até aqui, contando o corpo principal.
-public sealed record DebugPause(string Path, int Line, IReadOnlyList<DebugVariable> Variables, string? Function = null, int Depth = 1);
+// HeldOutput é o que a página escreveu e o PHP ainda segura, por causa do output_buffering.
+public sealed record DebugPause(string Path, int Line, IReadOnlyList<DebugVariable> Variables, string? Function = null, int Depth = 1, string HeldOutput = "");
 
 public readonly record struct DebugFrame(string File, int Line, string? Function, int Depth);
 
@@ -105,6 +106,21 @@ public static class DbgpParser
     public static IEnumerable<DebugVariable> Superglobals(XElement response) =>
         Variables(response).Where(v => UsefulSuperglobals.Contains(v.FullName) && v.Children.Count > 0);
 
+    // A resposta de um "eval" que devolve texto. Sem buffer, o PHP devolve false, e aí não há o que mostrar.
+    public static string EvalText(XElement response)
+    {
+        if (response.Element(Protocol + "property") is not { } property || (string?)property.Attribute("type") != "string")
+            return "";
+        try
+        {
+            return Encoding.UTF8.GetString(Convert.FromBase64String(property.Value.Trim()));
+        }
+        catch (FormatException)
+        {
+            return "";
+        }
+    }
+
     // Lê a saída de "stack_get": o primeiro é onde o programa está, e os outros são quem chamou.
     public static DebugFrame? TopFrame(XElement response)
     {
@@ -163,6 +179,7 @@ public static class DbgpParser
 public sealed class XdebugServer : IDisposable
 {
     private const int MaxMessageBytes = 32 * 1024 * 1024;
+    private static readonly string ReadHeldOutput = Convert.ToBase64String(Encoding.UTF8.GetBytes("ob_get_contents()"));
 
     private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
     private readonly CancellationTokenSource _stop = new();
@@ -179,6 +196,7 @@ public sealed class XdebugServer : IDisposable
     public event Action<DebugPause>? Paused;
     public event Action? Resumed;
     public event Action? PageEnded;
+    public event Action<string>? OutputWritten;
 
     public void Start()
     {
@@ -246,6 +264,8 @@ public sealed class XdebugServer : IDisposable
     {
         private readonly byte[] _buffer = new byte[8192];
         private readonly Dictionary<(string File, int Line), string> _applied = new();
+        // Um acento pode vir partido entre dois pedaços da saída.
+        private readonly Decoder _output = Encoding.UTF8.GetDecoder();
         private int _bufferStart;
         private int _bufferEnd;
         private int _nextId = 1;
@@ -259,6 +279,8 @@ public sealed class XdebugServer : IDisposable
             await RequestAsync("feature_set -n max_depth -v 3");
             await RequestAsync("feature_set -n max_children -v 100");
             await RequestAsync("feature_set -n max_data -v 4096");
+            // Copia: a saída continua indo para o navegador normalmente.
+            await RequestAsync("stdout -c 1");
             await SyncBreakpointsAsync();
 
             var response = await RequestAsync("run");
@@ -310,7 +332,9 @@ public sealed class XdebugServer : IDisposable
 
             var variables = DbgpParser.Variables(await RequestAsync("context_get -d 0 -c 0"));
             variables.AddRange(DbgpParser.Superglobals(await RequestAsync("context_get -d 0 -c 1")));
-            return new DebugPause(LspParsers.ToPath(frame.File), frame.Line, variables, frame.Function, frame.Depth);
+            // Só lê o buffer, sem esvaziar: mudar o output_buffering faria header() se comportar diferente aqui.
+            var held = DbgpParser.EvalText(await RequestAsync("eval -- " + ReadHeldOutput));
+            return new DebugPause(LspParsers.ToPath(frame.File), frame.Line, variables, frame.Function, frame.Depth, held);
         }
 
         private async Task SyncBreakpointsAsync()
@@ -348,7 +372,27 @@ public sealed class XdebugServer : IDisposable
                 // Avisos do Xdebug podem chegar antes da resposta, como a linha que um ponto assumiu.
                 if (message.Name.LocalName == "response" && (string?)message.Attribute("transaction_id") == id)
                     return message;
+                if (message.Name.LocalName == "stream" && (string?)message.Attribute("type") == "stdout")
+                    ReportOutput(message.Value);
             }
+        }
+
+        private void ReportOutput(string base64)
+        {
+            byte[] bytes;
+            try
+            {
+                bytes = Convert.FromBase64String(base64.Trim());
+            }
+            catch (FormatException)
+            {
+                return; // Perder um pedaço da saída não pode derrubar a depuração.
+            }
+
+            var chars = new char[_output.GetCharCount(bytes, flush: false)];
+            var count = _output.GetChars(bytes, chars, flush: false);
+            if (count > 0)
+                server.OutputWritten?.Invoke(new string(chars, 0, count));
         }
 
         // Cada mensagem vem como: tamanho em texto, zero, o XML, zero.

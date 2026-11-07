@@ -546,6 +546,34 @@ public class LanguageWindowTests
     }
 
     [AvaloniaFact]
+    public async Task F12_funciona_com_o_foco_fora_do_editor()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.php", "x");
+        var other = temp.File("b.php", "um");
+        var (window, server) = Open(temp);
+        server.Definition = _ => new
+        {
+            uri = LspParsers.ToUri(other),
+            range = new { start = new { line = 0, character = 0 }, end = new { line = 0, character = 1 } },
+        };
+        window.OpenFile(path);
+        await Received(server, "textDocument/didOpen");
+        window.Focus();
+        Dispatcher.UIThread.RunJobs();
+
+        window.KeyPressQwerty(PhysicalKey.F12, RawInputModifiers.None);
+        var limit = DateTime.UtcNow.AddSeconds(20);
+        while (window.ActiveDocument?.Name != "b.php")
+        {
+            Assert.True(DateTime.UtcNow < limit, "A definição não abriu.");
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+            Dispatcher.UIThread.RunJobs();
+        }
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Definicao_nao_encontrada_nao_muda_de_arquivo()
     {
         using var temp = new TempFolder();
@@ -557,6 +585,7 @@ public class LanguageWindowTests
         await window.GoToDefinitionAsync();
 
         Assert.Equal("a.php", window.ActiveDocument?.Name);
+        Assert.Contains("cursor", window.StatusText);
         window.Close();
     }
 

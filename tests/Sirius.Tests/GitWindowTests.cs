@@ -224,6 +224,51 @@ public class GitWindowTests
     }
 
     [AvaloniaFact]
+    public async Task Sem_git_no_computador_oferece_instalar_em_vez_de_iniciar()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var window = await Open(temp, config);
+        Assert.True(window.IsGitInitOffered);
+        Assert.False(window.IsGitInstallOffered);
+
+        var installed = false;
+        window.IsGitInstalled = () => installed;
+        window.GitInstallCommand = "exit 0";
+        await window.RefreshGitAsync();
+
+        Assert.Equal("O Git não está instalado", window.GitEmptyTitleText);
+        Assert.False(window.IsGitInitOffered);
+        Assert.True(window.IsGitInstallOffered);
+
+        var offer = window.OfferGitInstallAsync();
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(window.IsDialogOpen);
+        Assert.Contains("exit 0", window.PhpOfferText);
+        window.AnswerDialog(primary: true);
+        await offer;
+
+        installed = true;
+        var limit = DateTime.UtcNow.AddSeconds(20);
+        while (window.StatusText != "Git instalado." || !window.IsGitInitOffered)
+        {
+            Assert.True(DateTime.UtcNow < limit, $"O painel não voltou: {window.StatusText}");
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+            Dispatcher.UIThread.RunJobs();
+        }
+        Assert.False(window.IsGitInstallOffered);
+        window.Close();
+    }
+
+    [Fact]
+    public void Git_instala_por_usuario_e_a_pasta_dele_entra_no_path()
+    {
+        Assert.Contains("Git.Git", ToolPaths.GitInstallCommand);
+        Assert.Contains("--scope user", ToolPaths.GitInstallCommand);
+        Assert.Contains(ToolPaths.Folders, folder => folder.EndsWith(Path.Combine("Programs", "Git", "cmd"), StringComparison.OrdinalIgnoreCase));
+    }
+
+    [AvaloniaFact]
     public async Task Pasta_sem_git_oferece_iniciar_repositorio()
     {
         using var temp = new TempFolder();

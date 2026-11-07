@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using AvaloniaEdit.Document;
 using Sirius.Core;
 using Sirius.Editing;
+using Sirius.Lsp;
 using Sirius.Theming;
 
 namespace Sirius;
@@ -127,6 +128,7 @@ public partial class MainWindow
             ResetHistory();
             GitEmptyPanel.IsVisible = true;
             GitRepoPanel.IsVisible = false;
+            UpdateGitEmptyPanel();
             RefreshTree();
             _gutter.SetLineMarks(null);
             return;
@@ -784,6 +786,46 @@ public partial class MainWindow
         await RefreshGitAsync();
         if (!result.Ok)
             GitEmptyMessage.Text = result.Message;
+    }
+
+    // Trocados nos testes, que nunca instalam nada de verdade.
+    public Func<bool> IsGitInstalled { get; set; } = () => LanguageServerCatalog.FindExecutable("git") is not null;
+    public string? GitInstallCommand { get; set; }
+    public string GitEmptyTitleText => GitEmptyTitle.Text ?? "";
+    public bool IsGitInitOffered => GitInitButton.IsVisible;
+    public bool IsGitInstallOffered => GitInstallButton.IsVisible;
+
+    // Um Windows novo não vem com Git: sem isto, o botão de iniciar não teria como funcionar.
+    private void UpdateGitEmptyPanel()
+    {
+        var installed = IsGitInstalled();
+        GitEmptyTitle.Text = installed ? "Esta pasta não usa Git" : "O Git não está instalado";
+        GitEmptyMessage.Text = installed
+            ? "O Git guarda o histórico do projeto e permite publicar no GitHub."
+            : "O Git guarda o histórico do projeto e permite publicar no GitHub. A Sirius instala para você, sem pedir administrador.";
+        GitInitButton.IsVisible = installed;
+        GitInstallButton.IsVisible = !installed;
+    }
+
+    private void OnGitInstallClick(object? sender, RoutedEventArgs e) => _ = OfferGitInstallAsync();
+
+    public async Task OfferGitInstallAsync()
+    {
+        var command = GitInstallCommand ?? ToolPaths.GitInstallCommand;
+        var choice = await AskAsync("Instalar o Git?",
+            $"O comando vai rodar no terminal:\n\n{command}",
+            "Instalar", null);
+        if (choice != DialogChoice.Primary)
+            return;
+
+        StartTask(command, code =>
+        {
+            _ = RefreshGitAsync();
+            // O status do fim da tarefa é o último a aparecer, por isso vem depois dele.
+            ShowStatus(IsGitInstalled() ? "Git instalado."
+                : code == 0 ? "Instalado, mas a Sirius não encontrou o Git. Reabra a Sirius."
+                : "O Git não foi instalado. Veja a saída no terminal.");
+        });
     }
 
     // Branches

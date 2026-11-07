@@ -268,6 +268,58 @@ public class EmmetTests
     }
 
     [AvaloniaFact]
+    public void Exclamacao_dentro_do_php_explica_por_que_nao_expandiu()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = Open(temp, settings, "a.php", "<?php\n!");
+
+        Tab(window);
+
+        Assert.DoesNotContain("DOCTYPE", Text(window));
+        Assert.Contains("<?php", window.StatusText);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Exclamacao_em_arquivo_sem_html_diz_onde_funciona()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = Open(temp, settings, "a.css", "!");
+
+        Tab(window);
+
+        Assert.DoesNotContain("DOCTYPE", Text(window));
+        Assert.Contains(".html", window.StatusText);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Exclamacao_na_aba_sem_nome_vira_pagina_mas_outras_abreviacoes_nao()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = new MainWindow(new AppSettings(), Path.Combine(settings.Path, "settings.json"), temp.Path);
+        window.Language.IsInstalled = _ => false;
+        window.Show();
+        window.NewUntitled();
+        Dispatcher.UIThread.RunJobs();
+
+        window.KeyTextInput("p");
+        Dispatcher.UIThread.RunJobs();
+        Tab(window);
+        Assert.DoesNotContain("<p>", Text(window));
+
+        window.ActiveDocument!.Document.Text = "!";
+        window.SetCaretOffset(1);
+        Dispatcher.UIThread.RunJobs();
+        Tab(window);
+        Assert.Contains("<!DOCTYPE html>", Text(window));
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public void Tab_expande_e_coloca_o_cursor_no_primeiro_campo()
     {
         using var temp = new TempFolder();

@@ -19,7 +19,12 @@ public sealed record DebugPreparation(bool Cancelled, string? IniFolder);
 public partial class MainWindow
 {
     private const double VariableIndent = 14;
+    private const int MaxPageOutputChars = 20_000;
     private static readonly TimeSpan SiteOpenDelay = TimeSpan.FromMilliseconds(800);
+
+    private readonly System.Text.StringBuilder _pageOutput = new();
+    private string _heldOutput = "";
+    private bool _pageOutputStarted;
 
     private readonly ObservableCollection<VariableRow> _variableRows = new();
     private readonly Dictionary<string, List<int>> _closedBreakpoints = new(StringComparer.OrdinalIgnoreCase);
@@ -43,6 +48,8 @@ public partial class MainWindow
     public string TerminalInfoText => TerminalInfo.Text ?? "";
     public string? LastDebugCommand { get; private set; }
     public string VariablesHintText => VariablesHint.Text ?? "";
+    public string PageOutputShown => PageOutputText.Text ?? "";
+    public bool IsPageOutputVisible => PageOutputBox.IsVisible;
 
     // Trocados nos testes, que nunca baixam o Xdebug de verdade.
     public Func<Task<DebugPreparation>> PrepareXdebug { get; set; } = null!;
@@ -207,6 +214,7 @@ public partial class MainWindow
         server.Paused += pause => dispatcher.Post(() => OnDebugPaused(server, pause));
         server.Resumed += () => dispatcher.Post(() => OnDebugResumed(server));
         server.PageEnded += () => dispatcher.Post(() => OnDebugPageEnded(server));
+        server.OutputWritten += text => dispatcher.Post(() => OnDebugOutput(server, text));
         return server;
     }
 
@@ -245,6 +253,10 @@ public partial class MainWindow
         if (server != _debug)
             return;
 
+        StartPageOutput();
+        _pageOutputStarted = true;
+        _heldOutput = pause.HeldOutput;
+
         _pause = pause;
         _pageWasPaused = true;
         if (File.Exists(pause.Path))
@@ -281,6 +293,36 @@ public partial class MainWindow
         UpdateDebugButtons();
     }
 
+    // O navegador costuma esperar a página terminar para mostrar qualquer coisa. Aqui o echo aparece
+    // na hora, e fica claro que a linha rodou.
+    private void OnDebugOutput(XdebugServer server, string text)
+    {
+        if (server != _debug)
+            return;
+        StartPageOutput();
+        _pageOutputStarted = true;
+        _pageOutput.Append(text);
+        if (_pageOutput.Length > MaxPageOutputChars)
+            _pageOutput.Remove(0, _pageOutput.Length - MaxPageOutputChars);
+        UpdatePageOutput();
+    }
+
+    // O texto da página anterior fica à vista até a nova escrever ou parar.
+    private void StartPageOutput()
+    {
+        if (_pageOutputStarted)
+            return;
+        _pageOutput.Clear();
+        _heldOutput = "";
+    }
+
+    private void UpdatePageOutput()
+    {
+        PageOutputText.Text = _pageOutput + _heldOutput;
+        PageOutputBox.IsVisible = _showingVariables && PageOutputText.Text.Length > 0;
+        Dispatcher.UIThread.Post(() => PageOutputScroll.ScrollToEnd(), DispatcherPriority.Background);
+    }
+
     private void OnDebugPageEnded(XdebugServer server)
     {
         if (server != _debug)
@@ -292,6 +334,9 @@ public partial class MainWindow
         if (_pageWasPaused)
             TerminalInfo.Text = "A página terminou. Recarregue no navegador para parar de novo";
         _pageWasPaused = false;
+        // No fim, o PHP entrega o que segurava, e esse texto já veio pela saída.
+        _heldOutput = "";
+        _pageOutputStarted = false;
         RefreshVariableRows();
         UpdateDebugButtons();
     }
@@ -304,6 +349,9 @@ public partial class MainWindow
         _debug = null;
         _pause = null;
         _previousValues.Clear();
+        _pageOutput.Clear();
+        _heldOutput = "";
+        _pageOutputStarted = false;
         VariablesTabButton.IsVisible = false;
         UpdateDebugButtons();
         CodeEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Background);
@@ -340,6 +388,8 @@ public partial class MainWindow
     {
         if (_pause is { Depth: > 1 })
             _debug?.StepOut();
+        else if (_pause is not null)
+            ShowStatus("Esta linha não está dentro de uma função. Use Próxima ou Continuar.");
     }
 
     // Dica ao parar o mouse: só no arquivo da parada, onde os nomes valem. Null para deixar as outras dicas.
@@ -378,6 +428,7 @@ public partial class MainWindow
         VariablesTabButton.Classes.Set("on", false);
         VariablesList.IsVisible = false;
         VariablesHint.IsVisible = false;
+        PageOutputBox.IsVisible = false;
     }
 
     private void OnVariableClick(object? sender, RoutedEventArgs e)
@@ -420,6 +471,7 @@ public partial class MainWindow
 
         if (!_showingVariables)
             return;
+        UpdatePageOutput();
         VariablesList.IsVisible = _variableRows.Count > 0;
         VariablesHint.IsVisible = _variableRows.Count == 0;
         VariablesHint.Text = _pause is not null

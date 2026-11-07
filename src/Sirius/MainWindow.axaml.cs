@@ -791,6 +791,18 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && TryOpenPairOnEnter())
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Back && e.KeyModifiers == KeyModifiers.None && TryDeleteEmptyPair())
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.F5)
         {
             e.Handled = true;
@@ -832,7 +844,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Key == Key.F12 && CodeEditor.TextArea.IsKeyboardFocusWithin)
+        // Sem exigir o foco no editor: quem clicou em um botão ou voltou do navegador ainda olha para o código.
+        if (e.Key == Key.F12 && !TerminalHost.IsFocused)
         {
             e.Handled = true;
             await GoToDefinitionAsync();
