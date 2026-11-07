@@ -11,11 +11,23 @@ namespace Sirius.Core;
 // Fullname é o nome completo para achar no PHP, como $pessoa['nome'].
 public sealed record DebugVariable(string Name, string FullName, string Type, string Value, IReadOnlyList<DebugVariable> Children);
 
+// Um nível da pilha de chamadas: onde está e as variáveis dali. Name é o que a pessoa lê, como "soma()".
+public sealed record DebugStackFrame(string Path, int Line, string Name, IReadOnlyList<DebugVariable> Variables);
+
 // Function é null no corpo principal do arquivo. Depth diz quantas funções há até aqui, contando o corpo principal.
 // HeldOutput é o que a página escreveu e o PHP ainda segura, por causa do output_buffering.
-public sealed record DebugPause(string Path, int Line, IReadOnlyList<DebugVariable> Variables, string? Function = null, int Depth = 1, string HeldOutput = "");
+// Stack começa onde o programa parou e segue por quem chamou, até o arquivo principal.
+public sealed record DebugPause(string Path, int Line, IReadOnlyList<DebugVariable> Variables, string? Function = null, int Depth = 1, string HeldOutput = "",
+    IReadOnlyList<DebugStackFrame>? Stack = null)
+{
+    public IReadOnlyList<DebugStackFrame> Frames =>
+        Stack is { Count: > 0 } stack ? stack : [new DebugStackFrame(Path, Line, DbgpParser.FrameName(Function), Variables)];
+}
 
 public readonly record struct DebugFrame(string File, int Line, string? Function, int Depth);
+
+// Um nível como o Xdebug descreve: Where é "{main}", o nome da função ou "{closure:...}".
+public readonly record struct DbgpFrame(string File, int Line, string? Where, int Level);
 
 // O valor sob o mouse, a partir do texto da linha.
 public static partial class DebugValues
@@ -136,6 +148,30 @@ public static class DbgpParser
         return new DebugFrame(file, line, where is null || where.StartsWith('{') ? null : where, frames.Count);
     }
 
+    // Todos os níveis da pilha, do mais recente ao arquivo principal.
+    public static List<DbgpFrame> Frames(XElement response)
+    {
+        var frames = new List<DbgpFrame>();
+        foreach (var (stack, index) in response.Elements(Protocol + "stack").Select((s, i) => (s, i)))
+        {
+            if (stack.Attribute("filename")?.Value is not { } file || !int.TryParse(stack.Attribute("lineno")?.Value, out var line))
+                continue;
+            var level = int.TryParse(stack.Attribute("level")?.Value, out var value) ? value : index;
+            frames.Add(new DbgpFrame(file, line, (string?)stack.Attribute("where"), level));
+        }
+        return frames;
+    }
+
+    // O nome que a pessoa lê na lista. Métodos chegam como Classe->metodo ou Classe::metodo.
+    public static string FrameName(string? where) => where switch
+    {
+        null or "{main}" => "Arquivo principal",
+        _ when where.StartsWith("{closure", StringComparison.Ordinal) => "Função sem nome",
+        _ when where.StartsWith('{') => where.Trim('{', '}'),
+        "include" or "include_once" or "require" or "require_once" => where,
+        _ => where + "()",
+    };
+
     private static DebugVariable Variable(XElement property)
     {
         var fullName = (string?)property.Attribute("fullname") ?? "";
@@ -179,6 +215,7 @@ public static class DbgpParser
 public sealed class XdebugServer : IDisposable
 {
     private const int MaxMessageBytes = 32 * 1024 * 1024;
+    private const int MaxStackFrames = 20;
     private static readonly string ReadHeldOutput = Convert.ToBase64String(Encoding.UTF8.GetBytes("ob_get_contents()"));
 
     private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
@@ -324,18 +361,34 @@ public sealed class XdebugServer : IDisposable
 
         private async Task<DebugPause?> ReadPauseAsync()
         {
-            if (DbgpParser.TopFrame(await RequestAsync("stack_get")) is not { } frame
-                || !frame.File.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+            var stack = await RequestAsync("stack_get");
+            if (DbgpParser.TopFrame(stack) is not { } frame
+                || !IsFile(frame.File))
             {
                 return null; // Código sem arquivo, como um eval: nada para mostrar.
             }
 
             var variables = DbgpParser.Variables(await RequestAsync("context_get -d 0 -c 0"));
-            variables.AddRange(DbgpParser.Superglobals(await RequestAsync("context_get -d 0 -c 1")));
+            // As superglobais são as mesmas em todos os níveis da pilha.
+            var globals = DbgpParser.Superglobals(await RequestAsync("context_get -d 0 -c 1")).ToList();
+            variables.AddRange(globals);
+
+            // Cada nível de quem chamou, com as variáveis de lá. Uma recursão funda para no limite.
+            var frames = new List<DebugStackFrame>();
+            foreach (var level in DbgpParser.Frames(stack).Where(f => IsFile(f.File)).Take(MaxStackFrames))
+            {
+                var locals = level.Level == 0
+                    ? variables
+                    : DbgpParser.Variables(await RequestAsync($"context_get -d {level.Level} -c 0")).Concat(globals).ToList();
+                frames.Add(new DebugStackFrame(LspParsers.ToPath(level.File), level.Line, DbgpParser.FrameName(level.Where), locals));
+            }
+
             // Só lê o buffer, sem esvaziar: mudar o output_buffering faria header() se comportar diferente aqui.
             var held = DbgpParser.EvalText(await RequestAsync("eval -- " + ReadHeldOutput));
-            return new DebugPause(LspParsers.ToPath(frame.File), frame.Line, variables, frame.Function, frame.Depth, held);
+            return new DebugPause(LspParsers.ToPath(frame.File), frame.Line, variables, frame.Function, frame.Depth, held, frames);
         }
+
+        private static bool IsFile(string uri) => uri.StartsWith("file:", StringComparison.OrdinalIgnoreCase);
 
         private async Task SyncBreakpointsAsync()
         {

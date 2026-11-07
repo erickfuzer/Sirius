@@ -26,6 +26,8 @@ public sealed record HistoryNoteRow(string Text);
 
 public sealed record HistoryMoreRow(string Text);
 
+public sealed record FrameRow(string Name, string Location, string Tip, IBrush Background, int Index);
+
 public sealed record VariableRow(string Name, string Value, string Type, Thickness Indent, Geometry? Chevron, IBrush Background, Sirius.Core.DebugVariable Variable);
 
 public sealed record ProblemRow(string Message, string Location, IBrush Brush, string FullPath, int Line, int Character);

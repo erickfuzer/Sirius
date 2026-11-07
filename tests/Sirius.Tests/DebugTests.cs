@@ -294,7 +294,9 @@ public class DebugValuesTests
 // Faz o papel do Xdebug: conecta no servidor e responde pelo mesmo protocolo.
 public sealed class FakeXdebug : IDisposable
 {
-    public sealed record Stop(string File, int Line, string Variables = "", string Globals = "", string? Function = null, byte[][]? Output = null, string? Held = null);
+    // CallerVariables e CallerLine descrevem quem chamou a função, no nível 1 da pilha.
+    public sealed record Stop(string File, int Line, string Variables = "", string Globals = "", string? Function = null, byte[][]? Output = null, string? Held = null,
+        string? CallerVariables = null, int CallerLine = 1, string? CallerFile = null);
 
     private readonly TcpClient _client = new();
     private readonly Queue<Stop> _stops;
@@ -374,11 +376,13 @@ public sealed class FakeXdebug : IDisposable
                 var uri = new Uri(_current!.File).AbsoluteUri;
                 inner = _current.Function is { } function
                     ? $"<stack where=\"{function}\" level=\"0\" type=\"file\" filename=\"{uri}\" lineno=\"{_current.Line}\"></stack>" +
-                      $"<stack where=\"{{main}}\" level=\"1\" type=\"file\" filename=\"{uri}\" lineno=\"1\"></stack>"
+                      $"<stack where=\"{{main}}\" level=\"1\" type=\"file\" filename=\"{new Uri(_current.CallerFile ?? _current.File).AbsoluteUri}\" lineno=\"{_current.CallerLine}\"></stack>"
                     : $"<stack where=\"{{main}}\" level=\"0\" type=\"file\" filename=\"{uri}\" lineno=\"{_current.Line}\"></stack>";
                 break;
             case "context_get":
-                inner = command.Contains("-c 1") ? _current!.Globals : _current!.Variables;
+                inner = command.Contains("-c 1") ? _current!.Globals
+                    : command.Contains("-d 1 ") && _current!.CallerVariables is { } caller ? caller
+                    : _current!.Variables;
                 break;
             case "eval":
                 // Sem buffer aberto, ob_get_contents() devolve false.
@@ -653,6 +657,50 @@ public class XdebugServerTests
         server.Dispose();
 
         await php.Finished.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task Le_as_variaveis_de_cada_nivel_da_pilha()
+    {
+        var file = @"C:\a.php";
+        using var server = new XdebugServer();
+        var pauses = new ConcurrentQueue<DebugPause>();
+        server.Paused += pauses.Enqueue;
+        server.Start();
+        var post = "<property name=\"$_POST\" fullname=\"$_POST\" type=\"array\" numchildren=\"1\">" + FakeXdebug.Int("a", 1).Replace("fullname=\"a\"", "fullname=\"$_POST['a']\"") + "</property>";
+        using var php = new FakeXdebug(new FakeXdebug.Stop(file, 3, FakeXdebug.Int("$x", 5), post, Function: "calcular",
+            CallerVariables: FakeXdebug.Int("$base", 7), CallerLine: 6, CallerFile: @"C:\index.php"));
+        php.Connect(server.Port);
+        await Until(() => pauses.Count == 1);
+
+        var frames = pauses.Single().Frames;
+        Assert.Equal(2, frames.Count);
+        Assert.Equal((@"C:\a.php", 3, "calcular()"), (frames[0].Path, frames[0].Line, frames[0].Name));
+        Assert.Equal((@"C:\index.php", 6, "Arquivo principal"), (frames[1].Path, frames[1].Line, frames[1].Name));
+        Assert.Equal(["$x", "$_POST"], frames[0].Variables.Select(v => v.Name));
+        Assert.Equal(["$base", "$_POST"], frames[1].Variables.Select(v => v.Name));
+        Assert.Contains(php.Commands, c => c.StartsWith("context_get") && c.Contains("-d 1 -c 0"));
+
+        server.Continue();
+        await php.Finished;
+    }
+
+    [Theory]
+    [InlineData(null, "Arquivo principal")]
+    [InlineData("{main}", "Arquivo principal")]
+    [InlineData("calcular", "calcular()")]
+    [InlineData("Carrinho->total", "Carrinho->total()")]
+    [InlineData("{closure:C:\\a.php:3-5}", "Função sem nome")]
+    [InlineData("require_once", "require_once")]
+    public void Nome_de_cada_nivel_da_pilha(string? where, string expected) =>
+        Assert.Equal(expected, DbgpParser.FrameName(where));
+
+    [Fact]
+    public void Parada_antiga_sem_pilha_vira_um_nivel_so()
+    {
+        var pause = new DebugPause(@"C:\a.php", 2, [], "f", 2);
+        var frame = Assert.Single(pause.Frames);
+        Assert.Equal("f()", frame.Name);
     }
 }
 
@@ -1105,6 +1153,71 @@ public class DebugWindowTests
         Assert.Contains("função", window.StatusText);
         Assert.DoesNotContain(engine.Commands, command => command.StartsWith("step_out"));
         window.EndDebug();
+        window.Close();
+    }
+
+    private const string StackCode = "<?php\nfunction calcular($x) {\n    $y = $x * 2;\n    return $y;\n}\n$base = 7; $total = calcular($base);\necho $total;\n";
+
+    [AvaloniaFact]
+    public async Task Pilha_mostra_quem_chamou_e_as_variaveis_de_la()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", StackCode);
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        using var engine = new FakeXdebug(
+            new FakeXdebug.Stop(php, 3, FakeXdebug.Int("$x", 5), Function: "calcular",
+                CallerVariables: "<property name=\"$total\" fullname=\"$total\" type=\"uninitialized\"></property>" + FakeXdebug.Int("$base", 7), CallerLine: 6),
+            new FakeXdebug.Stop(php, 4, FakeXdebug.Int("$x", 5) + FakeXdebug.Int("$y", 10), Function: "calcular", CallerLine: 6));
+        engine.Connect(server.Port);
+        await Until(() => window.PausedLine == 3);
+
+        Assert.True(window.AreFramesVisible);
+        Assert.Equal(["calcular()", "Arquivo principal"], window.FrameRows.Select(r => r.Name));
+        Assert.Equal(["a.php:3", "a.php:6"], window.FrameRows.Select(r => r.Location));
+        Assert.Contains(window.VariableRows, r => r.Name == "$x");
+        Assert.NotNull(window.DebugTipAt(StackCode.IndexOf("$x * 2", StringComparison.Ordinal)));
+
+        // O clique no nível de baixo leva à linha que chamou, com as variáveis de lá.
+        var caller = window.GetVisualDescendants().OfType<Avalonia.Controls.Button>().First(b => b.DataContext is FrameRow { Index: 1 });
+        caller.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(1, window.SelectedFrameIndex);
+        Assert.Equal(6, window.CaretLine);
+        Assert.Equal(3, window.PausedLine);
+        Assert.Equal(["$base"], window.VariableRows.Select(r => r.Name));
+        Assert.StartsWith("Vendo quem chamou: Arquivo principal", window.TerminalInfoText);
+        Assert.StartsWith("$base = 7", window.DebugTipAt(StackCode.IndexOf("$base)", StringComparison.Ordinal)));
+        Assert.Null(window.DebugTipAt(StackCode.IndexOf("$x * 2", StringComparison.Ordinal)));
+
+        // A próxima parada volta para onde o programa está.
+        window.DebugNext();
+        await Until(() => window.PausedLine == 4);
+        Assert.Equal(0, window.SelectedFrameIndex);
+        Assert.Contains(window.VariableRows, r => r.Name == "$y");
+        Assert.Contains("linha 4", window.TerminalInfoText);
+        window.EndDebug();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task No_arquivo_principal_a_pilha_fica_escondida()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", StackCode);
+        var window = Open(temp, config);
+        var server = window.StartDebugServerForTest();
+        using var engine = new FakeXdebug(new FakeXdebug.Stop(php, 6));
+        engine.Connect(server.Port);
+        await Until(() => window.PausedLine == 6);
+
+        Assert.False(window.AreFramesVisible);
+        Assert.Empty(window.FrameRows);
+        window.EndDebug();
+        Assert.False(window.AreFramesVisible);
         window.Close();
     }
 

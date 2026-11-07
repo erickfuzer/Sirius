@@ -450,16 +450,34 @@
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
                                         </ScrollViewer>
-                                        <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
-                                        <DockPanel x:Name="PageOutputBox" Grid.Column="1" Width="280" Margin="12,8,0,4" IsVisible="False">
+                                        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto">
+                                        <DockPanel x:Name="FramesBox" Grid.Column="0" Width="230" Margin="0,8,12,4" IsVisible="False">
+                                            <TextBlock DockPanel.Dock="Top" Text="Chamadas" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CapsuleInk}" Margin="4,0,0,2" />
+                                            <ScrollViewer>
+                                                <ItemsControl x:Name="FramesList">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="s:FrameRow">
+                                                            <Button Classes="flat terminaltab" Height="22" CornerRadius="6" Padding="4,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                                    Background="{Binding Background}" Click="OnFrameClick" ToolTip.Tip="{Binding Tip}">
+                                                                <Grid ColumnDefinitions="*,Auto">
+                                                                    <TextBlock Grid.Column="0" Text="{Binding Name}" FontFamily="{DynamicResource CodeFont}" Foreground="{DynamicResource CapsuleInk}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                                    <TextBlock Grid.Column="1" Text="{Binding Location}" Margin="10,0,0,0" FontFamily="{DynamicResource CodeFont}" FontSize="11" Foreground="{DynamicResource CapsuleMuted}" VerticalAlignment="Center" />
+                                                                </Grid>
+                                                            </Button>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </DockPanel>
+                                        <DockPanel x:Name="PageOutputBox" Grid.Column="2" Width="280" Margin="12,8,0,4" IsVisible="False">
                                             <TextBlock DockPanel.Dock="Top" Text="A página escreveu até aqui" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource CapsuleInk}" />
                                             <TextBlock DockPanel.Dock="Top" Text="O navegador só costuma mostrar quando ela termina." FontSize="11" Foreground="{DynamicResource CapsuleMuted}" TextWrapping="Wrap" />
                                             <ScrollViewer x:Name="PageOutputScroll" Margin="0,4,0,0">
                                                 <TextBlock x:Name="PageOutputText" FontFamily="{DynamicResource CodeFont}" FontSize="12" Foreground="{DynamicResource CapsuleInk}" TextWrapping="Wrap" />
                                             </ScrollViewer>
                                         </DockPanel>
-                                        <TextBlock x:Name="VariablesHint" Grid.Column="0" Margin="10,10,0,0" FontSize="12" IsVisible="False" Foreground="{DynamicResource CapsuleMuted}" TextWrapping="Wrap" />
-                                        <ScrollViewer x:Name="VariablesScroll" Grid.Column="0" Margin="0,6,0,4" IsVisible="{Binding #VariablesList.IsVisible}">
+                                        <TextBlock x:Name="VariablesHint" Grid.Column="1" Margin="10,10,0,0" FontSize="12" IsVisible="False" Foreground="{DynamicResource CapsuleMuted}" TextWrapping="Wrap" />
+                                        <ScrollViewer x:Name="VariablesScroll" Grid.Column="1" Margin="0,6,0,4" IsVisible="{Binding #VariablesList.IsVisible}">
                                             <ItemsControl x:Name="VariablesList" IsVisible="False">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="s:VariableRow">

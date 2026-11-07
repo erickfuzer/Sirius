@@ -27,6 +27,8 @@ public partial class MainWindow
     private bool _pageOutputStarted;
 
     private readonly ObservableCollection<VariableRow> _variableRows = new();
+    private readonly ObservableCollection<FrameRow> _frameRows = new();
+    private int _frameIndex;
     private readonly Dictionary<string, List<int>> _closedBreakpoints = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _expandedVariables = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _previousValues = new(StringComparer.Ordinal);
@@ -50,6 +52,13 @@ public partial class MainWindow
     public string VariablesHintText => VariablesHint.Text ?? "";
     public string PageOutputShown => PageOutputText.Text ?? "";
     public bool IsPageOutputVisible => PageOutputBox.IsVisible;
+    public IReadOnlyList<FrameRow> FrameRows => _frameRows;
+    public bool AreFramesVisible => FramesBox.IsVisible;
+    public int SelectedFrameIndex => _frameIndex;
+
+    // O nível da pilha que a pessoa está olhando. O primeiro é onde o programa parou.
+    private DebugStackFrame? SelectedFrame =>
+        _pause?.Frames is { Count: > 0 } frames ? frames[Math.Clamp(_frameIndex, 0, frames.Count - 1)] : null;
 
     // Trocados nos testes, que nunca baixam o Xdebug de verdade.
     public Func<Task<DebugPreparation>> PrepareXdebug { get; set; } = null!;
@@ -59,6 +68,7 @@ public partial class MainWindow
     {
         PrepareXdebug = PrepareRealXdebugAsync;
         VariablesList.ItemsSource = _variableRows;
+        FramesList.ItemsSource = _frameRows;
         _gutter.BreakpointClicked += ToggleBreakpoint;
         CodeEditor.TextArea.TextView.BackgroundRenderers.Add(new PausedLineRenderer(() => ActivePausedLine));
     }
@@ -258,16 +268,68 @@ public partial class MainWindow
         _heldOutput = pause.HeldOutput;
 
         _pause = pause;
+        _frameIndex = 0;
         _pageWasPaused = true;
         if (File.Exists(pause.Path))
             GoToLocation(pause.Path, pause.Line, 1);
         CodeEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Background);
         ShowVariables();
-        var function = pause.Function is null ? "" : $", em {pause.Function}()";
-        TerminalInfo.Text = $"Parado em {Path.GetFileName(pause.Path)}, linha {pause.Line}{function}";
+        ShowPausedInfo();
         UpdateDebugButtons();
 
         BringToFrontForPause();
+    }
+
+    private void ShowPausedInfo()
+    {
+        if (_pause is not { } pause)
+            return;
+        if (_frameIndex > 0 && SelectedFrame is { } frame)
+        {
+            TerminalInfo.Text = $"Vendo quem chamou: {frame.Name}, em {Path.GetFileName(frame.Path)}, linha {frame.Line}";
+            return;
+        }
+        var function = pause.Function is null ? "" : $", em {pause.Function}()";
+        TerminalInfo.Text = $"Parado em {Path.GetFileName(pause.Path)}, linha {pause.Line}{function}";
+    }
+
+    // Pilha de chamadas
+
+    private void OnFrameClick(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is FrameRow row)
+            SelectFrame(row.Index);
+    }
+
+    // Leva à linha daquele nível e mostra as variáveis de lá. O programa continua parado onde estava.
+    public void SelectFrame(int index)
+    {
+        if (_pause is not { } pause || index < 0 || index >= pause.Frames.Count)
+            return;
+        _frameIndex = index;
+        var frame = pause.Frames[index];
+        if (File.Exists(frame.Path))
+            GoToLocation(frame.Path, frame.Line, 1);
+        ShowPausedInfo();
+        RefreshVariableRows();
+    }
+
+    private void RefreshFrameRows()
+    {
+        _frameRows.Clear();
+        var frames = _pause?.Frames ?? [];
+        // Só o arquivo principal não é uma pilha: a lista só ocuparia espaço.
+        if (frames.Count > 1)
+        {
+            var palette = Palette.Current;
+            for (var i = 0; i < frames.Count; i++)
+            {
+                var frame = frames[i];
+                _frameRows.Add(new FrameRow(frame.Name, $"{Path.GetFileName(frame.Path)}:{frame.Line}", $"{frame.Path}, linha {frame.Line}",
+                    i == _frameIndex ? palette.CapsuleMark : Brushes.Transparent, i));
+            }
+        }
+        FramesBox.IsVisible = _showingVariables && _frameRows.Count > 0;
     }
 
     // A pessoa está no navegador, olhando a página carregar: a Sirius precisa aparecer.
@@ -395,10 +457,12 @@ public partial class MainWindow
     // Dica ao parar o mouse: só no arquivo da parada, onde os nomes valem. Null para deixar as outras dicas.
     public string? DebugTipAt(int offset)
     {
-        if (ActivePausedLine is null || ActiveDocument is not { } document)
+        // Vale o nível da pilha que está à vista: em quem chamou, os nomes são os de lá.
+        if (SelectedFrame is not { } frame || ActiveDocument is not { } document
+            || !string.Equals(document.FullPath, frame.Path, StringComparison.OrdinalIgnoreCase))
             return null;
         var line = document.Document.GetLineByOffset(offset);
-        return DebugValues.At(_pause!.Variables, document.Document.GetText(line), offset - line.Offset) is { } variable
+        return DebugValues.At(frame.Variables, document.Document.GetText(line), offset - line.Offset) is { } variable
             ? DebugValues.Describe(variable)
             : null;
     }
@@ -429,6 +493,7 @@ public partial class MainWindow
         VariablesList.IsVisible = false;
         VariablesHint.IsVisible = false;
         PageOutputBox.IsVisible = false;
+        FramesBox.IsVisible = false;
     }
 
     private void OnVariableClick(object? sender, RoutedEventArgs e)
@@ -463,12 +528,14 @@ public partial class MainWindow
     private void RefreshVariableRows()
     {
         _variableRows.Clear();
-        if (_pause is not null)
+        if (SelectedFrame is { } frame)
         {
-            // Na primeira parada da página tudo é novidade, e pintar tudo não diz nada.
-            AddVariableRows(_pause.Variables, 0, highlight: _previousValues.Count > 0);
+            // Na primeira parada da página tudo é novidade, e pintar tudo não diz nada. O que mudou
+            // só faz sentido onde o programa está, e não em quem chamou.
+            AddVariableRows(frame.Variables, 0, highlight: _previousValues.Count > 0 && _frameIndex == 0);
         }
 
+        RefreshFrameRows();
         if (!_showingVariables)
             return;
         UpdatePageOutput();
