@@ -37,6 +37,7 @@ public sealed class FakeLanguageServer : IDisposable
     public Func<JsonElement, object?> Rename { get; set; } = _ => null;
     public Func<JsonElement, object?> Hover { get; set; } = _ => null;
     public Func<JsonElement, object?> Formatting { get; set; } = _ => null;
+    public Func<JsonElement, object?> References { get; set; } = _ => null;
 
     public List<(string Method, JsonElement Parameters)> Notifications
     {
@@ -81,6 +82,7 @@ public sealed class FakeLanguageServer : IDisposable
         "textDocument/rename" => Rename(parameters),
         "textDocument/hover" => Hover(parameters),
         "textDocument/formatting" => Formatting(parameters),
+        "textDocument/references" => References(parameters),
         _ => null,
     };
 
@@ -97,6 +99,7 @@ public sealed class FakeLanguageServer : IDisposable
                 hoverProvider = true,
                 renameProvider = true,
                 documentFormattingProvider = true,
+                referencesProvider = true,
             },
         };
     }
@@ -658,6 +661,120 @@ public class LanguageWindowTests
         document.Document.UndoStack.Undo();
         Assert.Equal("<?php\nif(1){\necho 1;\n}\n", document.Document.Text);
         window.Close();
+    }
+
+    private static object Use(string path, int line, int start, int end) => new { uri = LspParsers.ToUri(path), range = Range(line, start, end) };
+
+    [AvaloniaFact]
+    public async Task Usos_aparecem_no_painel_com_o_arquivo_aberto_primeiro()
+    {
+        using var temp = new TempFolder();
+        var other = temp.File("a.php", "<?php\n$x = soma(1, 2);\n");
+        var path = temp.File("b.php", "<?php\nfunction soma($a, $b) {\n    return $a + $b;\n}\n");
+        var (window, server) = Open(temp);
+        JsonElement? asked = null;
+        server.References = parameters =>
+        {
+            asked = parameters;
+            return new[] { Use(other, 1, 5, 9), Use(path, 1, 9, 13) };
+        };
+        window.OpenFile(path);
+        await Received(server, "textDocument/didOpen");
+        // Uma mudança ainda não salva aparece no trecho mostrado.
+        window.ActiveDocument!.Document.Insert(window.ActiveDocument.Document.TextLength, "// fim");
+        window.SetCaretOffset("<?php\nfunction so".Length);
+
+        await window.FindUsesAsync();
+
+        // Do começo do nome, e com a própria função incluída.
+        Assert.Equal(9, asked!.Value.GetProperty("position").GetProperty("character").GetInt32());
+        Assert.True(asked.Value.GetProperty("context").GetProperty("includeDeclaration").GetBoolean());
+        Assert.True(window.IsSearchOpen);
+        Assert.Equal(["b.php", "a.php"], window.SearchRows.Where(r => r.IsFile).Select(r => r.Title));
+        var first = window.SearchRows.First(r => r.IsHit);
+        Assert.Equal(("function ", "soma", "($a, $b) {"), (first.Before, first.Match, first.After));
+        Assert.Equal("2 usos de soma em 2 arquivos", window.SearchStatusText);
+
+        // A busca de texto não toma o lugar dos usos.
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("2 usos de soma em 2 arquivos", window.SearchStatusText);
+
+        // Substituir trocaria texto igual fora da lista: fica escondido e não age.
+        Assert.False(window.IsReplaceVisible);
+        await window.ReplaceAllAsync("total");
+        Assert.Contains("soma(1, 2)", File.ReadAllText(other));
+
+        window.ActivateSearchRow(window.SearchRows.ToList().FindIndex(r => r.IsHit && r.FullPath == other), keepSearchFocus: false);
+        Assert.Equal("a.php", window.ActiveDocument?.Name);
+        Assert.Equal(2, window.CaretLine);
+        Assert.Equal("soma", window.SelectedText);
+
+        // Escrever na busca volta à busca de texto, com o substituir.
+        window.OpenSearch();
+        Dispatcher.UIThread.RunJobs();
+        window.KeyTextInput("x");
+        await Until(() => window.IsReplaceVisible && !window.SearchStatusText.Contains("usos"));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Sem_usos_ou_fora_de_um_nome_avisa()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.php", "<?php\nsoma( );\n");
+        var (window, server) = Open(temp);
+        window.OpenFile(path);
+        await Received(server, "textDocument/didOpen");
+
+        window.SetCaretOffset(7);
+        await window.FindUsesAsync();
+        Assert.Equal("Nenhum uso de soma encontrado.", window.StatusText);
+        Assert.False(window.IsSearchOpen);
+
+        window.SetCaretOffset(11); // Entre o ( e o espaço.
+        await window.FindUsesAsync();
+        Assert.Contains("Ponha o cursor", window.StatusText);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Shift_F12_encontra_os_usos()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.php", "<?php\nsoma();\n");
+        var (window, server) = Open(temp);
+        server.References = _ => new[] { Use(path, 1, 0, 4) };
+        window.OpenFile(path);
+        await Received(server, "textDocument/didOpen");
+        window.SetCaretOffset(8);
+
+        window.KeyPressQwerty(PhysicalKey.F12, RawInputModifiers.Shift);
+        await Until(() => window.IsSearchOpen);
+
+        Assert.Equal("1 uso de soma em 1 arquivo", window.SearchStatusText);
+        Assert.Equal("a.php", window.ActiveDocument?.Name);
+        window.Close();
+    }
+
+    [Fact]
+    public void Le_a_lista_de_usos()
+    {
+        var list = LspParsers.References(JsonDocument.Parse("""
+            [{"uri":"file:///c%3A/p/a.php","range":{"start":{"line":1,"character":2},"end":{"line":1,"character":6}}},{"semuri":1}]
+            """).RootElement);
+        Assert.Equal(new LspReference(@"C:\p\a.php", 1, 2, 1, 6), Assert.Single(list));
+        Assert.Empty(LspParsers.References(JsonDocument.Parse("null").RootElement));
+    }
+
+    [Fact]
+    public void Trecho_de_cada_uso_vem_da_linha_certa()
+    {
+        var hits = ProjectSearch.HitsAt("a.php", "a\r\n  x = soma(1);\nsoma", [(2, 0, 4), (1, 6, 4), (9, 0, 1)]);
+
+        Assert.Equal(2, hits.Count);
+        Assert.Equal((2, "x = ", "soma", "(1);"), (hits[0].Line, hits[0].Before, hits[0].Match, hits[0].After));
+        Assert.Equal((3, 0, "soma"), (hits[1].Line, hits[1].Column, hits[1].Match));
     }
 
     [AvaloniaFact]

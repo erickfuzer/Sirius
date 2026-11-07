@@ -27,6 +27,9 @@ public readonly record struct LspRange(int StartLine, int StartCharacter, int En
 
 public sealed record LspLocation(string Path, int Line, int Character);
 
+// Um uso de um nome, com linha e caractere a partir de zero, como o servidor manda.
+public sealed record LspReference(string Path, int Line, int Character, int EndLine, int EndCharacter);
+
 public sealed record LspTextEdit(int StartLine, int StartCharacter, int EndLine, int EndCharacter, string NewText);
 
 // Lê as respostas do servidor, que aceitam vários formatos pela especificação.
@@ -207,6 +210,23 @@ public static partial class LspParsers
         if (first.TryGetProperty("uri", out var uri) && TryRange(first, "range", out var range))
             return new LspLocation(ToPath(uri.GetString()!), range.StartLine, range.StartCharacter);
         return null;
+    }
+
+    // A resposta de "references": uma lista de lugares, cada um com o trecho que é o nome.
+    public static List<LspReference> References(JsonElement result)
+    {
+        var references = new List<LspReference>();
+        if (result.ValueKind != JsonValueKind.Array)
+            return references;
+        foreach (var item in result.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.Object && item.TryGetProperty("uri", out var uri) && uri.GetString() is { } text
+                && TryRange(item, "range", out var range))
+            {
+                references.Add(new LspReference(ToPath(text), range.StartLine, range.StartCharacter, range.EndLine, range.EndCharacter));
+            }
+        }
+        return references;
     }
 
     public static string? Hover(JsonElement result)

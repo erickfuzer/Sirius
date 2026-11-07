@@ -123,6 +123,23 @@ public static class ProjectSearch
         return (-1, 0);
     }
 
+    // Os usos que o servidor de linguagem achou, no mesmo formato da busca, com o trecho tirado do texto atual.
+    // Line e Character começam do zero, como o servidor manda.
+    public static List<SearchHit> HitsAt(string path, string text, IEnumerable<(int Line, int Character, int Length)> spots)
+    {
+        var lines = text.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
+        var hits = new List<SearchHit>();
+        foreach (var (line, character, length) in spots.OrderBy(s => s.Line).ThenBy(s => s.Character))
+        {
+            if (line < 0 || line >= lines.Length)
+                continue;
+            var content = lines[line];
+            var column = Math.Clamp(character, 0, content.Length);
+            hits.Add(MakeHit(path, line + 1, content, column, Math.Clamp(length, 0, content.Length - column)));
+        }
+        return hits;
+    }
+
     private static SearchHit MakeHit(string path, int lineNumber, string line, int column, int length)
     {
         var indent = 0;

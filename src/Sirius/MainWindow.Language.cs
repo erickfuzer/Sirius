@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using AvaloniaEdit.CodeCompletion;
 using AvaloniaEdit.Rendering;
+using Sirius.Core;
 using Sirius.Editing;
 using Sirius.Lsp;
 using Sirius.Theming;
@@ -460,6 +461,105 @@ public partial class MainWindow
         {
             ShowStatus("Não foi possível renomear este símbolo.");
         }
+    }
+
+    // Encontrar todos os usos
+
+    public async Task FindUsesAsync()
+    {
+        if (ActiveDocument is not { IsImage: false } document)
+            return;
+        if (_language.ClientForDocument(document) is not { SupportsReferences: true } client)
+        {
+            ShowStatus("Encontrar os usos não está disponível neste arquivo.");
+            return;
+        }
+
+        var text = document.Document;
+        var caret = CodeEditor.TextArea.Caret.Offset;
+        var start = WordStart(text, caret);
+        var end = caret;
+        while (end < text.TextLength && IsWordChar(text.GetCharAt(end)))
+            end++;
+        var word = text.GetText(start, end - start);
+        if (word.Length == 0)
+        {
+            ShowStatus("Ponha o cursor no nome de uma função ou variável.");
+            return;
+        }
+
+        // Do começo do nome: logo depois dele, alguns servidores já olham para o que vem a seguir.
+        var (line, character) = LspPositions.FromOffset(text, start);
+        List<LspReference> references;
+        using (var cancel = new CancellationTokenSource(RequestTimeout))
+        {
+            try
+            {
+                references = await client.ReferencesAsync(document.FullPath, line, character, cancel.Token);
+            }
+            catch (Exception e) when (e is LspException or OperationCanceledException)
+            {
+                ShowStatus("O servidor não respondeu a tempo.");
+                return;
+            }
+        }
+        if (references.Count == 0)
+        {
+            ShowStatus($"Nenhum uso de {word} encontrado.");
+            return;
+        }
+        ShowUses(word, document.FullPath, references);
+    }
+
+    // O nome cujos usos estão no painel. O aviso de texto mudado chega depois, e não pode trocá-los pela busca de texto.
+    private string? _usesQuery;
+
+    private void OnSearchTextChanged()
+    {
+        if (_usesQuery is not null && SearchInput.Text == _usesQuery)
+            return;
+        _usesQuery = null;
+        ReplaceBar.IsVisible = true;
+        UsesHint.IsVisible = false;
+        ScheduleSearch();
+    }
+
+    public bool IsReplaceVisible => ReplaceBar.IsVisible;
+
+    // No painel da busca, arquivo por arquivo, com o arquivo aberto primeiro.
+    private void ShowUses(string word, string currentPath, List<LspReference> references)
+    {
+        var hits = new List<SearchHit>();
+        var files = 0;
+        foreach (var group in references
+                     .GroupBy(r => r.Path, StringComparer.OrdinalIgnoreCase)
+                     .OrderBy(g => string.Equals(g.Key, currentPath, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                     .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            // O texto da aba, se estiver aberta, porque pode ter mudanças ainda não salvas.
+            var content = _documents.Find(d => string.Equals(d.FullPath, group.Key, StringComparison.OrdinalIgnoreCase))?.Document.Text
+                ?? ProjectSearch.LoadOrNull(group.Key)?.Text;
+            if (content is null)
+                continue;
+            var spots = group.Select(r => (r.Line, r.Character, r.EndLine == r.Line ? r.EndCharacter - r.Character : int.MaxValue));
+            var found = ProjectSearch.HitsAt(group.Key, content, spots);
+            if (found.Count == 0)
+                continue;
+            hits.AddRange(found);
+            files++;
+        }
+
+        OpenSearch();
+        // O texto da busca mostra o nome, sem disparar uma busca de texto por cima destes resultados.
+        _usesQuery = word;
+        SearchInput.Text = word;
+        _searchDelay.Stop();
+        _searchCancel?.Cancel();
+        ShowSearchResult(new SearchResult(hits, files, false, false));
+        SearchStatus.Text = $"{(hits.Count == 1 ? "1 uso" : $"{hits.Count} usos")} de {word} em {(files == 1 ? "1 arquivo" : $"{files} arquivos")}";
+        // Substituir trocaria todo texto igual, inclusive o que não está na lista. Para o nome, o certo é renomear.
+        ReplaceBar.IsVisible = false;
+        UsesHint.IsVisible = true;
     }
 
     private void ApplyWorkspaceEdit(Dictionary<string, List<LspTextEdit>> edits, OpenDocument original)

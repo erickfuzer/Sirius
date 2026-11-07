@@ -24,6 +24,7 @@ public sealed class LanguageClient : IDisposable
     public bool SupportsHover { get; private set; }
     public bool SupportsRename { get; private set; }
     public bool SupportsFormatting { get; private set; }
+    public bool SupportsReferences { get; private set; }
 
     // Chegam na thread de leitura da conexão.
     public event Action<string, List<LspDiagnostic>>? DiagnosticsPublished;
@@ -51,6 +52,7 @@ public sealed class LanguageClient : IDisposable
                     definition = new { linkSupport = false },
                     rename = new { prepareSupport = false },
                     formatting = new { dynamicRegistration = false },
+                    references = new { dynamicRegistration = false },
                 },
                 workspace = new { workspaceFolders = true, configuration = true },
             },
@@ -72,6 +74,7 @@ public sealed class LanguageClient : IDisposable
         SupportsRename = IsEnabled(capabilities, "renameProvider");
         SupportsCompletion = IsEnabled(capabilities, "completionProvider");
         SupportsFormatting = IsEnabled(capabilities, "documentFormattingProvider");
+        SupportsReferences = IsEnabled(capabilities, "referencesProvider");
         if (capabilities.TryGetProperty("completionProvider", out var completion)
             && completion.ValueKind == JsonValueKind.Object
             && completion.TryGetProperty("triggerCharacters", out var triggers)
@@ -133,6 +136,19 @@ public sealed class LanguageClient : IDisposable
         };
         var result = await _connection.RequestAsync("textDocument/rename", parameters, cancellation);
         return LspParsers.WorkspaceEdit(result);
+    }
+
+    // Todos os lugares que usam o nome sob o cursor, inclusive onde ele é criado.
+    public async Task<List<LspReference>> ReferencesAsync(string path, int line, int character, CancellationToken cancellation)
+    {
+        var parameters = new
+        {
+            textDocument = new { uri = LspParsers.ToUri(path) },
+            position = new { line, character },
+            context = new { includeDeclaration = true },
+        };
+        var result = await _connection.RequestAsync("textDocument/references", parameters, cancellation);
+        return LspParsers.References(result);
     }
 
     // As trocas que deixam o arquivo inteiro formatado, com o recuo que o editor usa.

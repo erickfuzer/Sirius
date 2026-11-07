@@ -89,7 +89,7 @@ public partial class MainWindow : Window
         PaletteInput.AddHandler(KeyDownEvent, OnPaletteKeyDown, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel);
 
-        SearchInput.TextChanged += (_, _) => ScheduleSearch();
+        SearchInput.TextChanged += (_, _) => OnSearchTextChanged();
         SearchInput.AddHandler(KeyDownEvent, OnSearchKeyDown, RoutingStrategies.Tunnel);
         _searchDelay = new DispatcherTimer(TimeSpan.FromMilliseconds(180), DispatcherPriority.Normal, (_, _) => _ = RunSearchAsync());
 
@@ -858,7 +858,10 @@ public partial class MainWindow : Window
         if (e.Key == Key.F12 && !TerminalHost.IsFocused)
         {
             e.Handled = true;
-            await GoToDefinitionAsync();
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+                await FindUsesAsync();
+            else
+                await GoToDefinitionAsync();
             return;
         }
 
@@ -1063,6 +1066,7 @@ public partial class MainWindow : Window
             actions.Add(("Formatar arquivo", "Shift Alt F", () => _ = FormatDocumentAsync()));
             actions.Add(("Ir para a linha", "Ctrl G", OpenGoToLine));
             actions.Add(("Ir para a definição", "F12", () => _ = GoToDefinitionAsync()));
+            actions.Add(("Encontrar todos os usos", "Shift F12", () => _ = FindUsesAsync()));
             actions.Add(("Renomear símbolo", "F2 no editor", () => _ = RenameSymbolAsync()));
             actions.Add(("Mostrar sugestões", "Ctrl Espaço", () => _ = RequestCompletionAsync()));
             actions.Add(("Mostrar problemas", "", ShowProblems));
@@ -1196,6 +1200,11 @@ public partial class MainWindow : Window
     {
         _searchDelay.Stop();
         _searchCancel?.Cancel();
+
+        // Uma busca de texto tira os usos do painel, e o substituir volta a valer.
+        _usesQuery = null;
+        ReplaceBar.IsVisible = true;
+        UsesHint.IsVisible = false;
 
         var text = SearchInput.Text ?? "";
         if (text.Length == 0 || RootFolder is null)

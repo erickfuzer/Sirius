@@ -32,7 +32,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Projeto:** árvore de arquivos para criar, renomear e excluir, com busca e substituição em todo o projeto
 - **Terminal integrado:** a cápsula flutuante se abre em um terminal completo. O botão Executar detecta o comando do projeto, e os erros da saída são clicáveis. Em PHP, ele sobe o servidor e oferece abrir o site no navegador, ou o arquivo em uso em pastas sem `index.php`. Se o computador não tiver PHP, oferece a instalação
 - **Depuração de PHP:** clique na margem para marcar uma linha, execute e abra a página. A Sirius para ali e mostra o valor de cada variável, inclusive `$_POST` e `$_GET`, também ao parar o mouse sobre ela, além do que a página já escreveu. Você avança linha por linha, entra nas funções e vê a pilha de chamadas: clicar em quem chamou leva àquela linha e mostra as variáveis de lá. O Xdebug é baixado na primeira vez, se você aceitar, sem mudar a sua instalação do PHP
-- **Inteligência de código:** autocompletar, erros no código, ir para a definição, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação
+- **Inteligência de código:** autocompletar, erros no código, ir para a definição, encontrar todos os usos, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação
 - **Git:** mudanças na árvore e na margem, comparação lado a lado, commit por arquivo, descartar, enviar, receber, branches e histórico de commits, com o que mudou em cada um. Se o computador não tiver Git, oferece a instalação
 - **Sessão:** cada pasta reabre as suas abas, e a IDE acompanha o que outros programas mudam no disco. As pastas recentes ficam na tela inicial e no nome da pasta, no topo da janela
 - **Preferências:** tema, tamanho da letra, recuo (2 ou 4 espaços, ou Tab), fechar aspas e tags, quebra de linha e aviso de versão nova, pelo botão de ajustes ao lado de minimizar, no topo da janela. Cada escolha vale na hora
@@ -136,6 +136,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 | Arrastar para a janela | Pasta vira o projeto aberto, arquivo abre em uma aba |
 | <kbd>F2</kbd> | Renomear o item da lista de arquivos ou, no editor, o símbolo sob o cursor |
 | <kbd>F12</kbd> ou <kbd>Ctrl</kbd> + clique | Ir para a definição |
+| <kbd>Shift</kbd> <kbd>F12</kbd> | Encontrar todos os usos do nome sob o cursor, no painel da busca |
 | <kbd>Ctrl</kbd> <kbd>Espaço</kbd> | Mostrar sugestões |
 | <kbd>Ctrl</kbd> <kbd>/</kbd> | Comentar ou descomentar as linhas. No ABNT2, também <kbd>Ctrl</kbd> <kbd>;</kbd> |
 | <kbd>Alt</kbd> <kbd>↑</kbd> e <kbd>Alt</kbd> <kbd>↓</kbd> | Mover as linhas para cima ou para baixo |

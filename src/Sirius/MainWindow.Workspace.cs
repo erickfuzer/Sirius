@@ -368,7 +368,8 @@ public partial class MainWindow
     public async Task ReplaceAllAsync(string replacement)
     {
         var text = SearchInput.Text ?? "";
-        if (text.Length == 0 || RootFolder is not { } root)
+        // Com os usos no painel, substituir trocaria também o texto igual que não é o mesmo nome.
+        if (text.Length == 0 || RootFolder is not { } root || _usesQuery is not null)
             return;
 
         _searchDelay.Stop();

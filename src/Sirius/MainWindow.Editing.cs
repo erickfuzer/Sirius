@@ -208,6 +208,7 @@ public partial class MainWindow
             Item("Formatar arquivo", () => _ = FormatDocumentAsync()),
         };
         var definition = Item("Ir para a definição", () => _ = GoToDefinitionAsync(), "F12");
+        var uses = Item("Encontrar todos os usos", () => _ = FindUsesAsync(), "Shift+F12");
         var rename = Item("Renomear símbolo", () => _ = RenameSymbolAsync(), "F2");
         var goToLine = Item("Ir para a linha", OpenGoToLine, "Ctrl+G");
 
@@ -220,6 +221,7 @@ public partial class MainWindow
             menu.Items.Add(item);
         menu.Items.Add(new Separator());
         menu.Items.Add(definition);
+        menu.Items.Add(uses);
         menu.Items.Add(rename);
         menu.Items.Add(goToLine);
 
