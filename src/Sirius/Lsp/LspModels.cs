@@ -240,6 +240,10 @@ public static partial class LspParsers
         return edits;
     }
 
+    // A resposta de formatar: uma lista de trocas, ou null quando não há nada a mudar.
+    public static List<LspTextEdit> TextEditList(JsonElement result) =>
+        result.ValueKind == JsonValueKind.Array ? TextEdits(result) : [];
+
     private static List<LspTextEdit> TextEdits(JsonElement list)
     {
         var edits = new List<LspTextEdit>();

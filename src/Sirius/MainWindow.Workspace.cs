@@ -432,4 +432,68 @@ public partial class MainWindow
             ? $"Substituídas {occurrences} em {files}."
             : $"Substituídas em {plan.Items.Count - failed} de {plan.Items.Count} arquivos. {failed} não puderam ser gravados.";
     }
+
+    // Pastas recentes
+
+    public IReadOnlyList<RecentRow> RecentRows => RecentPanel.IsVisible && RecentList.ItemsSource is IReadOnlyList<RecentRow> rows ? rows : [];
+
+    // As que ainda existem, sem a que está aberta.
+    public List<string> OtherRecentFolders() => _settings.RecentFolders
+        .Where(folder => !string.Equals(folder, RootFolder, StringComparison.OrdinalIgnoreCase) && Directory.Exists(folder))
+        .ToList();
+
+    private static RecentRow RecentRowFor(string folder)
+    {
+        var trimmed = folder.TrimEnd(Path.DirectorySeparatorChar);
+        return new RecentRow(Path.GetFileName(trimmed) is { Length: > 0 } name ? name : trimmed, ShortFolder(Path.GetDirectoryName(trimmed)), folder);
+    }
+
+    // Só o fim do caminho, que é o que distingue duas pastas de mesmo nome. O caminho inteiro fica na dica.
+    public static string ShortFolder(string? folder)
+    {
+        if (string.IsNullOrEmpty(folder))
+            return "";
+        var parts = folder.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length <= 3 ? folder : "…" + Path.DirectorySeparatorChar + parts[^2] + Path.DirectorySeparatorChar + parts[^1];
+    }
+
+    private void UpdateRecentList()
+    {
+        var rows = RootFolder is null ? OtherRecentFolders().Select(RecentRowFor).ToList() : [];
+        RecentList.ItemsSource = rows;
+        RecentPanel.IsVisible = rows.Count > 0;
+    }
+
+    private void OnRecentFolderClick(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is RecentRow row)
+            OpenRecentFolder(row.FullPath);
+    }
+
+    private void OnProjectNameClick(object? sender, RoutedEventArgs e) => OpenRecentFolders();
+
+    public void OpenRecentFolders()
+    {
+        var items = OtherRecentFolders()
+            .Select(RecentRowFor)
+            .Select(row => (row.Name, row.Folder, (Action)(() => OpenRecentFolder(row.FullPath))))
+            .ToList();
+        items.Add(("Abrir outra pasta", "Ctrl O", () => _ = PickFolderAsync()));
+        OpenPalette();
+        _paletteOverride = items;
+        RefreshPalette();
+    }
+
+    private void OpenRecentFolder(string folder)
+    {
+        if (!Directory.Exists(folder))
+        {
+            _settings.RecentFolders.RemoveAll(f => string.Equals(f, folder, StringComparison.OrdinalIgnoreCase));
+            _settings.Save(_settingsPath);
+            UpdateRecentList();
+            ShowStatus("Esta pasta não existe mais.");
+            return;
+        }
+        OpenFolder(folder);
+    }
 }

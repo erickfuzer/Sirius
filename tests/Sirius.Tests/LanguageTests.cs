@@ -36,6 +36,7 @@ public sealed class FakeLanguageServer : IDisposable
     public Func<JsonElement, object?> Definition { get; set; } = _ => null;
     public Func<JsonElement, object?> Rename { get; set; } = _ => null;
     public Func<JsonElement, object?> Hover { get; set; } = _ => null;
+    public Func<JsonElement, object?> Formatting { get; set; } = _ => null;
 
     public List<(string Method, JsonElement Parameters)> Notifications
     {
@@ -79,6 +80,7 @@ public sealed class FakeLanguageServer : IDisposable
         "textDocument/definition" => Definition(parameters),
         "textDocument/rename" => Rename(parameters),
         "textDocument/hover" => Hover(parameters),
+        "textDocument/formatting" => Formatting(parameters),
         _ => null,
     };
 
@@ -94,6 +96,7 @@ public sealed class FakeLanguageServer : IDisposable
                 definitionProvider = true,
                 hoverProvider = true,
                 renameProvider = true,
+                documentFormattingProvider = true,
             },
         };
     }
@@ -626,6 +629,76 @@ public class LanguageWindowTests
 
     private static object Range(int line, int start, int end) =>
         new { start = new { line, character = start }, end = new { line, character = end } };
+
+    [AvaloniaFact]
+    public async Task Formatar_aplica_as_trocas_do_servidor_em_um_passo_de_desfazer()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.php", "<?php\nif(1){\necho 1;\n}\n");
+        var (window, server) = Open(temp);
+        JsonElement? sent = null;
+        server.Formatting = parameters =>
+        {
+            sent = parameters;
+            return new[] { new { range = Range(2, 0, 0), newText = "    " } };
+        };
+        window.OpenFile(path);
+        await Received(server, "textDocument/didOpen");
+
+        await window.FormatDocumentAsync();
+
+        var document = window.ActiveDocument!;
+        Assert.Equal("<?php\nif(1){\n    echo 1;\n}\n", document.Document.Text);
+        Assert.Equal("Arquivo formatado.", window.StatusText);
+        var options = sent!.Value.GetProperty("options");
+        Assert.Equal(4, options.GetProperty("tabSize").GetInt32());
+        Assert.True(options.GetProperty("insertSpaces").GetBoolean());
+        Assert.Equal(path, LspParsers.ToPath(sent.Value.GetProperty("textDocument").GetProperty("uri").GetString()!));
+
+        document.Document.UndoStack.Undo();
+        Assert.Equal("<?php\nif(1){\necho 1;\n}\n", document.Document.Text);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Formatar_sem_nada_a_mudar_avisa_que_ja_estava_certo()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.php", "<?php\n");
+        var (window, server) = Open(temp);
+        window.OpenFile(path);
+        await Received(server, "textDocument/didOpen");
+
+        await window.FormatDocumentAsync();
+
+        Assert.Equal("O arquivo já estava formatado.", window.StatusText);
+        Assert.False(window.ActiveDocument!.IsDirty);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Formatar_nao_aplica_se_o_texto_mudou_durante_o_pedido()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.php", "<?php\n");
+        var (window, server) = Open(temp);
+        var gate = new TaskCompletionSource();
+        server.Formatting = _ =>
+        {
+            gate.Task.Wait(TimeSpan.FromSeconds(10));
+            return new[] { new { range = Range(0, 0, 5), newText = "<?PHP" } };
+        };
+        window.OpenFile(path);
+        await Received(server, "textDocument/didOpen");
+
+        var formatting = window.FormatDocumentAsync();
+        window.ActiveDocument!.Document.Insert(0, "x");
+        gate.SetResult();
+        await formatting;
+
+        Assert.Equal("x<?php\n", window.ActiveDocument!.Document.Text);
+        window.Close();
+    }
 
     [AvaloniaFact]
     public async Task Queda_do_servidor_limpa_os_erros_e_nao_trava_o_editor()

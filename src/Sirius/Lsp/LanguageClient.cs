@@ -23,6 +23,7 @@ public sealed class LanguageClient : IDisposable
     public bool SupportsDefinition { get; private set; }
     public bool SupportsHover { get; private set; }
     public bool SupportsRename { get; private set; }
+    public bool SupportsFormatting { get; private set; }
 
     // Chegam na thread de leitura da conexão.
     public event Action<string, List<LspDiagnostic>>? DiagnosticsPublished;
@@ -49,6 +50,7 @@ public sealed class LanguageClient : IDisposable
                     hover = new { contentFormat = new[] { "plaintext", "markdown" } },
                     definition = new { linkSupport = false },
                     rename = new { prepareSupport = false },
+                    formatting = new { dynamicRegistration = false },
                 },
                 workspace = new { workspaceFolders = true, configuration = true },
             },
@@ -69,6 +71,7 @@ public sealed class LanguageClient : IDisposable
         SupportsHover = IsEnabled(capabilities, "hoverProvider");
         SupportsRename = IsEnabled(capabilities, "renameProvider");
         SupportsCompletion = IsEnabled(capabilities, "completionProvider");
+        SupportsFormatting = IsEnabled(capabilities, "documentFormattingProvider");
         if (capabilities.TryGetProperty("completionProvider", out var completion)
             && completion.ValueKind == JsonValueKind.Object
             && completion.TryGetProperty("triggerCharacters", out var triggers)
@@ -130,6 +133,18 @@ public sealed class LanguageClient : IDisposable
         };
         var result = await _connection.RequestAsync("textDocument/rename", parameters, cancellation);
         return LspParsers.WorkspaceEdit(result);
+    }
+
+    // As trocas que deixam o arquivo inteiro formatado, com o recuo que o editor usa.
+    public async Task<List<LspTextEdit>> FormatAsync(string path, int tabSize, bool insertSpaces, CancellationToken cancellation)
+    {
+        var parameters = new
+        {
+            textDocument = new { uri = LspParsers.ToUri(path) },
+            options = new { tabSize, insertSpaces, trimTrailingWhitespace = true, insertFinalNewline = true, trimFinalNewlines = true },
+        };
+        var result = await _connection.RequestAsync("textDocument/formatting", parameters, cancellation);
+        return LspParsers.TextEditList(result);
     }
 
     public void Dispose()

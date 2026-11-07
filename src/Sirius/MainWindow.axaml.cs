@@ -110,6 +110,7 @@ public partial class MainWindow : Window
         InitializeImages();
         InitializeDrop();
         InitializeDebug();
+        InitializeEditing();
         CodeEditor.AddHandler(PointerWheelChangedEvent, OnEditorWheel, RoutingStrategies.Tunnel);
         ApplyEditorFontSize(_settings.EditorFontSize);
         DialogInput.AddHandler(KeyDownEvent, OnDialogInputKeyDown, RoutingStrategies.Tunnel);
@@ -159,7 +160,9 @@ public partial class MainWindow : Window
         _closedBreakpoints.Clear();
         RootFolder = Path.GetFullPath(folder);
         _settings.LastFolder = RootFolder;
+        _settings.RememberFolder(RootFolder);
         _settings.Save(_settingsPath);
+        ProjectButton.IsVisible = true;
         _expanded.Clear();
         _projectFiles = new List<string>();
         _lastFolderClicked = null;
@@ -852,6 +855,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (HandleAltKey(e))
+        {
+            e.Handled = true;
+            return;
+        }
+
         // No Windows o AltGr chega como Ctrl e Alt juntos. Em teclados brasileiros ele digita
         // caracteres como ? e /, então nunca pode ser tratado como atalho.
         if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Alt))
@@ -900,6 +909,15 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 OpenGit();
                 break;
+            case Key.G when !e.KeyModifiers.HasFlag(KeyModifiers.Shift) && ActiveDocument is { IsImage: false } && !TerminalHost.IsFocused:
+                e.Handled = true;
+                OpenGoToLine();
+                break;
+            // O / do teclado americano é o ; do ABNT2, que também tem uma tecla / só sua, e há o / do teclado numérico.
+            case Key.Oem2 or Key.AbntC1 or Key.Divide when CodeEditor.TextArea.IsKeyboardFocusWithin:
+                e.Handled = true;
+                ToggleComment();
+                break;
             case Key.F when e.KeyModifiers.HasFlag(KeyModifiers.Shift) && RootFolder is not null:
                 e.Handled = true;
                 OpenSearch();
@@ -939,14 +957,20 @@ public partial class MainWindow : Window
 
     private void OnOpenPalette(object? sender, RoutedEventArgs e) => OpenPalette();
 
-    public void OpenPalette()
+    public void OpenPalette() => OpenPalette("");
+
+    public void OpenPalette(string initial)
     {
         _paletteOverride = null;
         PaletteOverlay.IsVisible = true;
-        PaletteInput.Text = "";
+        PaletteInput.Text = initial;
         _paletteIndex = 0;
         RefreshPalette();
-        Dispatcher.UIThread.Post(() => PaletteInput.Focus());
+        Dispatcher.UIThread.Post(() =>
+        {
+            PaletteInput.Focus();
+            PaletteInput.CaretIndex = initial.Length;
+        });
     }
 
     public void ClosePalette()
@@ -961,6 +985,8 @@ public partial class MainWindow : Window
     {
         if (_paletteOverride is { } overrides)
             return overrides.Where(item => item.Name.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (LineCommands(query) is { } lineCommands)
+            return lineCommands;
 
         var commands = new List<(string Name, string Hint, Action Run)>();
         var matches = _projectFiles
@@ -977,7 +1003,10 @@ public partial class MainWindow : Window
             ("Abrir pasta", "Ctrl O", () => _ = PickFolderAsync()),
             ("Trocar tema", Palette.Current == Palette.Claro ? "Grafite" : "Claro", ToggleTheme),
             ("Modo foco", "Ctrl .", ToggleFocus),
+            ("Quebrar linhas longas", (_settings.WordWrap ? "Ligado" : "Desligado") + " · Alt Z", ToggleWordWrap),
         };
+        if (OtherRecentFolders().Count > 0)
+            actions.Insert(1, ("Abrir pasta recente", "", OpenRecentFolders));
         if (RootFolder is not null)
         {
             actions.Insert(0, ("Buscar no projeto", "Ctrl Shift F", OpenSearch));
@@ -1014,6 +1043,12 @@ public partial class MainWindow : Window
             actions.Insert(0, ("Salvar arquivo", "Ctrl S", () => _ = SaveAsync(active)));
             actions.Add(("Salvar como", "Ctrl Shift S", () => _ = SaveAsAsync(active)));
             actions.Add(("Salvar tudo", "", () => _ = SaveAllAsync()));
+            actions.Add(("Comentar ou descomentar linhas", "Ctrl /", ToggleComment));
+            actions.Add(("Duplicar linha", "Shift Alt ↓", () => DuplicateLines()));
+            actions.Add(("Mover linha para cima", "Alt ↑", () => MoveLines(up: true)));
+            actions.Add(("Mover linha para baixo", "Alt ↓", () => MoveLines(up: false)));
+            actions.Add(("Formatar arquivo", "Shift Alt F", () => _ = FormatDocumentAsync()));
+            actions.Add(("Ir para a linha", "Ctrl G", OpenGoToLine));
             actions.Add(("Ir para a definição", "F12", () => _ = GoToDefinitionAsync()));
             actions.Add(("Renomear símbolo", "F2 no editor", () => _ = RenameSymbolAsync()));
             actions.Add(("Mostrar sugestões", "Ctrl Espaço", () => _ = RequestCompletionAsync()));
@@ -1355,12 +1390,17 @@ public partial class MainWindow : Window
         var caret = CodeEditor.TextArea.Caret;
         CaretPosition.IsVisible = ActiveDocument is not null;
         CaretPosition.Text = ActiveDocument is { IsImage: true } ? ImageView.Description : $"Ln {caret.Line}, Col {caret.Column}";
+        // Clicar na posição leva a outra linha, como no Ctrl G.
+        var clickable = ActiveDocument is { IsImage: false };
+        CaretPosition.Cursor = clickable ? new Cursor(StandardCursorType.Hand) : null;
+        ToolTip.SetTip(CaretPosition, clickable ? "Ir para a linha (Ctrl G)" : null);
     }
 
     private void UpdateEmptyState()
     {
         EmptyState.IsVisible = ActiveDocument is null;
         EmptyOpenFolder.IsVisible = RootFolder is null;
+        UpdateRecentList();
         EmptyTitle.Text = RootFolder is null ? "Abra uma pasta para começar" : "Escolha um arquivo";
         EmptyHint.Text = RootFolder is null ? "Use Ctrl O ou arraste uma pasta para cá. Ctrl K mostra os comandos." : "Clique na lista ao lado, use Ctrl K ou arraste um arquivo para cá.";
     }

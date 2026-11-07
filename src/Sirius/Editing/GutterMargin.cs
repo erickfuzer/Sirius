@@ -158,12 +158,14 @@ public sealed class GutterMargin : AbstractMargin
         foreach (var line in view.VisualLines)
         {
             var number = line.FirstDocumentLine.LineNumber;
-            DrawBreakpoint(context, palette, breakpoints, number, line.VisualTop - view.VerticalOffset + line.Height / 2);
+            // Com a quebra de linha, uma linha ocupa várias fileiras, e o número fica na primeira.
+            var rowHeight = line.TextLines.Count > 0 ? line.TextLines[0].Height : line.Height;
+            DrawBreakpoint(context, palette, breakpoints, number, line.VisualTop - view.VerticalOffset + rowHeight / 2);
             var active = number == caretLine;
             var text = new FormattedText(
                 number.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
                 active ? ActiveFace : NumberFace, NumberSize, active ? palette.Accent : palette.Faint);
-            var y = line.VisualTop - view.VerticalOffset + (line.Height - text.Height) / 2;
+            var y = line.VisualTop - view.VerticalOffset + (rowHeight - text.Height) / 2;
             context.DrawText(text, new Point(NumberRight - text.Width, y));
             DrawLineMark(context, palette, number, line.VisualTop - view.VerticalOffset, line.Height);
         }

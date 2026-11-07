@@ -12,6 +12,8 @@ public sealed record TabRow(string Name, string FullPath, FontWeight Weight, IBr
 
 public sealed record CommandRow(string Name, string Hint, IBrush Background, Action Run);
 
+public sealed record RecentRow(string Name, string Folder, string FullPath);
+
 public sealed record GitRow(string Name, string Folder, string Letter, IBrush Brush, bool IsIncluded, Sirius.Core.GitChange Change);
 
 // O histórico mistura quatro tipos de linha: commit, arquivo dele, aviso e "carregar mais".

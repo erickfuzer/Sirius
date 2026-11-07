@@ -22,7 +22,8 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 
 ## Funcionalidades
 
-- **Editor:** abas, sintaxe colorida para dezenas de linguagens, zoom, temas claro e grafite e modo foco. Aspas, parênteses, chaves e tags de HTML se fecham enquanto você digita
+- **Editor:** abas, sintaxe colorida para dezenas de linguagens, zoom, temas claro e grafite, modo foco e quebra de linha. Aspas, parênteses, chaves e tags de HTML se fecham enquanto você digita
+- **Edição do dia a dia:** comentar linhas, duplicar e mover linhas, ir para uma linha e formatar o arquivo inteiro, pelo teclado, pela barra de comando ou pelo botão direito do mouse no editor
 - **Cores do CSS:** um quadradinho mostra cada cor no código, e clicar nele abre um seletor que altera o texto na hora. Funciona em CSS, SCSS, Sass e Less, e dentro de `<style>` e `style="..."` em HTML e PHP
 - **Emmet:** em HTML e PHP, `div.cartao>h2+p` + <kbd>Tab</kbd> vira o HTML pronto, e `!` cria a página inicial. O <kbd>Tab</kbd> seguinte pula para o próximo campo vazio, e isso funciona sem instalar nada
 - **Imagens:** PNG, JPG, GIF, WebP, BMP e ICO abrem em uma aba, com zoom, arrastar, xadrez atrás da transparência e a foto na posição certa. O SVG continua abrindo como código, para poder editar
@@ -33,7 +34,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Depuração de PHP:** clique na margem para marcar uma linha, execute e abra a página. A Sirius para ali e mostra o valor de cada variável, inclusive `$_POST` e `$_GET`, também ao parar o mouse sobre ela, além do que a página já escreveu. Você avança linha por linha e entra nas funções. O Xdebug é baixado na primeira vez, se você aceitar, sem mudar a sua instalação do PHP
 - **Inteligência de código:** autocompletar, erros no código, ir para a definição, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação
 - **Git:** mudanças na árvore e na margem, comparação lado a lado, commit por arquivo, descartar, enviar, receber, branches e histórico de commits, com o que mudou em cada um. Se o computador não tiver Git, oferece a instalação
-- **Sessão:** cada pasta reabre as suas abas, e a IDE acompanha o que outros programas mudam no disco
+- **Sessão:** cada pasta reabre as suas abas, e a IDE acompanha o que outros programas mudam no disco. As pastas recentes ficam na tela inicial e no nome da pasta, no topo da janela
 - **Aviso de versão nova:** um aviso discreto na cápsula leva à página da versão, sem baixar nada sozinho. Dá para ignorar uma versão ou desligar o aviso pela barra de comando
 - **Cuidado com o seu trabalho:** salvar mantém a codificação original do arquivo e passa por um arquivo temporário, criar nunca sobrescreve e excluir vai para a Lixeira
 - **Pronta para ABNT2:** o <kbd>AltGr</kbd> nunca aciona um atalho, então `?` e `/` funcionam normalmente
@@ -134,6 +135,12 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 | <kbd>F2</kbd> | Renomear o item da lista de arquivos ou, no editor, o símbolo sob o cursor |
 | <kbd>F12</kbd> ou <kbd>Ctrl</kbd> + clique | Ir para a definição |
 | <kbd>Ctrl</kbd> <kbd>Espaço</kbd> | Mostrar sugestões |
+| <kbd>Ctrl</kbd> <kbd>/</kbd> | Comentar ou descomentar as linhas. No ABNT2, também <kbd>Ctrl</kbd> <kbd>;</kbd> |
+| <kbd>Alt</kbd> <kbd>↑</kbd> e <kbd>Alt</kbd> <kbd>↓</kbd> | Mover as linhas para cima ou para baixo |
+| <kbd>Shift</kbd> <kbd>Alt</kbd> <kbd>↓</kbd> | Duplicar as linhas |
+| <kbd>Shift</kbd> <kbd>Alt</kbd> <kbd>F</kbd> | Formatar o arquivo |
+| <kbd>Ctrl</kbd> <kbd>G</kbd> ou clique em "Ln" na cápsula | Ir para uma linha |
+| <kbd>Alt</kbd> <kbd>Z</kbd> | Ligar ou desligar a quebra de linha |
 | <kbd>Tab</kbd> | Em HTML e PHP, expandir uma abreviação do Emmet e pular entre os campos vazios |
 
 ### Para desenvolver

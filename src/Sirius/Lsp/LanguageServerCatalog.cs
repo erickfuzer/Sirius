@@ -23,11 +23,20 @@ public static class LanguageServerCatalog
     private static readonly ServerSpec Python = new("python", "Python", "pyright-langserver", ["--stdio"], ServerInstaller.Npm);
 
     // O servidor de HTML só entende <style> e <script> se for avisado de que deve olhar para eles.
+    // Os de HTML e CSS só formatam quando recebem provideFormatter.
     private static readonly ServerSpec Html = new("html", "HTML", "vscode-html-language-server", ["--stdio"], ServerInstaller.Npm)
     {
-        InitializationOptions = new { embeddedLanguages = new { css = true, javascript = true }, configurationSection = new[] { "html", "css", "javascript" } },
+        InitializationOptions = new
+        {
+            embeddedLanguages = new { css = true, javascript = true },
+            configurationSection = new[] { "html", "css", "javascript" },
+            provideFormatter = true,
+        },
     };
-    private static readonly ServerSpec Css = new("css", "CSS", "vscode-css-language-server", ["--stdio"], ServerInstaller.Npm);
+    private static readonly ServerSpec Css = new("css", "CSS", "vscode-css-language-server", ["--stdio"], ServerInstaller.Npm)
+    {
+        InitializationOptions = new { provideFormatter = true },
+    };
 
     private static readonly ServerSpec Go = new("go", "Go", "gopls", [], ServerInstaller.Manual);
     private static readonly ServerSpec Rust = new("rust", "Rust", "rust-analyzer", [], ServerInstaller.Manual);

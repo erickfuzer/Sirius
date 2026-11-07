@@ -26,6 +26,20 @@ public sealed class AppSettings
     public string? LastFolder { get; set; }
     public double SidebarWidth { get; set; } = 232;
     public double EditorFontSize { get; set; } = 13.5;
+    public bool WordWrap { get; set; }
+
+    // As últimas pastas abertas, a mais recente primeiro.
+    public List<string> RecentFolders { get; set; } = new();
+
+    public const int RecentFolderLimit = 8;
+
+    public void RememberFolder(string folder)
+    {
+        RecentFolders.RemoveAll(f => string.Equals(f, folder, StringComparison.OrdinalIgnoreCase));
+        RecentFolders.Insert(0, folder);
+        if (RecentFolders.Count > RecentFolderLimit)
+            RecentFolders.RemoveRange(RecentFolderLimit, RecentFolders.Count - RecentFolderLimit);
+    }
 
     // Aviso de versão nova. A última versão fica guardada para o aviso aparecer mesmo sem internet.
     public bool CheckForUpdates { get; set; } = true;
