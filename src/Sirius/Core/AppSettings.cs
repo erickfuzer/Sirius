@@ -28,6 +28,13 @@ public sealed class AppSettings
     public double EditorFontSize { get; set; } = 13.5;
     public bool WordWrap { get; set; }
 
+    // Recuo do editor: quantos espaços, ou um Tab de verdade. Vale também para o Emmet e para formatar.
+    public int IndentSize { get; set; } = 4;
+    public bool IndentWithTabs { get; set; }
+
+    // Aspas, parênteses, chaves e tags de HTML que se fecham ao digitar.
+    public bool AutoClosePairs { get; set; } = true;
+
     // As últimas pastas abertas, a mais recente primeiro.
     public List<string> RecentFolders { get; set; } = new();
 

@@ -759,6 +759,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.Key == Key.Escape && IsSettingsOpen)
+        {
+            e.Handled = true;
+            CloseSettings();
+            return;
+        }
+
         if (e.Key == Key.Escape && IsPaletteOpen)
         {
             e.Handled = true;
@@ -950,6 +957,10 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 ToggleFocus();
                 break;
+            case Key.OemComma when !TerminalHost.IsFocused:
+                e.Handled = true;
+                OpenSettings();
+                break;
         }
     }
 
@@ -962,6 +973,7 @@ public partial class MainWindow : Window
     public void OpenPalette(string initial)
     {
         _paletteOverride = null;
+        SettingsOverlay.IsVisible = false;
         PaletteOverlay.IsVisible = true;
         PaletteInput.Text = initial;
         _paletteIndex = 0;
@@ -1003,6 +1015,7 @@ public partial class MainWindow : Window
             ("Abrir pasta", "Ctrl O", () => _ = PickFolderAsync()),
             ("Trocar tema", Palette.Current == Palette.Claro ? "Grafite" : "Claro", ToggleTheme),
             ("Modo foco", "Ctrl .", ToggleFocus),
+            ("Preferências", "Ctrl ,", OpenSettings),
             ("Quebrar linhas longas", (_settings.WordWrap ? "Ligado" : "Desligado") + " · Alt Z", ToggleWordWrap),
         };
         if (OtherRecentFolders().Count > 0)
@@ -1359,6 +1372,7 @@ public partial class MainWindow : Window
         Capsule.BoxShadow = palette.PopShadow;
         PaletteCard.BoxShadow = palette.PopShadow;
         DialogCard.BoxShadow = palette.PopShadow;
+        SettingsCard.BoxShadow = palette.PopShadow;
         ColorCard.BoxShadow = palette.PopShadow;
         CodeEditor.TextArea.SelectionBrush = palette.Selection;
         CodeEditor.TextArea.SelectionBorder = null;

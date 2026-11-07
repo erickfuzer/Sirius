@@ -54,6 +54,9 @@
                 </Button>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0">
+                    <Button x:Name="SettingsButton" Classes="flat chrome" Click="OnOpenSettings" AutomationProperties.Name="Preferências" ToolTip.Tip="Preferências (Ctrl ,)">
+                        <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.2" Data="M0 2.5H13M0 9.5H13M4 0V5M9 7V12" />
+                    </Button>
                     <Button Classes="flat chrome" Click="OnMinimize" AutomationProperties.Name="Minimizar janela">
                         <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.1" Data="M0 0H10" />
                     </Button>
@@ -630,6 +633,98 @@
                         </ItemsControl>
                     </ScrollViewer>
                     <TextBlock x:Name="PaletteEmpty" Text="Nada encontrado." Foreground="{DynamicResource Muted}" Margin="10,8" IsVisible="False" />
+                </StackPanel>
+            </Border>
+        </Panel>
+
+        <!-- Preferências: cada escolha vale na hora e fica guardada. -->
+        <Panel x:Name="SettingsOverlay" IsVisible="False">
+            <Border Background="{DynamicResource Veil}" PointerPressed="OnSettingsOverlayPressed" />
+            <Border x:Name="SettingsCard" Width="560" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="16,44,16,16"
+                    Padding="20,14,14,16" CornerRadius="14" Background="{DynamicResource Pop}">
+                <StackPanel>
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                        <TextBlock Text="Preferências" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="flat option" Click="OnCloseSettings" AutomationProperties.Name="Fechar preferências" ToolTip.Tip="Fechar (Esc)">
+                            <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M0 0L8 8M8 0L0 8" />
+                        </Button>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                            <TextBlock Text="Tema" FontWeight="Medium" />
+                            <TextBlock Text="As cores da janela e do código." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                            <Button x:Name="SettingThemeClaro" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Claro" Tag="tema:claro" Click="OnSettingClick" />
+                            <Button x:Name="SettingThemeGrafite" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Grafite" Tag="tema:grafite" Click="OnSettingClick" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Height="1" Background="{DynamicResource Tint}" />
+
+                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                            <TextBlock Text="Tamanho da letra" FontWeight="Medium" />
+                            <TextBlock Text="No editor. Também muda com Ctrl e a roda do mouse." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                            <Button Classes="flat segment" Height="26" Width="28" FontSize="14" Content="−" Tag="fonte:-" Click="OnSettingClick" AutomationProperties.Name="Diminuir a letra" />
+                            <TextBlock x:Name="SettingFontSize" MinWidth="40" TextAlignment="Center" VerticalAlignment="Center" FontFamily="{DynamicResource CodeFont}" FontSize="12" />
+                            <Button Classes="flat segment" Height="26" Width="28" FontSize="14" Content="+" Tag="fonte:+" Click="OnSettingClick" AutomationProperties.Name="Aumentar a letra" />
+                            <Button x:Name="SettingFontDefault" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Padrão" Tag="fonte:0" Click="OnSettingClick" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Height="1" Background="{DynamicResource Tint}" />
+
+                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                            <TextBlock Text="Recuo" FontWeight="Medium" />
+                            <TextBlock Text="Quanto o Tab e o Enter afastam a linha, também ao formatar." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                            <Button x:Name="SettingIndent2" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="2 espaços" Tag="recuo:2" Click="OnSettingClick" />
+                            <Button x:Name="SettingIndent4" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="4 espaços" Tag="recuo:4" Click="OnSettingClick" />
+                            <Button x:Name="SettingIndentTab" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Tab" Tag="recuo:tab" Click="OnSettingClick" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Height="1" Background="{DynamicResource Tint}" />
+
+                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                            <TextBlock Text="Fechar aspas e tags" FontWeight="Medium" />
+                            <TextBlock Text="Aspas, parênteses, chaves e tags ganham o fechamento ao digitar." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                            <Button x:Name="SettingPairsOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Ligado" Tag="pares:sim" Click="OnSettingClick" />
+                            <Button x:Name="SettingPairsOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desligado" Tag="pares:nao" Click="OnSettingClick" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Height="1" Background="{DynamicResource Tint}" />
+
+                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                            <TextBlock Text="Quebra de linha" FontWeight="Medium" />
+                            <TextBlock Text="Linhas longas continuam embaixo, em vez de seguir para a direita." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                            <Button x:Name="SettingWrapOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Ligada" Tag="quebra:sim" Click="OnSettingClick" />
+                            <Button x:Name="SettingWrapOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desligada" Tag="quebra:nao" Click="OnSettingClick" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Height="1" Background="{DynamicResource Tint}" />
+
+                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                            <TextBlock Text="Aviso de versão nova" FontWeight="Medium" />
+                            <TextBlock Text="Avisa na cápsula, sem baixar nada sozinho." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                            <Button x:Name="SettingUpdatesOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Ligado" Tag="versao:sim" Click="OnSettingClick" />
+                            <Button x:Name="SettingUpdatesOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desligado" Tag="versao:nao" Click="OnSettingClick" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="Cada escolha vale na hora e fica guardada para a próxima vez." FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,10,0,0" />
                 </StackPanel>
             </Border>
         </Panel>

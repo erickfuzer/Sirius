@@ -19,7 +19,7 @@ public partial class MainWindow
     {
         var area = CodeEditor.TextArea;
         if (e.Text is not { Length: 1 } typed || ActiveDocument is not { IsImage: false } document
-            || CodeEditor.IsReadOnly || !AutoPairs.Supports(document.FullPath))
+            || CodeEditor.IsReadOnly || !_settings.AutoClosePairs || !AutoPairs.Supports(document.FullPath))
             return;
 
         var c = typed[0];
@@ -141,7 +141,8 @@ public partial class MainWindow
     private void OnTagTextEntered(object? sender, TextInputEventArgs e)
     {
         var area = CodeEditor.TextArea;
-        if (e.Text != ">" || ActiveDocument is not { IsImage: false } document || CodeEditor.IsReadOnly || !Emmet.Supports(document.FullPath))
+        if (e.Text != ">" || ActiveDocument is not { IsImage: false } document || CodeEditor.IsReadOnly || !_settings.AutoClosePairs
+            || !Emmet.Supports(document.FullPath))
             return;
 
         var text = document.Document;

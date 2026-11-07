@@ -19,6 +19,7 @@ public partial class MainWindow
     private void InitializeEditing()
     {
         CodeEditor.WordWrap = _settings.WordWrap;
+        ApplyIndentation();
         CodeEditor.TextArea.AddHandler(PointerPressedEvent, OnEditorRightPressed, RoutingStrategies.Tunnel);
         CodeEditor.ContextMenu = BuildEditorMenu();
         CaretPosition.PointerPressed += OnCaretPositionPressed;
@@ -141,9 +142,11 @@ public partial class MainWindow
 
     // Quebra de linha
 
-    public void ToggleWordWrap()
+    public void ToggleWordWrap() => SetWordWrap(!_settings.WordWrap);
+
+    public void SetWordWrap(bool on)
     {
-        _settings.WordWrap = !_settings.WordWrap;
+        _settings.WordWrap = on;
         _settings.Save(_settingsPath);
         CodeEditor.WordWrap = _settings.WordWrap;
         ShowStatus(_settings.WordWrap ? "Quebra de linha ligada." : "Quebra de linha desligada.");
