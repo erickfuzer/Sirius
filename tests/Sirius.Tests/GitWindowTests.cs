@@ -494,6 +494,92 @@ public class GitWindowTests
         window.Close();
     }
 
+    private static async Task<(MainWindow Window, string Path)> Conflicted(TempFolder temp, TempFolder config)
+    {
+        var path = temp.File("README.md", "base\n");
+        var git = await CommittedRepository(temp);
+        await git.CreateBranchAsync("outro");
+        File.WriteAllText(path, "# test\n");
+        await git.RunAsync(["commit", "-am", "outro"]);
+        await git.SwitchAsync("main");
+        File.WriteAllText(path, "Olá\nteste\n");
+        await git.RunAsync(["commit", "-am", "main"]);
+        await git.RunAsync(["merge", "outro"]);
+        return (await Open(temp, config), path);
+    }
+
+    [AvaloniaFact]
+    public async Task Conflito_mostra_os_dois_lados_com_os_botoes()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var (window, _) = await Conflicted(temp, config);
+
+        await window.OpenDiffAsync(window.GitRows.Single().Change);
+
+        Assert.True(window.IsConflictBarVisible);
+        Assert.Equal("Olá\nteste\n", window.DiffLeftText);
+        // Uma linha vazia de enchimento alinha com as duas do outro lado.
+        Assert.Equal("# test", window.DiffRightText.TrimEnd());
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(ConflictChoice.Mine, "Olá\nteste\n")]
+    [InlineData(ConflictChoice.Received, "# test\n")]
+    [InlineData(ConflictChoice.Both, "Olá\nteste\n# test\n")]
+    public async Task Escolher_um_lado_salva_e_deixa_fazer_o_commit(ConflictChoice choice, string expected)
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var (window, path) = await Conflicted(temp, config);
+        await window.OpenDiffAsync(window.GitRows.Single().Change);
+
+        await window.ResolveConflictAsync(choice);
+
+        Assert.False(window.IsDiffOpen);
+        Assert.Equal(expected, File.ReadAllText(path));
+        Assert.Equal(path, window.ActiveDocument!.FullPath);
+        Assert.Contains("faça o commit", window.GitStatusMessage);
+        Assert.False(window.IsGitConflictNoticeVisible);
+        window.SetCommitMessage("merge");
+        Assert.True(await window.CommitAsync());
+        Assert.False(window.GitState!.IsMerging);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Resolver_se_desfaz_com_um_ctrl_z()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var (window, _) = await Conflicted(temp, config);
+        await window.OpenDiffAsync(window.GitRows.Single().Change);
+
+        await window.ResolveConflictAsync(ConflictChoice.Received);
+        window.ActiveDocument!.Document.UndoStack.Undo();
+
+        Assert.Contains("<<<<<<< HEAD", window.ActiveDocument.Document.Text);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Arquivo_comum_nao_mostra_os_botoes_de_conflito()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var path = temp.File("a.txt", "um");
+        await CommittedRepository(temp);
+        File.WriteAllText(path, "dois");
+        var window = await Open(temp, config);
+
+        await window.OpenDiffAsync(window.GitRows.Single().Change);
+
+        Assert.True(window.IsDiffOpen);
+        Assert.False(window.IsConflictBarVisible);
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task Comparacao_mostra_o_antes_e_o_agora()
     {

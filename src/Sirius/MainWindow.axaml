@@ -229,7 +229,7 @@
                             <TextBlock x:Name="GitHistoryEmpty" Grid.Row="5" IsVisible="False" Margin="8,4" FontSize="12" Foreground="{DynamicResource Muted}" Text="Nenhum commit ainda." />
                             <StackPanel x:Name="GitNotices" Grid.Row="5">
                                 <TextBlock x:Name="GitConflictNotice" IsVisible="False" Margin="8,2,8,6" FontSize="12" Foreground="{DynamicResource Error}" TextWrapping="Wrap"
-                                           Text="Há conflitos. Edite os arquivos com !, escolha o que fica entre as marcas e faça o commit." />
+                                           Text="Há conflitos. Clique em cada arquivo com ! e escolha o que fica. Depois, faça o commit." />
                                 <TextBlock x:Name="GitNothing" IsVisible="False" Margin="8,4" FontSize="12" Foreground="{DynamicResource Muted}" Text="Nenhuma mudança desde o último commit." />
                             </StackPanel>
                             <ItemsControl x:Name="GitHistoryList" Grid.Row="6" Margin="0,2,0,0" IsVisible="False">
@@ -389,10 +389,16 @@
 
                             <!-- Comparação lado a lado -->
                             <Grid x:Name="DiffHost" IsVisible="False" RowDefinitions="Auto,*" Background="{DynamicResource Sheet}">
-                                <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Height="28" Margin="14,0,8,0">
+                                <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Height="32" Margin="14,0,8,0">
                                     <TextBlock x:Name="DiffTitle" Grid.Column="0" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                    <Button x:Name="DiffOpenButton" Grid.Column="1" Classes="flat" Height="24" Padding="8,0" FontSize="12" Foreground="{DynamicResource Muted}" Content="Abrir arquivo" Click="OnDiffOpenFile" />
-                                    <Button Grid.Column="2" Classes="flat option" Click="OnCloseDiff" AutomationProperties.Name="Fechar comparação" ToolTip.Tip="Fechar (Esc)">
+                                    <!-- Num arquivo em conflito: escolher o lado sem editar as marcas à mão. -->
+                                    <StackPanel x:Name="ConflictBar" Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="8,0" IsVisible="False">
+                                        <Button Classes="secondary conflict" Content="Ficar com o meu" Click="OnConflictMine" ToolTip.Tip="Mantém o lado esquerdo, deste computador" />
+                                        <Button Classes="secondary conflict" Content="Ficar com o recebido" Click="OnConflictReceived" ToolTip.Tip="Mantém o lado direito, que veio no Receber" />
+                                        <Button Classes="secondary conflict" Content="Juntar os dois" Click="OnConflictBoth" ToolTip.Tip="O seu primeiro e o recebido logo abaixo" />
+                                    </StackPanel>
+                                    <Button x:Name="DiffOpenButton" Grid.Column="2" Classes="flat" Height="24" Padding="8,0" FontSize="12" Foreground="{DynamicResource Muted}" Content="Abrir arquivo" Click="OnDiffOpenFile" />
+                                    <Button Grid.Column="3" Classes="flat option" Click="OnCloseDiff" AutomationProperties.Name="Fechar comparação" ToolTip.Tip="Fechar (Esc)">
                                         <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M0 0L8 8M8 0L0 8" />
                                     </Button>
                                 </Grid>

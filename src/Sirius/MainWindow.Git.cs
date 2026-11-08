@@ -205,7 +205,9 @@ public partial class MainWindow
             _gitRows.Add(new GitRow(Path.GetFileName(change.Path), folder, LetterOf(change.Kind), BrushOf(change.Kind),
                 !_gitExcluded.Contains(change.Path), change));
         }
-        GitConflictNotice.IsVisible = snapshot.Status.Changes.Any(c => c.Kind == GitChangeKind.Conflict);
+        // O Git só deixa de chamar de conflito depois do commit. Para a pessoa, sem marcas já está resolvido,
+        // e o aviso vermelho ao lado de "faça o commit" confundia.
+        GitConflictNotice.IsVisible = snapshot.Status.Changes.Any(c => c.Kind == GitChangeKind.Conflict && HasConflictMarkers(FullPathOf(snapshot, c.Path)));
         GitNothing.IsVisible = _gitRows.Count == 0;
     }
 
@@ -488,8 +490,53 @@ public partial class MainWindow
             return;
         }
 
+        // Em conflito, comparar com o último commit mostraria as marcas como texto novo. Os dois lados lado a lado,
+        // com um botão para cada escolha, dizem o que realmente importa.
+        if (change.Kind == GitChangeKind.Conflict && GitConflict.Sides(right) is { } sides)
+        {
+            var conflictRows = await AlignForDiffAsync(sides.Mine, sides.Received);
+            var name = Path.GetRelativePath(snapshot.TopLevel, full).Replace(Path.DirectorySeparatorChar, '/');
+            ShowDiff(full, conflictRows, "Meu, deste computador", "Recebido", $"{name} · {sides.Count} {(sides.Count == 1 ? "conflito" : "conflitos")}", conflict: true);
+            return;
+        }
+
         var rows = await AlignForDiffAsync(left, right);
         ShowDiff(full, rows, "Último commit", "Agora");
+    }
+
+    public bool IsConflictBarVisible => ConflictBar.IsVisible;
+
+    private void OnConflictMine(object? sender, RoutedEventArgs e) => _ = ResolveConflictAsync(ConflictChoice.Mine);
+    private void OnConflictReceived(object? sender, RoutedEventArgs e) => _ = ResolveConflictAsync(ConflictChoice.Received);
+    private void OnConflictBoth(object? sender, RoutedEventArgs e) => _ = ResolveConflictAsync(ConflictChoice.Both);
+
+    // Troca as marcas pelo lado escolhido na aba do arquivo, num passo só de desfazer, e salva. O commit
+    // continua com a pessoa, que pode conferir o resultado antes.
+    public async Task ResolveConflictAsync(ConflictChoice choice)
+    {
+        if (DiffPath is not { } path || !File.Exists(path))
+            return;
+        CloseDiff();
+        OpenFile(path);
+        if (ActiveDocument is not { IsImage: false } document || !string.Equals(document.FullPath, path, StringComparison.OrdinalIgnoreCase))
+            return;
+        if (GitConflict.Resolve(document.Document.Text, choice) is not { } resolved)
+        {
+            SetGitMessage("As marcas de conflito deste arquivo mudaram. Edite à mão ou clique nele de novo.");
+            return;
+        }
+
+        document.Document.Replace(0, document.Document.TextLength, resolved);
+        if (!await SaveAsync(document))
+            return;
+        await RefreshGitAsync();
+        var kept = choice switch
+        {
+            ConflictChoice.Mine => "ficou a sua versão",
+            ConflictChoice.Received => "ficou a versão recebida",
+            _ => "ficaram as duas versões",
+        };
+        SetGitMessage($"{Path.GetFileName(path)}: {kept}. Confira e faça o commit. Ctrl Z desfaz.");
     }
 
     private static Task<List<DiffRow>> AlignForDiffAsync(string left, string right) => Task.Run(() =>
@@ -499,8 +546,9 @@ public partial class MainWindow
         return LineDiff.Align(a, b, LineDiff.Compare(a, b));
     });
 
-    private void ShowDiff(string path, List<DiffRow> rows, string leftLabel, string rightLabel, string? title = null)
+    private void ShowDiff(string path, List<DiffRow> rows, string leftLabel, string rightLabel, string? title = null, bool conflict = false)
     {
+        ConflictBar.IsVisible = conflict;
         DiffLeftLabel.Text = leftLabel;
         DiffRightLabel.Text = rightLabel;
         // Um arquivo apagado depois daquele commit não tem mais o que abrir.

@@ -153,6 +153,13 @@
             <Setter Property="CornerRadius" Value="16" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
+        <!-- Os botões de conflito cabem na linha do título da comparação. -->
+        <Style Selector="Button.secondary.conflict">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="11,0" />
+            <Setter Property="CornerRadius" Value="13" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
         <Style Selector="Button.secondary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
             <Setter Property="Background" Value="{DynamicResource Tint}" />
             <Setter Property="Foreground" Value="{DynamicResource Ink}" />
