@@ -94,6 +94,10 @@ public static partial class XdebugSetup
         return new PhpProbe(build, version?.Contains("with Xdebug", StringComparison.OrdinalIgnoreCase) == true);
     }
 
+    // O php.ini que este PHP lê, segundo ele mesmo. Null sem php.ini ou se o PHP não respondeu.
+    public static async Task<string?> LoadedIniAsync(string php) =>
+        await RunAsync(php, "--ini") is { } output ? PhpIniXdebug.ParseLoadedIni(output) : null;
+
     private static async Task<string?> RunAsync(string executable, string arguments)
     {
         try

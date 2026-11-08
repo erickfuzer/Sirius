@@ -1044,6 +1044,8 @@ public partial class MainWindow : Window
         {
             actions.Insert(0, ("Buscar no projeto", "Ctrl Shift F", OpenSearch));
             actions.Add(("Abrir Git", "Ctrl Shift G", OpenGit));
+            actions.Add((IsListeningToServer ? "Parar de ouvir o servidor" : "Depurar páginas do servidor", "Apache", () => _ = ToggleServerDebugAsync()));
+            actions.Add(("Desligar o Xdebug do php.ini", "Apache", () => _ = DisableServerXdebugAsync()));
             if (GitState is not null)
             {
                 actions.Add(("Enviar commits", "git push", () => _ = PushAsync()));

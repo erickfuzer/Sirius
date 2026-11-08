@@ -68,6 +68,7 @@ public partial class MainWindow
     private void InitializeDebug()
     {
         PrepareXdebug = PrepareRealXdebugAsync;
+        ServerXdebugFile = RealServerXdebugFileAsync;
         VariablesList.ItemsSource = _variableRows;
         FramesList.ItemsSource = _frameRows;
         _gutter.BreakpointClicked += ToggleBreakpoint;
@@ -311,9 +312,9 @@ public partial class MainWindow
         }, SiteOpenDelay);
     }
 
-    private XdebugServer CreateDebugServer()
+    private XdebugServer CreateDebugServer(int port = 0)
     {
-        var server = new XdebugServer();
+        var server = new XdebugServer(port);
         server.SetConditions(ConditionsSnapshot());
         server.SetBreakpoints(BreakpointsSnapshot());
         server.SetWatches(_watches.ToList());
@@ -508,6 +509,7 @@ public partial class MainWindow
             return;
         _debug.Dispose();
         _debug = null;
+        _listeningToServer = false;
         _pause = null;
         _previousValues.Clear();
         _pageOutput.Clear();

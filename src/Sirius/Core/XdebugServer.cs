@@ -226,13 +226,14 @@ public static class DbgpParser
 }
 
 // Fica ouvindo só neste computador. O Xdebug conecta a cada página que começa.
-public sealed class XdebugServer : IDisposable
+public sealed class XdebugServer(int port = 0) : IDisposable
 {
+    // Porta 0: uma livre qualquer, para o Executar. A 9003 é a padrão do Xdebug, para páginas de outro servidor.
     private const int MaxMessageBytes = 32 * 1024 * 1024;
     private const int MaxStackFrames = 20;
     private static readonly string ReadHeldOutput = Convert.ToBase64String(Encoding.UTF8.GetBytes("ob_get_contents()"));
 
-    private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
+    private readonly TcpListener _listener = new(IPAddress.Loopback, port);
     private readonly CancellationTokenSource _stop = new();
     private readonly Channel<string> _commands = Channel.CreateUnbounded<string>();
     private readonly object _lock = new();
