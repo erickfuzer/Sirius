@@ -1018,8 +1018,13 @@ public class DebugWindowTests
         Assert.Equal("$erro !== ''", window.ActiveDocument.BreakpointConditions[6]);
         Assert.Contains("O ponto da linha 5 foi para a 6", window.StatusText);
         Assert.Equal([1, 6], window.BreakpointsSnapshot()[php]);
+        await Until(() => window.IsDebugPaused);
         window.DebugContinue();
         await page.Finished;
+
+        // O ponto movido continua o mesmo no Xdebug. Recriá-lo na linha onde a página parou a fazia parar de novo ali.
+        Assert.DoesNotContain(page.Commands, c => c.StartsWith("breakpoint_remove"));
+        Assert.Equal(2, page.Commands.Count(c => c.StartsWith("breakpoint_set")));
         window.Close();
     }
 

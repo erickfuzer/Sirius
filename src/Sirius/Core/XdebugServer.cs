@@ -282,6 +282,25 @@ public sealed class XdebugServer(int port = 0) : IDisposable
     }
 
     // Pontos que só param quando a condição em PHP é verdadeira, como $i == 5. Arquivo, linha e condição.
+    // A linha que o Xdebug escolheu para um ponto passa a ser a desejada, com a condição junto.
+    private void MoveDesired(string file, int from, int to)
+    {
+        lock (_lock)
+        {
+            if (_breakpoints.TryGetValue(file, out var lines) && lines.Contains(from))
+                _breakpoints = new Dictionary<string, IReadOnlyCollection<int>>(_breakpoints, StringComparer.OrdinalIgnoreCase)
+                {
+                    [file] = lines.Where(line => line != from).Append(to).Distinct().ToList(),
+                };
+            if (_conditions.TryGetValue(file, out var conditions) && conditions.TryGetValue(from, out var condition))
+            {
+                var moved = conditions.Where(pair => pair.Key != from).ToDictionary(pair => pair.Key, pair => pair.Value);
+                moved[to] = condition;
+                _conditions = new Dictionary<string, IReadOnlyDictionary<int, string>>(_conditions, StringComparer.OrdinalIgnoreCase) { [file] = moved };
+            }
+        }
+    }
+
     public void SetConditions(IReadOnlyDictionary<string, IReadOnlyDictionary<int, string>> conditions)
     {
         lock (_lock)
@@ -350,6 +369,7 @@ public sealed class XdebugServer(int port = 0) : IDisposable
         private readonly byte[] _buffer = new byte[8192];
         // A condição faz parte da chave: trocá-la apaga o ponto antigo e cria outro.
         private readonly Dictionary<(string File, int Line, string Condition), string> _applied = new();
+        private readonly List<string> _orphans = new();
         // Um acento pode vir partido entre dois pedaços da saída.
         private readonly Decoder _output = Encoding.UTF8.GetDecoder();
         private int _bufferStart;
@@ -475,6 +495,11 @@ public sealed class XdebugServer(int port = 0) : IDisposable
                 conditions.TryGetValue(file, out var lines) && lines.TryGetValue(line, out var condition) ? condition.Trim() : "";
 
             var wanted = desired.SelectMany(pair => pair.Value.Select(line => (File: pair.Key, Line: line, Condition: ConditionOf(pair.Key, line)))).ToHashSet();
+            foreach (var orphan in _orphans.ToList())
+            {
+                await RequestAsync($"breakpoint_remove -d {orphan}");
+                _orphans.Remove(orphan);
+            }
             foreach (var old in _applied.Keys.Where(key => !wanted.Contains(key)).ToList())
             {
                 await RequestAsync($"breakpoint_remove -d {_applied[old]}");
@@ -499,12 +524,21 @@ public sealed class XdebugServer(int port = 0) : IDisposable
             }
         }
 
+        // O ponto continua o mesmo no Xdebug, só em outra linha. Recriá-lo ali faria a página parar duas vezes na
+        // mesma linha, então a lista dos aplicados e a desejada mudam aqui mesmo, antes de a janela responder.
         private void ReportResolved(string id, int line)
         {
-            foreach (var (key, value) in _applied)
+            foreach (var (key, value) in _applied.ToList())
             {
-                if (value == id && key.Line != line)
-                    server.BreakpointMoved?.Invoke(key.File, key.Line, line);
+                if (value != id || key.Line == line)
+                    continue;
+                _applied.Remove(key);
+                var moved = (key.File, line, key.Condition);
+                // Já havia outro ponto ali: este sobra e sai na próxima sincronia.
+                if (!_applied.TryAdd(moved, id))
+                    _orphans.Add(id);
+                server.MoveDesired(key.File, key.Line, line);
+                server.BreakpointMoved?.Invoke(key.File, key.Line, line);
             }
         }
 
