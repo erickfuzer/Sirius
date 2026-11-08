@@ -393,6 +393,15 @@
                                     <TextBlock x:Name="DiffTitle" Grid.Column="0" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                     <!-- Num arquivo em conflito: escolher o lado sem editar as marcas à mão. -->
                                     <StackPanel x:Name="ConflictBar" Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="8,0" IsVisible="False">
+                                        <!-- Com vários conflitos, as setas escolhem a qual os botões se aplicam. -->
+                                        <StackPanel x:Name="ConflictNavigation" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="0,0,4,0">
+                                            <Button Classes="flat option" Click="OnConflictPrevious" AutomationProperties.Name="Conflito anterior" ToolTip.Tip="Conflito anterior">
+                                                <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.3" Data="M4 0L0 4L4 8" />
+                                            </Button>
+                                            <Button Classes="flat option" Click="OnConflictNext" AutomationProperties.Name="Próximo conflito" ToolTip.Tip="Próximo conflito">
+                                                <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.3" Data="M0 0L4 4L0 8" />
+                                            </Button>
+                                        </StackPanel>
                                         <Button Classes="secondary conflict" Content="Ficar com o meu" Click="OnConflictMine" ToolTip.Tip="Mantém o lado esquerdo, deste computador" />
                                         <Button Classes="secondary conflict" Content="Ficar com o recebido" Click="OnConflictReceived" ToolTip.Tip="Mantém o lado direito, que veio no Receber" />
                                         <Button Classes="secondary conflict" Content="Juntar os dois" Click="OnConflictBoth" ToolTip.Tip="O seu primeiro e o recebido logo abaixo" />

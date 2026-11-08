@@ -5,6 +5,15 @@ namespace Sirius.Core;
 
 public enum ConflictChoice { Mine, Received, Both }
 
+// Onde fica um conflito nos dois lados montados: linha inicial (a partir de 0) e quantas linhas.
+public sealed record ConflictBlock(int MineStart, int MineCount, int ReceivedStart, int ReceivedCount);
+
+// Os dois lados inteiros, com o resto do arquivo igual nos dois.
+public sealed record ConflictSides(string Mine, string Received, IReadOnlyList<ConflictBlock> Blocks)
+{
+    public int Count => Blocks.Count;
+}
+
 // As marcas que o Git deixa num arquivo em conflito, sem depender da janela:
 //   <<<<<<< HEAD          o que estava neste computador
 //   ||||||| base          (só com diff3) como era antes dos dois, que não entra em nenhum lado
@@ -33,26 +42,30 @@ public static class GitConflict
         }
     }
 
-    // Os dois lados inteiros, com o resto do arquivo igual nos dois. Null se não há conflito legível.
-    public static (string Mine, string Received, int Count)? Sides(string text)
+    // Lê o arquivo uma vez só: o texto de fora vai para "outside", e cada conflito, inteiro, para "conflict".
+    // Devolve false se alguma marca está solta.
+    private static bool Walk(string text, Action<string> outside, Action<List<string>, List<string>, string> conflict)
     {
-        var mine = new StringBuilder();
-        var received = new StringBuilder();
         var part = Part.Outside;
-        var count = 0;
+        var mine = new List<string>();
+        var received = new List<string>();
+        var raw = new StringBuilder();
         foreach (var line in Lines(text))
         {
+            if (part != Part.Outside)
+                raw.Append(line);
             switch (part)
             {
                 case Part.Outside when IsMarker(line, '<'):
                     part = Part.Mine;
-                    count++;
+                    mine.Clear();
+                    received.Clear();
+                    raw.Clear().Append(line);
                     continue;
                 case Part.Outside when IsMarker(line, '=') || IsMarker(line, '>') || IsMarker(line, '|'):
-                    return null;
+                    return false;
                 case Part.Outside:
-                    mine.Append(line);
-                    received.Append(line);
+                    outside(line);
                     continue;
                 case Part.Mine when IsMarker(line, '|'):
                     part = Part.Base;
@@ -62,59 +75,71 @@ public static class GitConflict
                     continue;
                 case Part.Received when IsMarker(line, '>'):
                     part = Part.Outside;
+                    conflict(mine, received, raw.ToString());
                     continue;
                 case Part.Mine or Part.Base or Part.Received when IsMarker(line, '<'):
-                    return null;
+                    return false;
                 case Part.Mine:
-                    mine.Append(line);
-                    continue;
-                case Part.Base:
+                    mine.Add(line);
                     continue;
                 case Part.Received:
-                    received.Append(line);
+                    received.Add(line);
                     continue;
             }
         }
-        return part == Part.Outside && count > 0 ? (mine.ToString(), received.ToString(), count) : null;
+        return part == Part.Outside;
     }
 
-    // O arquivo sem as marcas, com o lado escolhido em cada conflito. "Os dois" põe o seu e depois o recebido,
-    // como o "Accept Both" do VS Code.
-    public static string? Resolve(string text, ConflictChoice choice)
+    // Null se não há conflito legível.
+    public static ConflictSides? Sides(string text)
     {
-        if (Sides(text) is null)
-            return null;
-        var result = new StringBuilder();
-        var part = Part.Outside;
         var mine = new StringBuilder();
         var received = new StringBuilder();
-        foreach (var line in Lines(text))
-        {
-            if (part == Part.Outside && IsMarker(line, '<'))
+        var blocks = new List<ConflictBlock>();
+        var mineLines = 0;
+        var receivedLines = 0;
+        var ok = Walk(text,
+            line =>
             {
-                part = Part.Mine;
-                mine.Clear();
-                received.Clear();
-            }
-            else if (part == Part.Mine && IsMarker(line, '|'))
-                part = Part.Base;
-            else if (part is Part.Mine or Part.Base && IsMarker(line, '='))
-                part = Part.Received;
-            else if (part == Part.Received && IsMarker(line, '>'))
-            {
-                part = Part.Outside;
-                if (choice is ConflictChoice.Mine or ConflictChoice.Both)
-                    result.Append(mine);
-                if (choice is ConflictChoice.Received or ConflictChoice.Both)
-                    result.Append(received);
-            }
-            else if (part == Part.Mine)
                 mine.Append(line);
-            else if (part == Part.Received)
                 received.Append(line);
-            else if (part == Part.Outside)
-                result.Append(line);
-        }
-        return result.ToString();
+                mineLines++;
+                receivedLines++;
+            },
+            (mineBlock, receivedBlock, _) =>
+            {
+                blocks.Add(new ConflictBlock(mineLines, mineBlock.Count, receivedLines, receivedBlock.Count));
+                mineBlock.ForEach(line => mine.Append(line));
+                receivedBlock.ForEach(line => received.Append(line));
+                mineLines += mineBlock.Count;
+                receivedLines += receivedBlock.Count;
+            });
+        return ok && blocks.Count > 0 ? new ConflictSides(mine.ToString(), received.ToString(), blocks) : null;
+    }
+
+    // O arquivo com o lado escolhido no lugar das marcas. Sem "only", em todos os conflitos; com ele, só
+    // naquele (contado a partir de 0), e os outros ficam como estão. "Os dois" põe o seu e depois o recebido,
+    // como o "Accept Both" do VS Code.
+    public static string? Resolve(string text, ConflictChoice choice, int? only = null)
+    {
+        var result = new StringBuilder();
+        var index = 0;
+        var found = false;
+        var ok = Walk(text,
+            line => result.Append(line),
+            (mine, received, raw) =>
+            {
+                if (only is { } wanted && wanted != index++)
+                {
+                    result.Append(raw);
+                    return;
+                }
+                found = true;
+                if (choice is ConflictChoice.Mine or ConflictChoice.Both)
+                    mine.ForEach(line => result.Append(line));
+                if (choice is ConflictChoice.Received or ConflictChoice.Both)
+                    received.ForEach(line => result.Append(line));
+            });
+        return ok && found ? result.ToString() : null;
     }
 }

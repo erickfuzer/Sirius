@@ -75,6 +75,8 @@ public partial class MainWindow
         DiffRight.TextArea.LeftMargins.Insert(0, _diffRightNumbers);
         DiffLeft.TextArea.TextView.BackgroundRenderers.Add(new DiffLineBackground(() => _diffLeftKinds, false));
         DiffRight.TextArea.TextView.BackgroundRenderers.Add(new DiffLineBackground(() => _diffRightKinds, true));
+        DiffLeft.TextArea.TextView.BackgroundRenderers.Add(new DiffFocusOutline(() => _conflictFocus));
+        DiffRight.TextArea.TextView.BackgroundRenderers.Add(new DiffFocusOutline(() => _conflictFocus));
         DiffLeft.TextArea.TextView.LineTransformers.Add(_diffLeftColors);
         DiffRight.TextArea.TextView.LineTransformers.Add(_diffRightColors);
         DiffLeft.Options.EnableHyperlinks = false;
@@ -449,7 +451,7 @@ public partial class MainWindow
 
     // Comparação lado a lado
 
-    public async Task OpenDiffAsync(GitChange change)
+    public async Task OpenDiffAsync(GitChange change, int conflict = 0)
     {
         if (GitState is not { } snapshot)
             return;
@@ -495,8 +497,10 @@ public partial class MainWindow
         if (change.Kind == GitChangeKind.Conflict && GitConflict.Sides(right) is { } sides)
         {
             var conflictRows = await AlignForDiffAsync(sides.Mine, sides.Received);
-            var name = Path.GetRelativePath(snapshot.TopLevel, full).Replace(Path.DirectorySeparatorChar, '/');
-            ShowDiff(full, conflictRows, "Meu, deste computador", "Recebido", $"{name} · {sides.Count} {(sides.Count == 1 ? "conflito" : "conflitos")}", conflict: true);
+            _conflict = new ConflictView(change, Path.GetRelativePath(snapshot.TopLevel, full).Replace(Path.DirectorySeparatorChar, '/'), sides, conflictRows);
+            _conflictIndex = Math.Clamp(conflict, 0, sides.Count - 1);
+            ShowDiff(full, conflictRows, "Meu, deste computador", "Recebido", conflict: true);
+            ShowConflictFocus();
             return;
         }
 
@@ -504,23 +508,76 @@ public partial class MainWindow
         ShowDiff(full, rows, "Último commit", "Agora");
     }
 
+    // O conflito na tela: os lados montados e as linhas alinhadas, para as setas só moverem o contorno.
+    private sealed record ConflictView(GitChange Change, string Name, ConflictSides Sides, List<DiffRow> Rows);
+
+    private ConflictView? _conflict;
+    private int _conflictIndex;
+    private (int First, int Last)? _conflictFocus;
+
     public bool IsConflictBarVisible => ConflictBar.IsVisible;
+    public int ConflictIndex => _conflictIndex;
 
     private void OnConflictMine(object? sender, RoutedEventArgs e) => _ = ResolveConflictAsync(ConflictChoice.Mine);
     private void OnConflictReceived(object? sender, RoutedEventArgs e) => _ = ResolveConflictAsync(ConflictChoice.Received);
     private void OnConflictBoth(object? sender, RoutedEventArgs e) => _ = ResolveConflictAsync(ConflictChoice.Both);
+    private void OnConflictPrevious(object? sender, RoutedEventArgs e) => MoveConflict(-1);
+    private void OnConflictNext(object? sender, RoutedEventArgs e) => MoveConflict(1);
 
-    // Troca as marcas pelo lado escolhido na aba do arquivo, num passo só de desfazer, e salva. O commit
-    // continua com a pessoa, que pode conferir o resultado antes.
+    public void MoveConflict(int direction)
+    {
+        if (_conflict is not { Sides.Count: > 1 } view)
+            return;
+        _conflictIndex = (_conflictIndex + direction + view.Sides.Count) % view.Sides.Count;
+        ShowConflictFocus();
+    }
+
+    // Com um conflito só, o título diz isso e as setas somem. Com vários, o escolhido ganha contorno e vem à vista.
+    private void ShowConflictFocus()
+    {
+        if (_conflict is not { } view)
+            return;
+        var count = view.Sides.Count;
+        DiffTitle.Text = count == 1 ? $"{view.Name} · 1 conflito" : $"{view.Name} · conflito {_conflictIndex + 1} de {count}";
+        ConflictNavigation.IsVisible = count > 1;
+        _conflictFocus = count > 1 ? FocusRows(view.Rows, view.Sides.Blocks[_conflictIndex]) : null;
+        DiffLeft.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Background);
+        DiffRight.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Background);
+        if (_conflictFocus is { } focus)
+            Dispatcher.UIThread.Post(() => DiffRight.ScrollToLine(Math.Max(1, focus.First - 2)), DispatcherPriority.Loaded);
+    }
+
+    // As linhas da comparação que pertencem ao conflito, de um lado ou do outro.
+    private static (int First, int Last)? FocusRows(List<DiffRow> rows, ConflictBlock block)
+    {
+        int first = -1, last = -1;
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var row = rows[i];
+            var mine = row.LeftNumber is { } left && left - 1 >= block.MineStart && left - 1 < block.MineStart + block.MineCount;
+            var received = row.RightNumber is { } right && right - 1 >= block.ReceivedStart && right - 1 < block.ReceivedStart + block.ReceivedCount;
+            if (!mine && !received)
+                continue;
+            if (first < 0)
+                first = i;
+            last = i;
+        }
+        return first < 0 ? null : (first, last);
+    }
+
+    // Troca as marcas do conflito escolhido pelo lado que fica, na aba do arquivo, num passo só de desfazer,
+    // e salva. Se o arquivo ainda tem outros, a comparação volta para o próximo. O commit continua com a pessoa.
     public async Task ResolveConflictAsync(ConflictChoice choice)
     {
         if (DiffPath is not { } path || !File.Exists(path))
             return;
+        var view = _conflict;
+        var index = view is null ? (int?)null : _conflictIndex;
         CloseDiff();
         OpenFile(path);
         if (ActiveDocument is not { IsImage: false } document || !string.Equals(document.FullPath, path, StringComparison.OrdinalIgnoreCase))
             return;
-        if (GitConflict.Resolve(document.Document.Text, choice) is not { } resolved)
+        if (GitConflict.Resolve(document.Document.Text, choice, index) is not { } resolved)
         {
             SetGitMessage("As marcas de conflito deste arquivo mudaram. Edite à mão ou clique nele de novo.");
             return;
@@ -536,6 +593,14 @@ public partial class MainWindow
             ConflictChoice.Received => "ficou a versão recebida",
             _ => "ficaram as duas versões",
         };
+
+        var remaining = GitConflict.Sides(resolved)?.Count ?? 0;
+        if (remaining > 0 && view is not null)
+        {
+            await OpenDiffAsync(view.Change, Math.Min(index ?? 0, remaining - 1));
+            SetGitMessage($"{Path.GetFileName(path)}: {kept}. {(remaining == 1 ? "Falta 1 conflito" : $"Faltam {remaining} conflitos")} neste arquivo.");
+            return;
+        }
         SetGitMessage($"{Path.GetFileName(path)}: {kept}. Confira e faça o commit. Ctrl Z desfaz.");
     }
 
@@ -549,6 +614,11 @@ public partial class MainWindow
     private void ShowDiff(string path, List<DiffRow> rows, string leftLabel, string rightLabel, string? title = null, bool conflict = false)
     {
         ConflictBar.IsVisible = conflict;
+        if (!conflict)
+        {
+            _conflict = null;
+            _conflictFocus = null;
+        }
         DiffLeftLabel.Text = leftLabel;
         DiffRightLabel.Text = rightLabel;
         // Um arquivo apagado depois daquele commit não tem mais o que abrir.

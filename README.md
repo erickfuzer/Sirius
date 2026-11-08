@@ -33,7 +33,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Terminal integrado:** a cápsula flutuante se abre em um terminal completo. O botão Executar detecta o comando do projeto, e os erros da saída são clicáveis. Em PHP, ele sobe o servidor e oferece abrir o site no navegador, ou o arquivo em uso em pastas sem `index.php`. Se o computador não tiver PHP, oferece a instalação
 - **Depuração de PHP:** clique na margem para marcar uma linha, execute e abra a página. A Sirius para ali e mostra o valor de cada variável, inclusive `$_POST` e `$_GET`, também ao parar o mouse sobre ela, além do que a página já escreveu. Você avança linha por linha, entra nas funções e vê a pilha de chamadas: clicar em quem chamou leva àquela linha e mostra as variáveis de lá. O Xdebug é baixado na primeira vez, se você aceitar, sem mudar a sua instalação do PHP
 - **Inteligência de código:** autocompletar, erros no código, ir para a definição, encontrar todos os usos, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação
-- **Git:** mudanças na árvore e na margem, comparação lado a lado, conflitos resolvidos com um clique ("Ficar com o meu", "Ficar com o recebido" ou "Juntar os dois"), commit por arquivo, descartar, enviar, receber, branches e histórico de commits, com o que mudou em cada um. Se o computador não tiver Git, oferece a instalação
+- **Git:** mudanças na árvore e na margem, comparação lado a lado, conflitos resolvidos com um clique em cada trecho ("Ficar com o meu", "Ficar com o recebido" ou "Juntar os dois"), commit por arquivo, descartar, enviar, receber, branches e histórico de commits, com o que mudou em cada um. Se o computador não tiver Git, oferece a instalação
 - **Sessão:** cada pasta reabre as suas abas, e a IDE acompanha o que outros programas mudam no disco. As pastas recentes ficam na tela inicial e no nome da pasta, no topo da janela
 - **Preferências:** tema, tamanho da letra, recuo (2 ou 4 espaços, ou Tab), fechar aspas e tags, quebra de linha e aviso de versão nova, pelo botão de ajustes ao lado de minimizar, no topo da janela. Cada escolha vale na hora
 - **Atualizar pela própria IDE:** um aviso discreto na cápsula anuncia a versão nova. Em "Atualizar agora", a Sirius baixa o instalador da página de Releases, confere que ele é exatamente o arquivo que o GitHub registrou, fecha, instala por cima e abre de novo. Nada é baixado sem o seu clique, e o aviso pode ser desligado nas preferências
@@ -155,7 +155,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 
 - Só funciona no Windows: o terminal, o instalador e a integração com o Explorer são específicos dele.
 - A depuração é só de PHP e começa pelo botão Executar.
-- Num conflito de Git, a escolha vale para o arquivo inteiro. Para ficar com partes de cada lado, edite as marcas à mão.
+- Num conflito de Git, a escolha vale para o trecho inteiro. Para misturar linhas dos dois lados dentro do mesmo trecho, edite à mão depois de escolher.
 - Entre os programas de tela cheia no terminal, o Claude Code foi testado, mas o `vim` não. O terminal repassa a roda do mouse a eles, mas não os cliques.
 - GIF animado mostra só o primeiro quadro. Na prévia do SVG, imagens e fontes de outros endereços não aparecem, de propósito.
 - O instalador ainda não tem assinatura digital. A atualização confere o arquivo com o registro do GitHub, mas isso confia na conta do GitHub do projeto, como o download manual.

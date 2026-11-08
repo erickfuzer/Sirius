@@ -601,6 +601,72 @@ public class GitWindowTests
         window.Close();
     }
 
+    // Dois trechos mudados dos dois lados, longe um do outro: o Git deixa dois conflitos no mesmo arquivo.
+    private static async Task<(MainWindow Window, string Path)> TwoConflicts(TempFolder temp, TempFolder config)
+    {
+        var path = temp.File("a.txt", "1\n2\n3\n4\n5\n6\n7\n");
+        var git = await CommittedRepository(temp);
+        await git.CreateBranchAsync("outro");
+        File.WriteAllText(path, "A\n2\n3\n4\n5\n6\nG\n");
+        await git.RunAsync(["commit", "-am", "outro"]);
+        await git.SwitchAsync("main");
+        File.WriteAllText(path, "X\n2\n3\n4\n5\n6\nZ\n");
+        await git.RunAsync(["commit", "-am", "main"]);
+        await git.RunAsync(["merge", "outro"]);
+        return (await Open(temp, config), path);
+    }
+
+    [AvaloniaFact]
+    public async Task Cada_conflito_tem_a_sua_escolha()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var (window, path) = await TwoConflicts(temp, config);
+        await window.OpenDiffAsync(window.GitRows.Single().Change);
+        Assert.Equal("a.txt · conflito 1 de 2", window.DiffTitleText);
+
+        await window.ResolveConflictAsync(ConflictChoice.Mine);
+
+        // O primeiro ficou com o meu, e a comparação volta para o que falta.
+        Assert.True(window.IsDiffOpen);
+        Assert.Equal("a.txt · 1 conflito", window.DiffTitleText);
+        Assert.StartsWith("X\n2\n", File.ReadAllText(path));
+        Assert.Contains("Falta 1 conflito", window.GitStatusMessage);
+        Assert.True(window.IsGitConflictNoticeVisible);
+
+        await window.ResolveConflictAsync(ConflictChoice.Received);
+
+        Assert.False(window.IsDiffOpen);
+        Assert.Equal("X\n2\n3\n4\n5\n6\nG\n", File.ReadAllText(path));
+        Assert.False(window.IsGitConflictNoticeVisible);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Setas_escolhem_o_conflito()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var (window, path) = await TwoConflicts(temp, config);
+        await window.OpenDiffAsync(window.GitRows.Single().Change);
+
+        window.MoveConflict(1);
+        Assert.Equal(1, window.ConflictIndex);
+        Assert.Equal("a.txt · conflito 2 de 2", window.DiffTitleText);
+        window.MoveConflict(1);
+        Assert.Equal(0, window.ConflictIndex);
+        window.MoveConflict(-1);
+
+        await window.ResolveConflictAsync(ConflictChoice.Both);
+
+        // Só o segundo mudou: o primeiro continua com as marcas.
+        var text = File.ReadAllText(path);
+        Assert.StartsWith("<<<<<<<", text);
+        Assert.EndsWith("6\nZ\nG\n", text);
+        Assert.Equal(0, window.ConflictIndex);
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task Resolver_se_desfaz_com_um_ctrl_z()
     {

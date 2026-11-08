@@ -33,6 +33,36 @@ public sealed class DiffLineBackground(Func<IReadOnlyList<DiffRowKind>> kinds, b
     }
 }
 
+// Um contorno no conflito escolhido, quando o arquivo tem vários: os botões valem para ele.
+public sealed class DiffFocusOutline(Func<(int First, int Last)?> rows) : IBackgroundRenderer
+{
+    public KnownLayer Layer => KnownLayer.Background;
+
+    public void Draw(TextView textView, DrawingContext drawingContext)
+    {
+        if (!textView.VisualLinesValid || rows() is not { } range)
+            return;
+
+        double? top = null;
+        double bottom = 0;
+        foreach (var line in textView.VisualLines)
+        {
+            var index = line.FirstDocumentLine.LineNumber - 1;
+            if (index < range.First || index > range.Last)
+                continue;
+            var y = line.VisualTop - textView.VerticalOffset;
+            top ??= y;
+            bottom = y + line.Height;
+        }
+        if (top is not { } start)
+            return;
+
+        var width = Math.Max(textView.Bounds.Width, textView.WideSpaceWidth);
+        var pen = new Pen(Palette.Current.Accent, 1.5);
+        drawingContext.DrawRectangle(null, pen, new Rect(1, start + 0.75, width - 2, bottom - start - 1.5), 3, 3);
+    }
+}
+
 // Os números das linhas na comparação, que pulam as linhas vazias de alinhamento.
 public sealed class DiffNumberMargin : AbstractMargin
 {
