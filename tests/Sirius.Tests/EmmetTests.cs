@@ -461,6 +461,90 @@ public class EmmetTests
         window.Close();
     }
 
+    private static void Enter(MainWindow window)
+    {
+        window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    // Como no VS Code, que o dono usa: o "!" mostra a sugestão do Emmet, e o Enter a aceita.
+    [AvaloniaFact]
+    public void Digitar_exclamacao_mostra_a_sugestao_e_o_enter_cria_a_pagina()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = Open(temp, settings, "index.html", "");
+
+        window.KeyTextInput("!");
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(window.IsCompletionOpen);
+        Assert.Equal(["!"], window.CompletionLabels);
+
+        Enter(window);
+
+        Assert.StartsWith("<!DOCTYPE html>", Text(window));
+        Assert.False(window.IsCompletionOpen);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Abreviacao_mostra_a_versao_atual_a_cada_tecla()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = Open(temp, settings, "a.html", "");
+
+        foreach (var c in "ul>li")
+        {
+            window.KeyTextInput(c.ToString());
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        Assert.Equal(["ul>li"], window.CompletionLabels);
+        Assert.True(window.AcceptCompletion("ul>li"));
+        Dispatcher.UIThread.RunJobs();
+        Assert.Contains("<li></li>", Text(window));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Esc_fecha_a_sugestao_e_o_enter_volta_a_pular_linha()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = Open(temp, settings, "index.html", "");
+        window.KeyTextInput("!");
+        Dispatcher.UIThread.RunJobs();
+
+        window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Enter(window);
+
+        Assert.DoesNotContain("<!DOCTYPE", Text(window));
+        Assert.StartsWith("!", Text(window));
+        window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData("a.html", "<p>Olá")]
+    [InlineData("a.txt", "")]
+    [InlineData("a.php", "<?php\n")]
+    public void Exclamacao_onde_nao_vira_pagina_nao_sugere(string file, string text)
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = Open(temp, settings, file, text);
+
+        window.KeyTextInput("!");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(window.IsCompletionOpen);
+        Enter(window);
+        Assert.DoesNotContain("<!DOCTYPE", Text(window));
+        window.Close();
+    }
+
+
     [AvaloniaFact]
     public void Expandir_pela_barra_de_comando_sem_a_tecla_tab()
     {

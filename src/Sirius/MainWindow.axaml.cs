@@ -112,6 +112,7 @@ public partial class MainWindow : Window
         InitializeDebug();
         InitializeEditing();
         InitializeSvg();
+
         CodeEditor.AddHandler(PointerWheelChangedEvent, OnEditorWheel, RoutingStrategies.Tunnel);
         ApplyEditorFontSize(_settings.EditorFontSize);
         DialogInput.AddHandler(KeyDownEvent, OnDialogInputKeyDown, RoutingStrategies.Tunnel);

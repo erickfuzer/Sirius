@@ -192,52 +192,67 @@ public partial class MainWindow
 
     private void SuggestAfterTyping(char typed)
     {
-        if (_completion is not null || ActiveDocument is not { } document)
+        if (ActiveDocument is not { } document)
+            return;
+        // Uma lista só com o Emmet é refeita a cada tecla, para mostrar a abreviação como ela está agora.
+        if (_emmetOnlyCompletion)
+            CloseCompletion();
+        if (_completion is not null)
             return;
 
         var client = _language.ClientForDocument(document);
-        if (client is { SupportsCompletion: true } && ((IsWordChar(typed) && !char.IsDigit(typed)) || client.CompletionTriggers.Contains(typed)))
+        var wantsServer = client is { SupportsCompletion: true } && ((IsWordChar(typed) && !char.IsDigit(typed)) || client.CompletionTriggers.Contains(typed));
+        if (wantsServer || EmmetSuggestion(document) is not null)
             _ = RequestCompletionAsync();
     }
 
+    // Lista aberta só com a sugestão do Emmet, sem nada do servidor.
+    private bool _emmetOnlyCompletion;
+
     public async Task RequestCompletionAsync()
     {
-        if (ActiveDocument is not { } document || _language.ClientForDocument(document) is not { SupportsCompletion: true } client)
+        if (ActiveDocument is not { } document)
             return;
-
-        _completionCancel?.Cancel();
-        using var cancel = new CancellationTokenSource(RequestTimeout);
-        _completionCancel = cancel;
 
         var area = CodeEditor.TextArea;
         var requestedAt = area.Caret.Offset;
         var (line, character) = LspPositions.FromOffset(document.Document, requestedAt);
 
-        List<CompletionEntry> entries;
-        try
+        // Sem servidor, ou sem resposta dele, ainda pode haver a sugestão do Emmet.
+        List<CompletionEntry> entries = [];
+        if (_language.ClientForDocument(document) is { SupportsCompletion: true } client)
         {
-            entries = await client.CompletionAsync(document.FullPath, line, character, cancel.Token);
-        }
-        catch (Exception e) when (e is LspException or OperationCanceledException)
-        {
-            return;
-        }
-        finally
-        {
-            if (_completionCancel == cancel)
-                _completionCancel = null;
+            _completionCancel?.Cancel();
+            using var cancel = new CancellationTokenSource(RequestTimeout);
+            _completionCancel = cancel;
+            try
+            {
+                entries = await client.CompletionAsync(document.FullPath, line, character, cancel.Token);
+            }
+            catch (Exception e) when (e is LspException or OperationCanceledException)
+            {
+                entries = [];
+            }
+            finally
+            {
+                if (_completionCancel == cancel)
+                    _completionCancel = null;
+            }
         }
 
         // A pessoa pode ter continuado digitando, trocado de aba ou saído da palavra enquanto esperava.
         var caret = area.Caret.Offset;
-        if (entries.Count == 0 || _completion is not null || ActiveDocument != document
+        if (_completion is not null || ActiveDocument != document
             || caret < requestedAt || document.Document.GetLineByOffset(caret).LineNumber != line + 1)
             return;
 
-        ShowCompletion(document, entries, caret);
+        var emmet = EmmetSuggestion(document);
+        if (entries.Count == 0 && emmet is null)
+            return;
+        ShowCompletion(document, entries, caret, emmet);
     }
 
-    private void ShowCompletion(OpenDocument document, List<CompletionEntry> entries, int caret)
+    private void ShowCompletion(OpenDocument document, List<CompletionEntry> entries, int caret, ICompletionData? emmet = null)
     {
         var text = document.Document;
         var caretLine = text.GetLineByOffset(caret);
@@ -246,8 +261,10 @@ public partial class MainWindow
                 ? caretLine.Offset + edit.StartCharacter
                 : null;
 
-        // O filtro da lista começa onde o servidor disse que a palavra começa, se ele disse.
-        var start = entries.Select(EditStart).FirstOrDefault(offset => offset is not null) ?? WordStart(text, caret);
+        // O filtro da lista começa onde o servidor disse que a palavra começa, se ele disse. Só com o Emmet,
+        // não há o que filtrar: a lista é refeita a cada tecla.
+        var emmetOnly = entries.Count == 0 && emmet is not null;
+        var start = emmetOnly ? caret : entries.Select(EditStart).FirstOrDefault(offset => offset is not null) ?? WordStart(text, caret);
         var window = new CompletionWindow(CodeEditor.TextArea)
         {
             StartOffset = start,
@@ -264,6 +281,9 @@ public partial class MainWindow
         var candidates = matching.Count > 0 ? matching : entries;
 
         var items = window.CompletionList.CompletionData;
+        // A abreviação vem primeiro, como no VS Code.
+        if (emmet is not null)
+            items.Add(emmet);
         foreach (var entry in candidates.OrderBy(e => e.SortText ?? e.Label, StringComparer.OrdinalIgnoreCase).Take(MaxCompletionItems))
         {
             // O que o servidor quer trocar depois do cursor, como o resto de uma palavra.
@@ -275,12 +295,18 @@ public partial class MainWindow
 
         window.Closed += (_, _) =>
         {
-            if (_completion == window)
-                _completion = null;
+            if (_completion != window)
+                return;
+            _completion = null;
+            _emmetOnlyCompletion = false;
         };
         _completion = window;
+        _emmetOnlyCompletion = emmetOnly;
         window.Show();
-        window.CompletionList.SelectItem(document.Document.GetText(start, caret - start));
+        if (emmetOnly)
+            window.CompletionList.SelectedItem = emmet;
+        else
+            window.CompletionList.SelectItem(document.Document.GetText(start, caret - start));
     }
 
     // Depois que a lista atual fechar: só cabe uma aberta por vez.
@@ -306,6 +332,7 @@ public partial class MainWindow
         _completionCancel?.Cancel();
         _completion?.Close();
         _completion = null;
+        _emmetOnlyCompletion = false;
     }
 
     // Ir para a definição
