@@ -590,6 +590,14 @@
                                         </StackPanel>
                                         <!-- Primeiro da fila: sem espaço na cápsula, o último é quem desaparece. -->
                                         <Button x:Name="UpdateButton" DockPanel.Dock="Left" Classes="flat terminaltab" Foreground="{DynamicResource CapsuleInk}" IsVisible="False" Click="OnUpdateClick" ToolTip.Tip="Ver a versão nova" />
+                                        <!-- A escuta do servidor fica à vista enquanto ligada: sem isto, não havia como saber se a página ia parar. -->
+                                        <Button x:Name="ListeningButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnListeningClick"
+                                                ToolTip.Tip="A Sirius está ouvindo o servidor: páginas abertas pelo Apache param nos pontos vermelhos. Para parar, use &quot;Parar de ouvir o servidor&quot; na barra de comando.">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Ellipse Width="7" Height="7" Fill="{DynamicResource Accent}" VerticalAlignment="Center" />
+                                                <TextBlock Text="Ouvindo o servidor" Foreground="{DynamicResource CapsuleInk}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
                                         <Button x:Name="ProblemsButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnShowProblems" ToolTip.Tip="Ver problemas" />
                                         <Button x:Name="OpenSiteButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnOpenSite" Content="Abrir site" />
                                         <Button x:Name="InstallButton" DockPanel.Dock="Left" Classes="flat terminaltab" IsVisible="False" Click="OnInstallServer" />

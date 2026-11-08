@@ -581,7 +581,13 @@ public partial class MainWindow
     {
         DebugButtons.IsVisible = _pause is not null;
         DebugOutButton.IsVisible = _pause is { Depth: > 1 };
+        // Parado, os botões de passo precisam do espaço, e o painel já diz de onde veio a página.
+        ListeningButton.IsVisible = IsListeningToServer && _pause is null;
     }
+
+    public bool IsListeningIndicatorVisible => ListeningButton.IsVisible;
+
+    private void OnListeningClick(object? sender, RoutedEventArgs e) => ShowVariables();
 
     private void OnDebugContinue(object? sender, RoutedEventArgs e) => DebugContinue();
     private void OnDebugNext(object? sender, RoutedEventArgs e) => DebugNext();

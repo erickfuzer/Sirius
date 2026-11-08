@@ -127,18 +127,21 @@ public class ServerDebugWindowTests
         Assert.True(PhpIniXdebug.HasBlock(File.ReadAllText(ini)));
         Assert.Equal("[PHP]\n", File.ReadAllText(ini + ".antes-da-sirius"));
         Assert.True(window.IsListeningToServer);
+        Assert.True(window.IsListeningIndicatorVisible);
         Assert.Contains("Reinicie o Apache", window.StatusText);
 
         // Uma página do servidor conecta na porta do Xdebug, e a Sirius para nela como no Executar.
         using var page = new FakeXdebug(new FakeXdebug.Stop(php, 2, FakeXdebug.Int("$a", 1)));
         page.Connect(window.ServerDebugPort);
         await Until(() => window.IsDebugPaused);
+        Assert.False(window.IsListeningIndicatorVisible);
         Assert.Equal(2, window.PausedLine);
         window.DebugContinue();
         await page.Finished;
 
         await window.ToggleServerDebugAsync();
         Assert.False(window.IsListeningToServer);
+        Assert.False(window.IsListeningIndicatorVisible);
         window.Close();
     }
 

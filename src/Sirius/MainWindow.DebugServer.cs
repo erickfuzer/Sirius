@@ -115,6 +115,7 @@ public partial class MainWindow
 
         AttachDebug(server);
         _listeningToServer = true;
+        UpdateDebugButtons();
         TerminalInfo.Text = "Aguardando uma página do servidor";
         if (showPanel)
             ShowVariables();
