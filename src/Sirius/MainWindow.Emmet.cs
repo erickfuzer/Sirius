@@ -13,6 +13,14 @@ public partial class MainWindow
     public int EmmetStopsLeft => SnippetStopsLeft;
     public void SelectAllForTests() => CodeEditor.SelectAll();
 
+    // A seleção com o cursor numa das pontas, como ao arrastar de baixo para cima.
+    public void SelectForTests(int anchor, int caret)
+    {
+        var area = CodeEditor.TextArea;
+        area.Caret.Offset = caret;
+        area.Selection = AvaloniaEdit.Editing.Selection.Create(area, anchor, caret);
+    }
+
     // A aba sem nome conta, porque o "!" nela vira página.
     private bool CanUseEmmet => ActiveDocument is { IsImage: false } document
         && (document.IsUntitled || Emmet.Supports(document.FullPath) || CssEmmet.Supports(document.FullPath));

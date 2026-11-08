@@ -195,6 +195,26 @@ public class SnippetLibraryTests
         window.Close();
     }
 
+    // Como no VS Code: seleciona as linhas de baixo para cima, Ctrl Espaço e quote, e cada linha ganha "> ".
+    // Com o cursor no fim, a lista filtra pela palavra "dois", lá e aqui.
+    [AvaloniaFact]
+    public async Task Quote_do_markdown_cita_as_linhas_selecionadas()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = Open(temp, settings, "a.md", "linha um\nlinha dois");
+        window.SelectForTests("linha um\nlinha dois".Length, 0);
+        Dispatcher.UIThread.RunJobs();
+
+        await window.RequestCompletionAsync(explicitRequest: true);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(window.AcceptCompletion("quote"));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("> linha um\n> linha dois", Text(window).Replace("\r\n", "\n"));
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task Pedir_sem_palavra_mostra_todos_os_atalhos()
     {

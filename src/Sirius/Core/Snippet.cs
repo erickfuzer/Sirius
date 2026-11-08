@@ -24,7 +24,7 @@ public static class Snippet
     private sealed record Literal(string Text) : Part;
     private sealed record Field(int Index, List<Part>? Placeholder) : Part;
     private sealed record Choice(int Index, string First) : Part;
-    private sealed record Variable(string Name, List<Part>? Default) : Part;
+    private sealed record Variable(string Name, List<Part>? Default, SnippetTransform? Change = null) : Part;
 
     // indent e newline adaptam o corpo ao arquivo: o Tab do trecho vira o recuo escolhido, e cada linha
     // nova ganha o recuo da linha em que o trecho entrou.
@@ -174,10 +174,17 @@ public static class Snippet
                 i = k + 1;
                 return true;
             }
-            // ${NOME/regex/formato/opções}: a transformação fica de fora, vale o valor da variável.
+            // ${NOME/regex/formato/opções}, como o quote do Markdown, que põe "> " em cada linha selecionada.
             if (end < s.Length && s[end] == '/')
             {
-                var close = ClosingBrace(s, end);
+                if (SnippetTransform.TryParse(s, end, out var change, out var close))
+                {
+                    part = new Variable(name, null, change);
+                    i = close + 1;
+                    return true;
+                }
+                // Regex que o .NET não entende: vale o valor da variável, sem mudar nada.
+                close = ClosingBrace(s, end);
                 if (close < 0)
                     return false;
                 part = new Variable(name, null);
@@ -284,7 +291,11 @@ public static class Snippet
                     text.Append(choice.First);
                     break;
                 case Variable variable:
-                    if (variables(variable.Name) is { } value)
+                    var value = variables(variable.Name);
+                    // Como no VS Code, a transformação vale até sem valor: o quote sem seleção vira "> ".
+                    if (variable.Change is { } change)
+                        value = change.Apply(value ?? "");
+                    if (value is not null)
                         text.Append(value);
                     else if (variable.Default is not null)
                         Render(variable.Default, text, stops, defaults, variables, depth + 1);

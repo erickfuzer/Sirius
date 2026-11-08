@@ -49,13 +49,46 @@ public class SnippetTests
     [Theory]
     [InlineData("class ${TM_FILENAME_BASE} {}", "class Pagina {}")]
     [InlineData("**${1:${TM_SELECTED_TEXT}}**", "****")]
-    [InlineData("${TM_SELECTED_TEXT/^/> /gm}", "")]
     [InlineData("${NADA:padrão}", "padrão")]
     [InlineData("\\$a <=> \\$b", "$a <=> $b")]
     public void Variaveis_e_escapes(string body, string text)
     {
         var parsed = Snippet.Parse(body, name => name == "TM_FILENAME_BASE" ? "Pagina" : null);
         Assert.Equal(text, parsed.Text);
+    }
+
+    // Resultados conferidos com o código do VS Code (snippetParser.ts): a transformação vale até
+    // sem valor, e sem correspondência só o "senão" do formato muda o texto.
+    [Theory]
+    [InlineData("${TM_SELECTED_TEXT/^/> /gm}", "linha um\nlinha dois", "> linha um\n> linha dois")]
+    [InlineData("${TM_SELECTED_TEXT/^/> /gm}", null, "> ")]
+    [InlineData("${1:${TM_SELECTED_TEXT/^/> /gm}}", "a\r\nb", "> a\r\n> b")]
+    [InlineData("${TM_FILENAME_BASE/(.*)/${1:/upcase}/}", "pagina_inicial", "PAGINA_INICIAL")]
+    [InlineData("${TM_FILENAME_BASE/(.*)/${1:/pascalcase}/}", "pagina_inicial", "PaginaInicial")]
+    [InlineData("${TM_FILENAME_BASE/(.*)/${1:/camelcase}/}", "pagina-inicial", "paginaInicial")]
+    [InlineData("${TM_FILENAME_BASE/(.)/${1:/capitalize}/}", "pagina", "Pagina")]
+    [InlineData("${TM_FILENAME_BASE/a/o/}", "banana", "bonana")]
+    [InlineData("${TM_FILENAME_BASE/a/o/g}", "banana", "bonono")]
+    [InlineData("${TM_FILENAME_BASE/A/o/gi}", "banana", "bonono")]
+    [InlineData("${TM_FILENAME_BASE/(Teste)?$/${1:+ (teste)}/}", "CasoTeste", "Caso (teste)")]
+    [InlineData("${TM_FILENAME_BASE/(Teste)?$/${1:?sim:não}/}", "Caso", "Casonão")]
+    [InlineData("${TM_FILENAME_BASE/x/${1:-vazio}/}", "abc", "vazio")]
+    [InlineData("${TM_FILENAME_BASE/(.*)\\.(.*)/$2-$1/}", "nome.ext", "ext-nome")]
+    [InlineData("${TM_FILENAME_BASE/\\//-/g}", "a/b/c", "a-b-c")]
+    public void Transformacao_como_no_vs_code(string body, string? value, string text)
+    {
+        var parsed = Snippet.Parse(body, name => name is "TM_SELECTED_TEXT" or "TM_FILENAME_BASE" ? value : null);
+        Assert.Equal(text, parsed.Text);
+    }
+
+    [Fact]
+    public void Regex_invalida_ou_lenta_nao_quebra_o_trecho()
+    {
+        // O .NET não entende a regex: vale o valor como está, e o resto do trecho continua.
+        Assert.Equal("[abc] fim", Snippet.Parse("${TM_FILENAME_BASE/(/x/} fim", _ => "[abc]").Text);
+        // Uma regex que demoraria muito para em 200 ms e devolve o valor sem mudança.
+        var slow = new string('a', 40) + "!";
+        Assert.Equal(slow, Snippet.Parse("${TM_FILENAME_BASE/(a+)+$/x/}", _ => slow).Text);
     }
 
     [Fact]

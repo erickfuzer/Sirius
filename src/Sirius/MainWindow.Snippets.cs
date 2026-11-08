@@ -72,14 +72,25 @@ public partial class MainWindow
                 () => Dispatcher.UIThread.Post(() => InsertLibrarySnippet(entry.Body)));
     }
 
-    // A palavra é lida de novo, porque a pessoa pode ter digitado mais com a lista aberta.
+    // A palavra é lida de novo, porque a pessoa pode ter digitado mais com a lista aberta. Com texto
+    // selecionado, o trecho entra no lugar dele, como o quote do Markdown no VS Code, e o
+    // $TM_SELECTED_TEXT é lido antes de a seleção sumir.
     private void InsertLibrarySnippet(string body)
     {
+        var area = CodeEditor.TextArea;
         var text = CodeEditor.Document.Text;
-        var caret = CodeEditor.TextArea.Caret.Offset;
+        var caret = area.Caret.Offset;
         var start = SnippetLibrary.WordBefore(text, caret)?.Start ?? caret;
+        var end = caret;
+        if (!area.Selection.IsEmpty)
+        {
+            var selected = area.Selection.SurroundingSegment;
+            start = Math.Min(start, selected.Offset);
+            end = Math.Max(end, selected.EndOffset);
+        }
+        var snippet = ParseSnippetHere(body);
         CloseCompletion();
-        InsertSnippet(start, caret - start, ParseSnippetHere(body));
+        InsertSnippet(start, end - start, snippet);
     }
 
     // Lê um corpo de trecho já no recuo e na quebra de linha do arquivo, a partir da linha do cursor.
