@@ -287,6 +287,27 @@ public sealed class GitClient(string folder, IReadOnlyDictionary<string, string>
 
     public Task<GitResult> AddRemoteAsync(string url) => RunAsync(["remote", "add", "origin", "--", url]);
 
+    // Quem chama confere antes que o nome é seguro e que o endereço não começa com "-".
+    public async Task<string?> RemoteUrlAsync(string remote)
+    {
+        var result = await RunAsync(["remote", "get-url", remote]);
+        return result.Ok ? result.Output.Trim() : null;
+    }
+
+    public Task<GitResult> SetRemoteUrlAsync(string remote, string url) => RunAsync(["remote", "set-url", remote, url]);
+
+    // O remoto respondeu que o repositório não existe: apagado, renomeado ou fora do alcance desta conta.
+    // Sem pedir login, então sem senha guardada a resposta é outra e nada é oferecido.
+    public async Task<bool> IsRemoteMissingAsync(string remote)
+    {
+        var result = await RunAsync(["ls-remote", "--heads", "--", remote], null, TimeSpan.FromSeconds(30), quiet: true);
+        return !result.Ok && IsNotFound(result.Error);
+    }
+
+    public static bool IsNotFound(string error) =>
+        error.Contains("not found", StringComparison.OrdinalIgnoreCase)
+        || error.Contains("does not appear to be a git repository", StringComparison.OrdinalIgnoreCase);
+
     public Task<GitResult> FetchQuietlyAsync() =>
         RunAsync(["fetch", "--quiet", "--no-tags", "--no-write-fetch-head"], null, TimeSpan.FromSeconds(30), quiet: true);
 

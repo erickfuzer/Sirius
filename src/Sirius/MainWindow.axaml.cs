@@ -65,6 +65,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _settings = settings;
         _settingsPath = settingsPath;
+        FitToScreen();
 
         TreeList.ItemsSource = _treeRows;
         TabList.ItemsSource = _tabRows;
@@ -1046,6 +1047,8 @@ public partial class MainWindow : Window
                 actions.Add(("Enviar commits", "git push", () => _ = PushAsync()));
                 actions.Add(("Receber novidades", "git pull", () => _ = PullAsync()));
                 actions.Add(("Trocar de branch", "", () => _ = OpenBranchPickerAsync()));
+                if (GitState.Remotes.Count > 0)
+                    actions.Add(("Trocar o endereço do remoto", "git remote set-url", () => _ = ChangeRemoteUrlAsync()));
                 actions.Add(("Histórico de commits", "", OpenGitHistory));
             }
             actions.Add(("Novo arquivo", "", () => _ = CreateFileAsync(DefaultTargetFolder())));
@@ -1557,6 +1560,20 @@ public partial class MainWindow : Window
     }
 
     private void OnMinimize(object? sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    // Cabe na área livre da tela, sem a barra de tarefas, antes de aparecer.
+    private void FitToScreen()
+    {
+        if ((Screens.ScreenFromWindow(this) ?? Screens.Primary) is not { } screen)
+            return;
+        var (width, height, position) = WindowPlacement.Fit(screen.WorkingArea, screen.Scaling, Width, Height);
+        Width = width;
+        Height = height;
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        Position = position;
+    }
+
+    public PixelPoint WindowPositionForTests => Position;
     private void OnMaximize(object? sender, RoutedEventArgs e) => ToggleMaximize();
     private void OnCloseWindow(object? sender, RoutedEventArgs e) => Close();
 

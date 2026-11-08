@@ -782,15 +782,55 @@ public partial class MainWindow
         await RefreshGitAsync();
         await CheckOpenDocumentsAsync();
         SetGitMessage(GitTaskMessage(code, success));
+        if (code != 0)
+            await OfferNewRemoteIfMissingAsync();
     }
 
     private async void FinishPush(int code)
     {
         await RefreshGitAsync();
         await CheckOpenDocumentsAsync();
+        if (code != 0 && await OfferNewRemoteIfMissingAsync())
+            return;
         SetGitMessage(code == 0
             ? GitTaskMessage(code, "Enviado.")
             : await PushRefusalMessageAsync() ?? GitTaskMessage(code, "Enviado."));
+    }
+
+    // Repositório apagado ou renomeado no GitHub: sem isto, Enviar e Receber davam "not found" para sempre,
+    // e não havia onde trocar o endereço. Pergunta o novo na hora, e a barra de comando também troca.
+    private async Task<bool> OfferNewRemoteIfMissingAsync()
+    {
+        if (GitState is not { Remotes.Count: > 0 } snapshot || !SafeRemoteName().IsMatch(snapshot.Remotes[0])
+            || !await Git().IsRemoteMissingAsync(snapshot.Remotes[0]))
+            return false;
+        var url = await Git().RemoteUrlAsync(snapshot.Remotes[0]) ?? snapshot.Remotes[0];
+        SetGitMessage($"O repositório {url} não foi encontrado. Para trocar o endereço, use \"Trocar o endereço do remoto\" na barra de comando.");
+        await ChangeRemoteUrlAsync($"{url} não foi encontrado. Ele pode ter sido apagado ou renomeado, ou esta conta não tem acesso. Cole o endereço certo:");
+        return true;
+    }
+
+    public async Task<bool> ChangeRemoteUrlAsync(string? reason = null)
+    {
+        if (GitState is not { Remotes.Count: > 0 } snapshot)
+            return false;
+        var remote = snapshot.Remotes[0];
+        if (!SafeRemoteName().IsMatch(remote))
+        {
+            SetGitMessage("O nome deste remoto não é seguro para trocar por aqui.");
+            return false;
+        }
+
+        var current = await Git().RemoteUrlAsync(remote) ?? "";
+        var url = await AskTextAsync("Trocar o endereço do remoto", reason ?? "Cole o endereço novo, como https://github.com/voce/projeto.git", "Trocar",
+            value => string.IsNullOrWhiteSpace(value) || value.TrimStart().StartsWith('-') ? "Digite um endereço válido." : null, current);
+        if (url is null || url.Trim() == current)
+            return false;
+
+        var result = await Git().SetRemoteUrlAsync(remote, url.Trim());
+        await RefreshGitAsync();
+        SetGitMessage(result.Ok ? "Endereço trocado. Agora clique em Enviar." : result.Message);
+        return result.Ok;
     }
 
     // Só explica quando o motivo é mesmo esse: falta de permissão não se resolve com Receber.

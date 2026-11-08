@@ -140,6 +140,59 @@ public class GitWindowTests
         window.Close();
     }
 
+    // Repositório apagado no site: antes, o "not found" voltava sempre, sem onde trocar o endereço.
+    [AvaloniaFact]
+    public async Task Remoto_que_sumiu_pede_o_endereco_novo_e_envia()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        using var bare = new TempFolder();
+        temp.File("index.php", "<?php\n");
+        var git = await CommittedRepository(temp);
+        Assert.True((await git.AddRemoteAsync(Path.Combine(bare.Path, "apagado.git"))).Ok);
+        Assert.True((await new GitClient(bare.Path).RunAsync(["init", "--bare", "-b", "main"])).Ok);
+        var window = await Open(temp, config);
+        Assert.Contains("Trocar o endereço do remoto", window.PaletteCommandNames("endereço"));
+
+        await window.PushAsync();
+        await Until(() => window.IsDialogOpen, 60);
+        Assert.Contains("não foi encontrado", window.GitStatusMessage);
+        Answer(window, bare.Path);
+        await Until(() => window.GitStatusMessage.Contains("Endereço trocado"), 30);
+
+        await window.PushAsync();
+        await Until(() => window.GitStatusMessage == "Enviado.", 60);
+        Assert.Contains("index.php", (await new GitClient(bare.Path).RunAsync(["ls-tree", "--name-only", "main"])).Output);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Falha_comum_nao_pede_endereco()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        using var bare = new TempFolder();
+        using var seed = new TempFolder();
+        await SeedRemote(bare, seed);
+        await CommittedRepository(temp);
+        Assert.True((await new GitClient(temp.Path).AddRemoteAsync(bare.Path)).Ok);
+        var window = await Open(temp, config);
+
+        await window.PushAsync();
+        await Until(() => window.GitStatusMessage.Contains("Clique em Receber"), 60);
+
+        Assert.False(window.IsDialogOpen);
+        window.Close();
+    }
+
+    [Theory]
+    [InlineData("remote: Repository not found.\nfatal: repository 'https://github.com/a/b/' not found", true)]
+    [InlineData("fatal: 'C:/x' does not appear to be a git repository", true)]
+    [InlineData("fatal: Authentication failed for 'https://github.com/a/b/'", false)]
+    [InlineData("fatal: could not read Username for 'https://github.com': terminal prompts disabled", false)]
+    public void Reconhece_repositorio_que_nao_existe(string error, bool missing) =>
+        Assert.Equal(missing, GitClient.IsNotFound(error));
+
     [AvaloniaFact]
     public async Task Receber_em_branch_novo_nao_traz_o_main()
     {
