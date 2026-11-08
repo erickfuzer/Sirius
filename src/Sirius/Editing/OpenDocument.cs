@@ -33,17 +33,29 @@ public sealed class OpenDocument
     public bool IsDirty => !Document.UndoStack.IsOriginalFile;
     public bool MissingReported { get; set; }
 
-    // Âncoras, e não números: o ponto acompanha a linha quando se escreve acima dela.
-    private readonly List<TextAnchor> _breakpoints = new();
+    // Âncoras, e não números: o ponto acompanha a linha quando se escreve acima dela. A condição, como
+    // $i == 5, vai junto com a âncora pelo mesmo motivo.
+    private sealed class BreakpointMark(TextAnchor anchor)
+    {
+        public TextAnchor Anchor { get; } = anchor;
+        public string? Condition { get; set; }
+    }
+
+    private readonly List<BreakpointMark> _breakpoints = new();
 
     public IReadOnlyList<int> BreakpointLines =>
-        _breakpoints.Where(anchor => !anchor.IsDeleted).Select(anchor => anchor.Line).Distinct().Order().ToList();
+        _breakpoints.Where(mark => !mark.Anchor.IsDeleted).Select(mark => mark.Anchor.Line).Distinct().Order().ToList();
 
-    public void SetBreakpoints(IEnumerable<int> lines)
+    public IReadOnlyDictionary<int, string> BreakpointConditions =>
+        _breakpoints.Where(mark => !mark.Anchor.IsDeleted && !string.IsNullOrWhiteSpace(mark.Condition))
+            .GroupBy(mark => mark.Anchor.Line)
+            .ToDictionary(group => group.Key, group => group.First().Condition!);
+
+    public void SetBreakpoints(IEnumerable<int> lines, IReadOnlyDictionary<int, string>? conditions = null)
     {
         _breakpoints.Clear();
         foreach (var line in lines.Where(line => line >= 1 && line <= Document.LineCount))
-            AddBreakpoint(line);
+            AddBreakpoint(line).Condition = conditions?.GetValueOrDefault(line);
     }
 
     // Devolve se a linha ficou marcada.
@@ -51,18 +63,27 @@ public sealed class OpenDocument
     {
         if (BreakpointLines.Contains(line))
         {
-            _breakpoints.RemoveAll(anchor => anchor.IsDeleted || anchor.Line == line);
+            _breakpoints.RemoveAll(mark => mark.Anchor.IsDeleted || mark.Anchor.Line == line);
             return false;
         }
         AddBreakpoint(line);
         return true;
     }
 
-    private void AddBreakpoint(int line)
+    // Marca a linha, se ainda não tinha ponto, e troca a condição. Vazia, o ponto para sempre.
+    public void SetBreakpointCondition(int line, string? condition)
+    {
+        var mark = _breakpoints.FirstOrDefault(mark => !mark.Anchor.IsDeleted && mark.Anchor.Line == line) ?? AddBreakpoint(line);
+        mark.Condition = string.IsNullOrWhiteSpace(condition) ? null : condition.Trim();
+    }
+
+    private BreakpointMark AddBreakpoint(int line)
     {
         var anchor = Document.CreateAnchor(Document.GetLineByNumber(line).Offset);
         anchor.MovementType = AnchorMovementType.AfterInsertion;
-        _breakpoints.Add(anchor);
+        var mark = new BreakpointMark(anchor);
+        _breakpoints.Add(mark);
+        return mark;
     }
 
     public bool ChangedOnDisk =>

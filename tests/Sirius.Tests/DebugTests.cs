@@ -597,6 +597,31 @@ public class XdebugServerTests
     }
 
     [Fact]
+    public async Task Ponto_com_condicao_vai_como_conditional_em_base64()
+    {
+        var file = @"C:\a.php";
+        using var server = new XdebugServer();
+        var pauses = new ConcurrentQueue<DebugPause>();
+        server.Paused += pauses.Enqueue;
+        server.SetConditions(new Dictionary<string, IReadOnlyDictionary<int, string>> { [file] = new Dictionary<int, string> { [3] = "$i == 5" } });
+        server.SetBreakpoints(Points(file, 1, 3));
+        server.Start();
+        using var php = new FakeXdebug(new FakeXdebug.Stop(file, 1));
+        php.Connect(server.Port);
+        await Until(() => !pauses.IsEmpty);
+
+        var expected = Convert.ToBase64String(Encoding.UTF8.GetBytes("$i == 5"));
+        Assert.Contains(php.Commands, c => c.StartsWith("breakpoint_set") && c.Contains("-t conditional") && c.Contains("-n 3") && c.EndsWith("-- " + expected));
+        Assert.Contains(php.Commands, c => c.StartsWith("breakpoint_set") && c.Contains("-t line") && c.EndsWith("-n 1"));
+
+        // Trocar a condição com o programa parado troca o ponto no Xdebug.
+        server.SetConditions(new Dictionary<string, IReadOnlyDictionary<int, string>> { [file] = new Dictionary<int, string> { [3] = "$i > 9" } });
+        var changed = Convert.ToBase64String(Encoding.UTF8.GetBytes("$i > 9"));
+        await Until(() => php.Commands.Any(c => c.EndsWith("-- " + changed)));
+        await Until(() => php.Commands.Any(c => c.StartsWith("breakpoint_remove")));
+    }
+
+    [Fact]
     public async Task Cada_pagina_e_uma_conexao_e_a_seguinte_tambem_para()
     {
         var file = @"C:\a.php";
@@ -924,6 +949,96 @@ public class DebugWindowTests
 
         Assert.Equal([2], reopened.BreakpointsSnapshot()[php]);
         Assert.Equal([2], reopened.ActiveDocument!.BreakpointLines);
+        reopened.Close();
+    }
+
+    private static void Answer(MainWindow window, string text)
+    {
+        Dispatcher.UIThread.RunJobs();
+        window.KeyPressQwerty(PhysicalKey.A, RawInputModifiers.Control);
+        window.KeyPressQwerty(PhysicalKey.Backspace, RawInputModifiers.None);
+        if (text.Length > 0)
+            window.KeyTextInput(text);
+        Dispatcher.UIThread.RunJobs();
+        window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    [AvaloniaFact]
+    public async Task Condicao_marca_a_linha_e_vai_para_o_snapshot()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\nfor ($i = 0; $i < 10; $i++) {\n    echo $i;\n}\n");
+        var window = Open(temp, config);
+        window.OpenFile(php);
+
+        var asking = window.EditBreakpointConditionAsync(3);
+        await Until(() => window.IsDialogOpen);
+        Answer(window, "$i == 5");
+        await asking;
+
+        Assert.Equal([3], window.ActiveDocument!.BreakpointLines);
+        Assert.Equal("$i == 5", window.ConditionsSnapshot()[php][3]);
+        Assert.Contains("só quando $i == 5", window.StatusText);
+
+        // Vazio volta a parar sempre, e o ponto continua.
+        asking = window.EditBreakpointConditionAsync(3);
+        await Until(() => window.IsDialogOpen);
+        Answer(window, "");
+        await asking;
+        Assert.Equal([3], window.ActiveDocument!.BreakpointLines);
+        Assert.Empty(window.ConditionsSnapshot());
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Condicao_acompanha_a_linha_e_fecha_e_reabre_com_a_aba()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n$b = 2;\n");
+        var window = Open(temp, config);
+        window.OpenFile(php);
+        window.ActiveDocument!.SetBreakpointCondition(3, "$a > 0");
+
+        // Uma linha nova em cima empurra o ponto e a condição juntos.
+        window.ActiveDocument.Document.Insert(6, "// nota\n");
+        Assert.Equal("$a > 0", window.ActiveDocument.BreakpointConditions[4]);
+
+        Assert.True(await window.SaveAsync(window.ActiveDocument));
+        await window.CloseDocumentAsync(window.ActiveDocument);
+        Assert.Equal("$a > 0", window.ConditionsSnapshot()[php][4]);
+        window.OpenFile(php);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("$a > 0", window.ActiveDocument!.BreakpointConditions[4]);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Condicoes_voltam_ao_reabrir_a_pasta()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n");
+        var window = Open(temp, config, new AppSettings());
+        window.OpenFile(php);
+        var asking = window.EditBreakpointConditionAsync(2);
+        await Until(() => window.IsDialogOpen);
+        Answer(window, "$a === 1");
+        await asking;
+        window.Close();
+
+        var saved = AppSettings.Load(Path.Combine(config.Path, "settings.json"));
+        saved.LastFolder = null;
+        var reopened = new MainWindow(saved, Path.Combine(config.Path, "settings.json"), null);
+        reopened.Language.IsInstalled = _ => false;
+        reopened.Show();
+        reopened.OpenFolder(temp.Path);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("$a === 1", reopened.ConditionsSnapshot()[php][2]);
+        Assert.Equal("$a === 1", reopened.ActiveDocument!.BreakpointConditions[2]);
         reopened.Close();
     }
 

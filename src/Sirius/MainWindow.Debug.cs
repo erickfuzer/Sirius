@@ -30,6 +30,7 @@ public partial class MainWindow
     private readonly ObservableCollection<FrameRow> _frameRows = new();
     private int _frameIndex;
     private readonly Dictionary<string, List<int>> _closedBreakpoints = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<int, string>> _closedConditions = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _expandedVariables = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _previousValues = new(StringComparer.Ordinal);
 
@@ -70,6 +71,7 @@ public partial class MainWindow
         VariablesList.ItemsSource = _variableRows;
         FramesList.ItemsSource = _frameRows;
         _gutter.BreakpointClicked += ToggleBreakpoint;
+        _gutter.BreakpointConditionRequested += line => _ = EditBreakpointConditionAsync(line);
         CodeEditor.TextArea.TextView.BackgroundRenderers.Add(new PausedLineRenderer(() => ActivePausedLine));
     }
 
@@ -85,7 +87,36 @@ public partial class MainWindow
     {
         var document = ActiveDocument;
         _gutter.Breakpoints = CanHaveBreakpoints(document) ? () => document!.BreakpointLines : null;
+        _gutter.Conditions = CanHaveBreakpoints(document) ? () => document!.BreakpointConditions : null;
         _gutter.RedrawBreakpoints();
+    }
+
+    public bool CanSetBreakpointHere => CanHaveBreakpoints(ActiveDocument);
+
+    // Parar só quando a condição em PHP for verdadeira, como $i == 5. Pelo botão direito no ponto,
+    // pelo menu do editor ou pela barra de comando. Sem ponto na linha, ele é criado.
+    public async Task EditBreakpointConditionAsync(int? line = null)
+    {
+        if (!CanHaveBreakpoints(ActiveDocument))
+        {
+            ShowStatus("Pontos de parada valem em arquivos PHP.");
+            return;
+        }
+        var document = ActiveDocument!;
+        var target = line ?? CodeEditor.TextArea.Caret.Line;
+        var current = document.BreakpointConditions.GetValueOrDefault(target, "");
+        var condition = await AskTextAsync($"Parar na linha {target} só quando…",
+            "Escreva uma condição em PHP, como $i == 5 ou $nome === 'Ana'. Deixe vazio para parar sempre.", "Salvar",
+            _ => null, current);
+        if (condition is null || ActiveDocument != document)
+            return;
+
+        document.SetBreakpointCondition(target, condition);
+        _gutter.RedrawBreakpoints();
+        BreakpointsChanged();
+        ShowStatus(string.IsNullOrWhiteSpace(condition)
+            ? $"A linha {target} para sempre."
+            : $"A linha {target} para só quando {condition.Trim()}.");
     }
 
     // Pontos de parada
@@ -102,7 +133,25 @@ public partial class MainWindow
     private void BreakpointsChanged()
     {
         SaveSession();
+        _debug?.SetConditions(ConditionsSnapshot());
         _debug?.SetBreakpoints(BreakpointsSnapshot());
+    }
+
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<int, string>> ConditionsSnapshot()
+    {
+        var all = new Dictionary<string, IReadOnlyDictionary<int, string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (path, conditions) in _closedConditions)
+        {
+            if (conditions.Count > 0)
+                all[path] = conditions;
+        }
+        foreach (var document in _documents)
+        {
+            var conditions = document.BreakpointConditions;
+            if (conditions.Count > 0)
+                all[document.FullPath] = conditions;
+        }
+        return all;
     }
 
     public IReadOnlyDictionary<string, IReadOnlyCollection<int>> BreakpointsSnapshot()
@@ -126,7 +175,10 @@ public partial class MainWindow
     private void RestoreBreakpoints(OpenDocument document)
     {
         if (CanHaveBreakpoints(document) && _closedBreakpoints.Remove(document.FullPath, out var lines))
-            document.SetBreakpoints(lines);
+        {
+            _closedConditions.Remove(document.FullPath, out var conditions);
+            document.SetBreakpoints(lines, conditions);
+        }
     }
 
     // Fechar a aba não apaga o que estava marcado.
@@ -135,6 +187,9 @@ public partial class MainWindow
         var lines = document.BreakpointLines;
         if (lines.Count > 0)
             _closedBreakpoints[document.FullPath] = lines.ToList();
+        var conditions = document.BreakpointConditions;
+        if (conditions.Count > 0)
+            _closedConditions[document.FullPath] = conditions.ToDictionary();
     }
 
     // Preparar o Xdebug
@@ -217,6 +272,7 @@ public partial class MainWindow
     private XdebugServer CreateDebugServer()
     {
         var server = new XdebugServer();
+        server.SetConditions(ConditionsSnapshot());
         server.SetBreakpoints(BreakpointsSnapshot());
 
         // Os eventos vêm de uma thread de fundo. Este método roda na da interface.

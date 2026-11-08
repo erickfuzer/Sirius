@@ -42,6 +42,9 @@ public sealed class GutterMargin : AbstractMargin
     // Só em arquivo PHP: é null nos outros, em que clicar continua só movendo o cursor.
     public Func<IReadOnlyList<int>>? Breakpoints { get; set; }
     public event Action<int>? BreakpointClicked;
+    // Botão direito na faixa dos pontos: escolher uma condição para parar.
+    public event Action<int>? BreakpointConditionRequested;
+    public Func<IReadOnlyDictionary<int, string>>? Conditions { get; set; }
 
     public void RedrawBreakpoints() => InvalidateVisual();
 
@@ -103,7 +106,15 @@ public sealed class GutterMargin : AbstractMargin
     {
         base.OnPointerPressed(e);
         var view = TextView;
-        if (view is null || Document is null || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        var properties = e.GetCurrentPoint(this).Properties;
+        if (view is not null && Document is not null && properties.IsRightButtonPressed && IsBreakpointZone(e.GetPosition(this))
+            && view.GetVisualLineFromVisualTop(e.GetPosition(this).Y + view.VerticalOffset) is { } clicked)
+        {
+            BreakpointConditionRequested?.Invoke(clicked.FirstDocumentLine.LineNumber);
+            e.Handled = true;
+            return;
+        }
+        if (view is null || Document is null || !properties.IsLeftButtonPressed)
             return;
 
         var line = view.GetVisualLineFromVisualTop(e.GetPosition(this).Y + view.VerticalOffset);
@@ -155,12 +166,13 @@ public sealed class GutterMargin : AbstractMargin
 
         var caretLine = _area.Caret.Line;
         var breakpoints = Breakpoints?.Invoke();
+        var conditions = Conditions?.Invoke();
         foreach (var line in view.VisualLines)
         {
             var number = line.FirstDocumentLine.LineNumber;
             // Com a quebra de linha, uma linha ocupa várias fileiras, e o número fica na primeira.
             var rowHeight = line.TextLines.Count > 0 ? line.TextLines[0].Height : line.Height;
-            DrawBreakpoint(context, palette, breakpoints, number, line.VisualTop - view.VerticalOffset + rowHeight / 2);
+            DrawBreakpoint(context, palette, breakpoints, conditions, number, line.VisualTop - view.VerticalOffset + rowHeight / 2);
             var active = number == caretLine;
             var text = new FormattedText(
                 number.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
@@ -173,14 +185,25 @@ public sealed class GutterMargin : AbstractMargin
         DrawThread(context, view, caretLine, palette);
     }
 
-    private void DrawBreakpoint(DrawingContext context, Palette palette, IReadOnlyList<int>? breakpoints, int number, double center)
+    private void DrawBreakpoint(DrawingContext context, Palette palette, IReadOnlyList<int>? breakpoints, IReadOnlyDictionary<int, string>? conditions, int number, double center)
     {
         var marked = breakpoints?.Contains(number) == true;
         if (!marked && number != _hoverLine)
             return;
 
         var radius = BreakpointRadius * _scale;
-        context.DrawEllipse(marked ? palette.Error : palette.Faint, null, new Point(BaseBreakpointX * _scale, center), radius, radius);
+        var x = BaseBreakpointX * _scale;
+        context.DrawEllipse(marked ? palette.Error : palette.Faint, null, new Point(x, center), radius, radius);
+
+        // Com condição, um "=" dentro do ponto, como no VS Code.
+        if (marked && conditions?.ContainsKey(number) == true)
+        {
+            var pen = new Pen(palette.Sheet, Math.Max(1, 1.1 * _scale));
+            var half = radius * 0.5;
+            var gap = radius * 0.32;
+            context.DrawLine(pen, new Point(x - half, center - gap), new Point(x + half, center - gap));
+            context.DrawLine(pen, new Point(x - half, center + gap), new Point(x + half, center + gap));
+        }
     }
 
     private void DrawLineMark(DrawingContext context, Palette palette, int number, double top, double height)

@@ -161,6 +161,7 @@ public partial class MainWindow : Window
     {
         SaveSession();
         _closedBreakpoints.Clear();
+        _closedConditions.Clear();
         RootFolder = Path.GetFullPath(folder);
         _settings.LastFolder = RootFolder;
         _settings.RememberFolder(RootFolder);
@@ -1092,6 +1093,8 @@ public partial class MainWindow : Window
             if (SvgRender.Supports(active.FullPath))
                 actions.Insert(1, (_settings.SvgPreview ? "Esconder a prévia do SVG" : "Mostrar a prévia do SVG", "", ToggleSvgPreview));
             actions.Add(("Ir para a linha", "Ctrl G", OpenGoToLine));
+            if (CanSetBreakpointHere)
+                actions.Add(("Parar nesta linha só quando…", "condição", () => _ = EditBreakpointConditionAsync()));
             actions.Add(("Ir para a definição", "F12", () => _ = GoToDefinitionAsync()));
             actions.Add(("Encontrar todos os usos", "Shift F12", () => _ = FindUsesAsync()));
             actions.Add(("Renomear símbolo", "F2 no editor", () => _ = RenameSymbolAsync()));

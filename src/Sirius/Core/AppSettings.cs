@@ -16,6 +16,9 @@ public sealed class SessionState
 
     // Os pontos de parada de cada arquivo, mesmo o que não está aberto em aba.
     public Dictionary<string, List<int>> Breakpoints { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    // As condições desses pontos, como $i == 5, por arquivo e linha. Só as linhas que têm condição.
+    public Dictionary<string, Dictionary<int, string>> BreakpointConditions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class AppSettings

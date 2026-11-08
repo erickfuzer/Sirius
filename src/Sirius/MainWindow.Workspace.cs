@@ -218,6 +218,7 @@ public partial class MainWindow
             {
                 ActivePath = ActiveDocument is { IsUntitled: false } current ? current.FullPath : null,
                 Breakpoints = breakpoints.ToDictionary(pair => pair.Key, pair => pair.Value.ToList(), StringComparer.OrdinalIgnoreCase),
+                BreakpointConditions = ConditionsSnapshot().ToDictionary(pair => pair.Key, pair => pair.Value.ToDictionary(), StringComparer.OrdinalIgnoreCase),
                 Files = files.Select(document => new SessionFile
                 {
                     Path = document.FullPath,
@@ -237,6 +238,8 @@ public partial class MainWindow
         // Antes de abrir as abas, que pegam daqui os pontos de cada arquivo.
         foreach (var (path, lines) in session.Breakpoints)
             _closedBreakpoints[path] = lines;
+        foreach (var (path, conditions) in session.BreakpointConditions)
+            _closedConditions[path] = conditions;
 
         _restoringSession = true;
         try

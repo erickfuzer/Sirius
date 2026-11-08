@@ -223,6 +223,7 @@ public sealed class XdebugServer : IDisposable
     private readonly Channel<string> _commands = Channel.CreateUnbounded<string>();
     private readonly object _lock = new();
     private Dictionary<string, IReadOnlyCollection<int>> _breakpoints = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, IReadOnlyDictionary<int, string>> _conditions = new(StringComparer.OrdinalIgnoreCase);
     private volatile bool _paused;
     private TcpClient? _client;
 
@@ -247,6 +248,15 @@ public sealed class XdebugServer : IDisposable
         lock (_lock)
             _breakpoints = new Dictionary<string, IReadOnlyCollection<int>>(breakpoints, StringComparer.OrdinalIgnoreCase);
         // Com o programa rodando, o Xdebug não escuta: vale a partir da próxima parada.
+        if (_paused)
+            _commands.Writer.TryWrite("sync");
+    }
+
+    // Pontos que só param quando a condição em PHP é verdadeira, como $i == 5. Arquivo, linha e condição.
+    public void SetConditions(IReadOnlyDictionary<string, IReadOnlyDictionary<int, string>> conditions)
+    {
+        lock (_lock)
+            _conditions = new Dictionary<string, IReadOnlyDictionary<int, string>>(conditions, StringComparer.OrdinalIgnoreCase);
         if (_paused)
             _commands.Writer.TryWrite("sync");
     }
@@ -300,7 +310,8 @@ public sealed class XdebugServer : IDisposable
     private sealed class Connection(XdebugServer server, NetworkStream stream)
     {
         private readonly byte[] _buffer = new byte[8192];
-        private readonly Dictionary<(string File, int Line), string> _applied = new();
+        // A condição faz parte da chave: trocá-la apaga o ponto antigo e cria outro.
+        private readonly Dictionary<(string File, int Line, string Condition), string> _applied = new();
         // Um acento pode vir partido entre dois pedaços da saída.
         private readonly Decoder _output = Encoding.UTF8.GetDecoder();
         private int _bufferStart;
@@ -393,10 +404,14 @@ public sealed class XdebugServer : IDisposable
         private async Task SyncBreakpointsAsync()
         {
             Dictionary<string, IReadOnlyCollection<int>> desired;
+            Dictionary<string, IReadOnlyDictionary<int, string>> conditions;
             lock (server._lock)
-                desired = server._breakpoints;
+                (desired, conditions) = (server._breakpoints, server._conditions);
 
-            var wanted = desired.SelectMany(pair => pair.Value.Select(line => (File: pair.Key, Line: line))).ToHashSet();
+            string ConditionOf(string file, int line) =>
+                conditions.TryGetValue(file, out var lines) && lines.TryGetValue(line, out var condition) ? condition.Trim() : "";
+
+            var wanted = desired.SelectMany(pair => pair.Value.Select(line => (File: pair.Key, Line: line, Condition: ConditionOf(pair.Key, line)))).ToHashSet();
             foreach (var old in _applied.Keys.Where(key => !wanted.Contains(key)).ToList())
             {
                 await RequestAsync($"breakpoint_remove -d {_applied[old]}");
@@ -406,7 +421,11 @@ public sealed class XdebugServer : IDisposable
             foreach (var item in wanted.Where(key => !_applied.ContainsKey(key)))
             {
                 var uri = new Uri(item.File).AbsoluteUri;
-                var response = await RequestAsync($"breakpoint_set -t line -f {uri} -n {item.Line}");
+                // A condição vai em base64, como pede o protocolo: aspas e espaços passam sem estragar o comando.
+                var command = item.Condition.Length == 0
+                    ? $"breakpoint_set -t line -f {uri} -n {item.Line}"
+                    : $"breakpoint_set -t conditional -f {uri} -n {item.Line} -- {Convert.ToBase64String(Encoding.UTF8.GetBytes(item.Condition))}";
+                var response = await RequestAsync(command);
                 if ((string?)response.Attribute("id") is { } id)
                     _applied[item] = id;
             }
