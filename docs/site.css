@@ -271,7 +271,8 @@ u.s { color: var(--st); text-decoration: none; } u.n { color: var(--nu); text-de
 .card:hover .shot img { transform: scale(1.012); }
 .card:not(.wide) .shot { max-height: 330px; margin-right: 0; }
 .card:not(.wide) .shot img { width: 760px; max-width: none; border-radius: 10px 0 0 0; }
-.card:not(.wide) .shot-end img { width: 660px; margin: -150px 0 0 -90px; border-radius: 0; }
+/* Um pouco menor, para o seletor de cor caber inteiro até na tela mais estreita com duas colunas. */
+.card:not(.wide) .shot-picker img { width: 680px; }
 .shot-top img { margin-top: -10px; }
 kbd { display: inline-block; padding: .04em .42em; border-radius: .32em; background: var(--tint); font: 500 .78em Geist, sans-serif; letter-spacing: 0; vertical-align: .08em; }
 
@@ -341,7 +342,7 @@ footer p:first-child { display: flex; flex-wrap: wrap; justify-content: center; 
   .bento, .facts, .notes { grid-template-columns: 1fr; }
   .card { min-height: 0; }
   .card:not(.wide) .shot { max-height: none; margin-right: clamp(26px, 3.2vw, 44px); }
-  .card:not(.wide) .shot img, .card:not(.wide) .shot-end img { width: 100%; margin: 0; border-radius: 10px 10px 0 0; }
+  .card:not(.wide) .shot img { width: 100%; margin: 0; border-radius: 10px 10px 0 0; }
   .hero-shot img { border-radius: 8px; }
 }
 
