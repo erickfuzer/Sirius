@@ -31,7 +31,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Barra de comando:** <kbd>Ctrl</kbd> + <kbd>K</kbd> encontra arquivos e executa ações sem tirar a mão do teclado
 - **Projeto:** árvore de arquivos para criar, renomear e excluir, com busca e substituição em todo o projeto
 - **Terminal integrado:** a cápsula flutuante se abre em um terminal completo. O botão Executar detecta o comando do projeto, e os erros da saída são clicáveis. Em PHP, ele sobe o servidor e oferece abrir o site no navegador, ou o arquivo em uso em pastas sem `index.php`. Se o computador não tiver PHP, oferece a instalação
-- **Depuração de PHP:** clique na margem para marcar uma linha, execute e abra a página. A Sirius para ali e mostra o valor de cada variável, inclusive `$_POST` e `$_GET`, também ao parar o mouse sobre ela, além do que a página já escreveu. Você avança linha por linha, entra nas funções e vê a pilha de chamadas: clicar em quem chamou leva àquela linha e mostra as variáveis de lá. O Xdebug é baixado na primeira vez, se você aceitar, sem mudar a sua instalação do PHP
+- **Depuração de PHP:** clique na margem para marcar uma linha, execute e abra a página. A Sirius para ali e mostra o valor de cada variável, inclusive `$_POST` e `$_GET`, também ao parar o mouse sobre ela, além do que a página já escreveu. Você avança linha por linha, entra nas funções e vê a pilha de chamadas: clicar em quem chamou leva àquela linha e mostra as variáveis de lá. Um ponto pode parar só quando uma condição for verdadeira, como `$i == 5` (botão direito no ponto), e "Vigiar expressão" acompanha valores como `$total * 2` a cada parada. Páginas abertas pelo Apache também param, por "Depurar páginas do servidor" na barra de comando. O Xdebug é baixado na primeira vez, se você aceitar
 - **Inteligência de código:** autocompletar, erros no código, ir para a definição, encontrar todos os usos, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação
 - **Git:** mudanças na árvore e na margem, comparação lado a lado, conflitos resolvidos com um clique em cada trecho ("Ficar com o meu", "Ficar com o recebido" ou "Juntar os dois"), commit por arquivo, descartar, enviar, receber, branches e histórico de commits, com o que mudou em cada um. Se o computador não tiver Git, oferece a instalação
 - **Sessão:** cada pasta reabre as suas abas, e a IDE acompanha o que outros programas mudam no disco. As pastas recentes ficam na tela inicial e no nome da pasta, no topo da janela
@@ -86,7 +86,7 @@ A interface é desenhada pelo [Avalonia](https://avaloniaui.net), sem navegador 
 
 O terminal roda no ConPTY, o mesmo mecanismo de terminal do próprio Windows. A inteligência de código conversa com servidores de linguagem pelo protocolo LSP: quando falta o servidor de um arquivo aberto, a cápsula oferece a instalação para C#, PHP, HTML, CSS, JavaScript, TypeScript e Python. Go, Rust e C++ funcionam se `gopls`, `rust-analyzer` ou `clangd` estiverem instalados. O Git é o seu próprio `git`, sem biblioteca no meio.
 
-A depuração de PHP usa o [Xdebug](https://xdebug.org): a Sirius baixa o arquivo certo para o seu PHP, confere o código dele com uma lista fixa no programa e o liga só durante a execução, sem alterar o `php.ini`. A conversa com o Xdebug fica dentro do computador.
+A depuração de PHP usa o [Xdebug](https://xdebug.org): a Sirius baixa o arquivo certo para o seu PHP, confere o código dele com uma lista fixa no programa e o liga só durante a execução, sem alterar o `php.ini`. Só para páginas de outro servidor, como o Apache, ele precisa ir no `php.ini`: a Sirius pede licença, guarda uma cópia do original e desfaz por "Desligar o Xdebug do php.ini". A conversa com o Xdebug fica dentro do computador.
 
 A única consulta que a Sirius faz por conta própria é perguntar à API pública do GitHub qual é a última versão, ao abrir e ao voltar para a janela, no máximo uma vez por hora. Ela não envia nada do seu projeto e pode ser desligada em "Aviso de versão nova", nas preferências. O instalador só é baixado quando você clica em "Atualizar agora".
 
@@ -154,7 +154,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 ## Limitações
 
 - Só funciona no Windows: o terminal, o instalador e a integração com o Explorer são específicos dele.
-- A depuração é só de PHP e começa pelo botão Executar.
+- A depuração é só de PHP. Para páginas do Apache, ele precisa ser reiniciado depois de ligar o Xdebug.
 - Num conflito de Git, a escolha vale para o trecho inteiro. Para misturar linhas dos dois lados dentro do mesmo trecho, edite à mão depois de escolher.
 - Entre os programas de tela cheia no terminal, o Claude Code foi testado, mas o `vim` não. O terminal repassa a roda do mouse a eles, mas não os cliques.
 - GIF animado mostra só o primeiro quadro. Na prévia do SVG, imagens e fontes de outros endereços não aparecem, de propósito.
