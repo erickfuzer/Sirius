@@ -167,7 +167,7 @@ public partial class MainWindow
         {
             var folder = Path.GetDirectoryName(change.Path)?.Replace(Path.DirectorySeparatorChar, '/') ?? "";
             yield return new HistoryFileRow(commit, change, Path.GetFileName(change.Path), folder, LetterOf(change.Kind), BrushOf(change.Kind),
-                FileRowBackground(commit, change));
+                FileRowBackground(commit, change), FileIcons.For(Path.GetFileName(change.Path)));
         }
         if (files.Count > MaxFilesPerCommit)
             yield return new HistoryNoteRow($"E mais {files.Count - MaxFilesPerCommit} arquivos.");

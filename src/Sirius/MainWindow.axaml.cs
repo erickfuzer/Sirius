@@ -20,6 +20,8 @@ public partial class MainWindow : Window
     private static readonly Geometry ChevronClosed = Geometry.Parse("M4 2L8 6L4 10");
     private static readonly Geometry ChevronOpen = Geometry.Parse("M2 4L6 8L10 4");
     private const int PaletteFileLimit = 50;
+    // Quantas das primeiras linhas da barra são arquivos, que ganham o ícone.
+    private int _paletteFileCount;
     private const double SidebarMinWidth = 160;
     private const double SidebarMaxWidth = 640;
     private const double EditorMinWidth = 320;
@@ -140,6 +142,7 @@ public partial class MainWindow : Window
     public OpenDocument? ActiveDocument { get; private set; }
     public IReadOnlyList<OpenDocument> Documents => _documents;
     public IReadOnlyList<TreeRow> TreeRows => _treeRows;
+    public IReadOnlyList<TabRow> TabRows => _tabRows;
     public bool IsPaletteOpen => PaletteOverlay.IsVisible;
     public bool IsDialogOpen => DialogOverlay.IsVisible;
     public bool IsFocusMode => !Sidebar.IsVisible;
@@ -249,7 +252,8 @@ public partial class MainWindow : Window
                 active ? palette.Tint : Brushes.Transparent,
                 entry.IsFolder ? palette.Muted : gitLetter.Length > 0 ? gitBrush : palette.Ink,
                 document?.IsDirty ?? false,
-                gitLetter, gitBrush));
+                gitLetter, gitBrush,
+                entry.IsFolder ? null : FileIcons.For(entry.Name)));
             if (expanded)
                 AddTreeLevel(entry.FullPath, depth + 1, rows);
         }
@@ -644,7 +648,7 @@ public partial class MainWindow : Window
             var active = document == ActiveDocument;
             _tabRows.Add(new TabRow(document.Name, document.FullPath,
                 active ? FontWeight.SemiBold : FontWeight.Normal,
-                active ? palette.Ink : palette.Muted, document.IsDirty));
+                active ? palette.Ink : palette.Muted, document.IsDirty, FileIcons.For(document.Name)));
         }
     }
 
@@ -1011,12 +1015,14 @@ public partial class MainWindow : Window
 
     private List<(string Name, string Hint, Action Run)> AllCommands(string query)
     {
+        _paletteFileCount = 0;
         if (_paletteOverride is { } overrides)
             return overrides.Where(item => item.Name.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
         if (LineCommands(query) is { } lineCommands)
             return lineCommands;
 
         var commands = new List<(string Name, string Hint, Action Run)>();
+        _paletteFileCount = 0;
         var matches = _projectFiles
             .Select(path => (Path: path, Name: Path.GetFileName(path)))
             .Where(f => f.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
@@ -1025,6 +1031,7 @@ public partial class MainWindow : Window
             .Take(query.Length == 0 ? 6 : PaletteFileLimit);
         foreach (var file in matches)
             commands.Add((file.Name, RootFolder is null ? "" : BreadcrumbFor(file.Path), () => OpenFile(file.Path)));
+        _paletteFileCount = commands.Count;
 
         var actions = new List<(string Name, string Hint, Action Run)>
         {
@@ -1119,7 +1126,8 @@ public partial class MainWindow : Window
         var query = PaletteInput.Text?.Trim() ?? "";
         _commandRows.Clear();
         _filteredCommands = AllCommands(query)
-            .Select((c, i) => new CommandRow(c.Name, c.Hint, i == _paletteIndex ? palette.Tint : Brushes.Transparent, c.Run))
+            .Select((c, i) => new CommandRow(c.Name, c.Hint, i == _paletteIndex ? palette.Tint : Brushes.Transparent, c.Run,
+                i < _paletteFileCount ? FileIcons.For(c.Name) : null))
             .ToList();
         foreach (var row in _filteredCommands)
             _commandRows.Add(row);
@@ -1286,7 +1294,7 @@ public partial class MainWindow : Window
             {
                 currentFile = hit.FullPath;
                 var hint = BreadcrumbFor(hit.FullPath);
-                _searchRows.Add(new SearchRow(true, Path.GetFileName(hit.FullPath), hint, hit.FullPath, 0, 0, 0, "", "", "", Brushes.Transparent));
+                _searchRows.Add(new SearchRow(true, Path.GetFileName(hit.FullPath), hint, hit.FullPath, 0, 0, 0, "", "", "", Brushes.Transparent, FileIcons.For(Path.GetFileName(hit.FullPath))));
             }
             _searchRows.Add(new SearchRow(false, "", "", hit.FullPath, hit.Line, hit.Column, hit.Length, hit.Before, hit.Match, hit.After, Brushes.Transparent));
         }

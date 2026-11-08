@@ -127,14 +127,16 @@
                                                 <MenuItem Header="Excluir" Click="OnTreeDelete" />
                                             </ContextMenu>
                                         </Button.ContextMenu>
-                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="{Binding Padding}">
+                                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="{Binding Padding}">
                                             <Path Grid.Column="0" Width="12" Margin="0,0,3,0" VerticalAlignment="Center"
                                                   Stroke="{DynamicResource Muted}" StrokeThickness="1.2" Data="{Binding Chevron}" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="{Binding Weight}"
+                                            <Image Grid.Column="1" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                   Source="{Binding Icon}" IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Name}" FontWeight="{Binding Weight}"
                                                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                            <Ellipse Grid.Column="2" Width="6" Height="6" Margin="6,0,4,0" Fill="{DynamicResource Accent}"
+                                            <Ellipse Grid.Column="3" Width="6" Height="6" Margin="6,0,4,0" Fill="{DynamicResource Accent}"
                                                      IsVisible="{Binding IsDirty}" />
-                                            <TextBlock Grid.Column="3" Text="{Binding GitLetter}" Foreground="{Binding GitBrush}" Margin="4,0,8,0" MinWidth="8"
+                                            <TextBlock Grid.Column="4" Text="{Binding GitLetter}" Foreground="{Binding GitBrush}" Margin="4,0,8,0" MinWidth="8"
                                                        FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
                                         </Grid>
                                     </Button>
@@ -187,9 +189,10 @@
                                     <Button Classes="flat" Height="24" CornerRadius="6" HorizontalAlignment="Stretch"
                                             Background="{Binding Background}" Click="OnSearchRowClick">
                                         <Panel Margin="8,0">
-                                            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsFile}">
-                                                <TextBlock Grid.Column="0" Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                <TextBlock Grid.Column="1" Text="{Binding Hint}" Margin="6,0,0,0" FontSize="11" Foreground="{DynamicResource Muted}"
+                                            <Grid ColumnDefinitions="Auto,Auto,*" IsVisible="{Binding IsFile}">
+                                                <Image Grid.Column="0" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center" Source="{Binding Icon}" IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Hint}" Margin="6,0,0,0" FontSize="11" Foreground="{DynamicResource Muted}"
                                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                             </Grid>
                                             <Grid ColumnDefinitions="32,*" IsVisible="{Binding IsHit}">
@@ -277,10 +280,11 @@
                                     <DataTemplate x:DataType="s:HistoryFileRow">
                                         <Button Classes="flat" Height="26" CornerRadius="6" HorizontalAlignment="Stretch" Background="{Binding Background}" Click="OnHistoryFileClick"
                                                 ToolTip.Tip="Comparar com a versão anterior">
-                                            <Grid ColumnDefinitions="Auto,*,Auto" Margin="21,0,8,0">
-                                                <TextBlock Grid.Column="0" Text="{Binding Name}" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                                <TextBlock Grid.Column="1" Text="{Binding Folder}" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                                <TextBlock Grid.Column="2" Text="{Binding Letter}" Foreground="{Binding Brush}" Margin="6,0,0,0" MinWidth="8" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="21,0,8,0">
+                                                <Image Grid.Column="0" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center" Source="{Binding Icon}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Folder}" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="3" Text="{Binding Letter}" Foreground="{Binding Brush}" Margin="6,0,0,0" MinWidth="8" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
                                             </Grid>
                                         </Button>
                                     </DataTemplate>
@@ -317,20 +321,21 @@
                                                     <MenuItem Header="Descartar mudanças" Click="OnGitRowDiscard" />
                                                 </ContextMenu>
                                             </Button.ContextMenu>
-                                            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="4,0,4,0">
+                                            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" Margin="4,0,4,0">
                                                 <Button Grid.Column="0" Classes="flat" Width="20" Height="20" CornerRadius="5" HorizontalContentAlignment="Center" Click="OnGitRowToggle"
                                                         AutomationProperties.Name="Incluir no commit" ToolTip.Tip="Incluir no commit">
                                                     <Border Width="13" Height="13" CornerRadius="3" BorderThickness="1" BorderBrush="{DynamicResource Muted}">
                                                         <Path Stroke="{DynamicResource Accent}" StrokeThickness="1.6" Stretch="Uniform" Margin="1" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsIncluded}" Data="M2 6.5L5 9.5L11 3" />
                                                     </Border>
                                                 </Button>
-                                                <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="5,0,6,0" VerticalAlignment="Center" />
-                                                <TextBlock Grid.Column="2" Text="{Binding Folder}" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                                <Button Grid.Column="3" Classes="flat" Width="20" Height="20" CornerRadius="5" HorizontalContentAlignment="Center" Click="OnGitRowDiscard"
+                                                <Image Grid.Column="1" Width="16" Height="16" Margin="5,0,6,0" VerticalAlignment="Center" Source="{Binding Icon}" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Name}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="3" Text="{Binding Folder}" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                <Button Grid.Column="4" Classes="flat" Width="20" Height="20" CornerRadius="5" HorizontalContentAlignment="Center" Click="OnGitRowDiscard"
                                                         AutomationProperties.Name="Descartar mudanças" ToolTip.Tip="Descartar mudanças">
                                                     <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.2" Data="M0 2.5H6A3 3 0 0 1 6 8.5H2M2.5 0L0 2.5L2.5 5" />
                                                 </Button>
-                                                <TextBlock Grid.Column="4" Text="{Binding Letter}" Foreground="{Binding Brush}" Margin="4,0,2,0" MinWidth="8" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="5" Text="{Binding Letter}" Foreground="{Binding Brush}" Margin="4,0,2,0" MinWidth="8" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
                                             </Grid>
                                         </Button>
                                     </DataTemplate>
@@ -359,6 +364,7 @@
                                             <Button Classes="flat" Height="28" Foreground="{Binding Foreground}" Click="OnTabClick"
                                                     PointerPressed="OnTabPointerPressed">
                                                 <StackPanel Orientation="Horizontal" Spacing="6" Margin="10,0,4,0">
+                                                    <Image Width="16" Height="16" VerticalAlignment="Center" Source="{Binding Icon}" />
                                                     <TextBlock Text="{Binding Name}" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
                                                     <Ellipse Width="6" Height="6" Fill="{DynamicResource Accent}" IsVisible="{Binding IsDirty}" />
                                                     <Button Classes="flat" Width="18" Height="18" Click="OnTabClose" CornerRadius="9"
@@ -686,9 +692,10 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="s:CommandRow">
                                     <Button Classes="flat" Height="30" CornerRadius="8" HorizontalAlignment="Stretch" Background="{Binding Background}" Click="OnCommandClick">
-                                        <Grid ColumnDefinitions="*,Auto" Margin="10,0">
-                                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="Medium" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="1" Text="{Binding Hint}" Margin="14,0,0,0" MaxWidth="260" TextTrimming="CharacterEllipsis" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
+                                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="10,0">
+                                            <Image Grid.Column="0" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center" Source="{Binding Icon}" IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="Medium" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Hint}" Margin="14,0,0,0" MaxWidth="260" TextTrimming="CharacterEllipsis" FontSize="12" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" />
                                         </Grid>
                                     </Button>
                                 </DataTemplate>

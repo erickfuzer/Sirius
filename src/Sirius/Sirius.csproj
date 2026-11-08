@@ -19,6 +19,9 @@
     <!-- As tabelas do Emmet e os atalhos do VS Code, as duas sob a licença MIT, com os textos ao lado. -->
     <EmbeddedResource Include="Assets\Snippets\*.json;Assets\Snippets\*.code-snippets" LogicalName="Snippets.%(Filename)%(Extension)" />
     <None Include="Assets\Snippets\LICENSE-*.txt" CopyToOutputDirectory="PreserveNewest" Link="Licencas\%(Filename)%(Extension)" />
+    <!-- Os ícones de arquivo do Material Icon Theme, licença MIT. -->
+    <EmbeddedResource Include="Assets\FileIcons\icons.json" LogicalName="FileIcons.icons.json" />
+    <None Include="Assets\FileIcons\LICENSE-*.txt" CopyToOutputDirectory="PreserveNewest" Link="Licencas\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

@@ -207,7 +207,7 @@ public partial class MainWindow
             .OrderBy(c => c.Kind != GitChangeKind.Conflict).ThenBy(c => c.Path, StringComparer.OrdinalIgnoreCase)
             .Select(change => new GitRow(Path.GetFileName(change.Path),
                 Path.GetDirectoryName(change.Path)?.Replace(Path.DirectorySeparatorChar, '/') ?? "",
-                LetterOf(change.Kind), BrushOf(change.Kind), !_gitExcluded.Contains(change.Path), change))
+                LetterOf(change.Kind), BrushOf(change.Kind), !_gitExcluded.Contains(change.Path), change, FileIcons.For(Path.GetFileName(change.Path))))
             .ToList());
         // O Git só deixa de chamar de conflito depois do commit. Para a pessoa, sem marcas já está resolvido,
         // e o aviso vermelho ao lado de "faça o commit" confundia.
