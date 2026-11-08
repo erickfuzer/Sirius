@@ -154,7 +154,7 @@ public class SnippetWindowTests
     }
 
     [AvaloniaFact]
-    public void Exclamacao_seleciona_o_titulo_da_pagina()
+    public void Exclamacao_segue_os_campos_do_vs_code()
     {
         using var temp = new TempFolder();
         var window = Open(temp, "index.html", "!");
@@ -162,6 +162,11 @@ public class SnippetWindowTests
         window.ExpandEmmet();
         Dispatcher.UIThread.RunJobs();
 
+        // Como no VS Code: a largura e a escala da tela vêm antes do título.
+        Assert.Equal("device-width", window.SelectedText);
+        Press(window, PhysicalKey.Tab);
+        Assert.Equal("1.0", window.SelectedText);
+        Press(window, PhysicalKey.Tab);
         Assert.Equal("Documento", window.SelectedText);
         Type(window, "Minha página");
         Assert.Contains("<title>Minha página</title>", Text(window));

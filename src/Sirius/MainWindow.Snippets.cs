@@ -51,6 +51,37 @@ public partial class MainWindow
         };
     }
 
+    // Os atalhos da linguagem no cursor, como foreach no PHP e log no JavaScript. Como no VS Code, não aparecem
+    // em texto entre aspas nem em comentário, e no Markdown só pedindo, com Ctrl Espaço ou pela barra.
+    private IEnumerable<Editing.SuggestionItem> LibrarySuggestions(Editing.OpenDocument document, bool explicitRequest)
+    {
+        if (document.IsImage || CodeEditor.IsReadOnly)
+            yield break;
+        var text = document.Document.Text;
+        var caret = CodeEditor.TextArea.Caret.Offset;
+        if (SnippetLibrary.LanguageAt(document.FullPath, text, caret) is not { } language)
+            yield break;
+        if (language == "markdown" && !explicitRequest)
+            yield break;
+        if (SnippetLibrary.WordBefore(text, caret) is not { } word || (word.Word.Length == 0 && !explicitRequest))
+            yield break;
+        if (AutoPairs.IsInStringOrComment(text, word.Start))
+            yield break;
+        foreach (var entry in SnippetLibrary.Matching(language, word.Word))
+            yield return new Editing.SuggestionItem(entry.Prefix, entry.Prefix, "Trecho", Snippet.Parse(entry.Body, SnippetVariable).Text,
+                () => Dispatcher.UIThread.Post(() => InsertLibrarySnippet(entry.Body)));
+    }
+
+    // A palavra é lida de novo, porque a pessoa pode ter digitado mais com a lista aberta.
+    private void InsertLibrarySnippet(string body)
+    {
+        var text = CodeEditor.Document.Text;
+        var caret = CodeEditor.TextArea.Caret.Offset;
+        var start = SnippetLibrary.WordBefore(text, caret)?.Start ?? caret;
+        CloseCompletion();
+        InsertSnippet(start, caret - start, ParseSnippetHere(body));
+    }
+
     // Lê um corpo de trecho já no recuo e na quebra de linha do arquivo, a partir da linha do cursor.
     private SnippetText ParseSnippetHere(string body)
     {

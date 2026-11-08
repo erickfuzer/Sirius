@@ -194,22 +194,26 @@ public partial class MainWindow
     {
         if (ActiveDocument is not { } document)
             return;
-        // Uma lista só com o Emmet é refeita a cada tecla, para mostrar a abreviação como ela está agora.
-        if (_emmetOnlyCompletion)
+        // Uma lista só com as sugestões da Sirius é refeita a cada tecla, para mostrar a abreviação como ela está agora.
+        if (_localOnlyCompletion)
             CloseCompletion();
         if (_completion is not null)
             return;
 
         var client = _language.ClientForDocument(document);
         var wantsServer = client is { SupportsCompletion: true } && ((IsWordChar(typed) && !char.IsDigit(typed)) || client.CompletionTriggers.Contains(typed));
-        if (wantsServer || EmmetSuggestion(document) is not null)
+        if (wantsServer || LocalSuggestions(document, explicitRequest: false).Count > 0)
             _ = RequestCompletionAsync();
     }
 
-    // Lista aberta só com a sugestão do Emmet, sem nada do servidor.
-    private bool _emmetOnlyCompletion;
+    // Lista aberta só com o que a Sirius sugere sozinha, sem nada do servidor.
+    private bool _localOnlyCompletion;
 
-    public async Task RequestCompletionAsync()
+    // O que a Sirius sugere sem servidor: o Emmet de HTML e de CSS e os atalhos de cada linguagem.
+    private List<SuggestionItem> LocalSuggestions(OpenDocument document, bool explicitRequest) =>
+        [.. EmmetSuggestions(document), .. LibrarySuggestions(document, explicitRequest)];
+
+    public async Task RequestCompletionAsync(bool explicitRequest = false)
     {
         if (ActiveDocument is not { } document)
             return;
@@ -218,7 +222,7 @@ public partial class MainWindow
         var requestedAt = area.Caret.Offset;
         var (line, character) = LspPositions.FromOffset(document.Document, requestedAt);
 
-        // Sem servidor, ou sem resposta dele, ainda pode haver a sugestão do Emmet.
+        // Sem servidor, ou sem resposta dele, ainda pode haver o Emmet e os atalhos da linguagem.
         List<CompletionEntry> entries = [];
         if (_language.ClientForDocument(document) is { SupportsCompletion: true } client)
         {
@@ -246,13 +250,13 @@ public partial class MainWindow
             || caret < requestedAt || document.Document.GetLineByOffset(caret).LineNumber != line + 1)
             return;
 
-        var emmet = EmmetSuggestion(document);
-        if (entries.Count == 0 && emmet is null)
+        var local = LocalSuggestions(document, explicitRequest);
+        if (entries.Count == 0 && local.Count == 0)
             return;
-        ShowCompletion(document, entries, caret, emmet);
+        ShowCompletion(document, entries, caret, local);
     }
 
-    private void ShowCompletion(OpenDocument document, List<CompletionEntry> entries, int caret, ICompletionData? emmet = null)
+    private void ShowCompletion(OpenDocument document, List<CompletionEntry> entries, int caret, List<SuggestionItem>? local = null)
     {
         var text = document.Document;
         var caretLine = text.GetLineByOffset(caret);
@@ -261,10 +265,11 @@ public partial class MainWindow
                 ? caretLine.Offset + edit.StartCharacter
                 : null;
 
-        // O filtro da lista começa onde o servidor disse que a palavra começa, se ele disse. Só com o Emmet,
+        // O filtro da lista começa onde o servidor disse que a palavra começa, se ele disse. Só com o que é da Sirius,
         // não há o que filtrar: a lista é refeita a cada tecla.
-        var emmetOnly = entries.Count == 0 && emmet is not null;
-        var start = emmetOnly ? caret : entries.Select(EditStart).FirstOrDefault(offset => offset is not null) ?? WordStart(text, caret);
+        local ??= [];
+        var localOnly = entries.Count == 0 && local.Count > 0;
+        var start = localOnly ? caret : entries.Select(EditStart).FirstOrDefault(offset => offset is not null) ?? WordStart(text, caret);
         var window = new CompletionWindow(CodeEditor.TextArea)
         {
             StartOffset = start,
@@ -281,9 +286,9 @@ public partial class MainWindow
         var candidates = matching.Count > 0 ? matching : entries;
 
         var items = window.CompletionList.CompletionData;
-        // A abreviação vem primeiro, como no VS Code.
-        if (emmet is not null)
-            items.Add(emmet);
+        // O Emmet e os atalhos vêm primeiro, como a abreviação no VS Code.
+        foreach (var item in local)
+            items.Add(item);
         foreach (var entry in candidates.OrderBy(e => e.SortText ?? e.Label, StringComparer.OrdinalIgnoreCase).Take(MaxCompletionItems))
         {
             // O que o servidor quer trocar depois do cursor, como o resto de uma palavra.
@@ -298,13 +303,13 @@ public partial class MainWindow
             if (_completion != window)
                 return;
             _completion = null;
-            _emmetOnlyCompletion = false;
+            _localOnlyCompletion = false;
         };
         _completion = window;
-        _emmetOnlyCompletion = emmetOnly;
+        _localOnlyCompletion = localOnly;
         window.Show();
-        if (emmetOnly)
-            window.CompletionList.SelectedItem = emmet;
+        if (localOnly)
+            window.CompletionList.SelectedItem = local[0];
         else
             window.CompletionList.SelectItem(document.Document.GetText(start, caret - start));
     }
@@ -332,7 +337,7 @@ public partial class MainWindow
         _completionCancel?.Cancel();
         _completion?.Close();
         _completion = null;
-        _emmetOnlyCompletion = false;
+        _localOnlyCompletion = false;
     }
 
     // Ir para a definição

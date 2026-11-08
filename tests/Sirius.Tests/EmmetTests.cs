@@ -8,7 +8,7 @@ namespace Sirius.Tests;
 
 public class EmmetTests
 {
-    private static string Out(string abbreviation) => Emmet.Expand(abbreviation)!.Value.Text;
+    private static string Out(string abbreviation) => Emmet.Expand(abbreviation)!.Text;
 
     // Expansão
 
@@ -27,7 +27,7 @@ public class EmmetTests
     [InlineData("img", "<img src=\"\" alt=\"\">")]
     [InlineData("br", "<br>")]
     [InlineData("input", "<input type=\"text\">")]
-    [InlineData("input:email", "<input type=\"email\">")]
+    [InlineData("input:email", "<input type=\"email\" name=\"\" id=\"\">")]
     [InlineData("input[type=password]", "<input type=\"password\">")]
     [InlineData("btn", "<button></button>")]
     [InlineData("link:css", "<link rel=\"stylesheet\" href=\"style.css\">")]
@@ -102,35 +102,107 @@ public class EmmetTests
     [Fact]
     public void Paradas_ficam_nos_campos_vazios()
     {
-        var (text, stops) = Emmet.Expand("a+p")!.Value;
+        var (text, stops) = Emmet.Expand("a+p")!;
         Assert.Equal("<a href=\"\"></a>\n<p></p>", text);
-        Assert.Equal([9, 11, 19], stops);
+        Assert.Equal([9, 11, 19], stops.Select(stop => stop.Offset));
     }
 
     [Fact]
     public void Texto_preenchido_nao_e_parada()
     {
-        var (_, stops) = Emmet.Expand("p{oi}")!.Value;
+        var (_, stops) = Emmet.Expand("p{oi}")!;
         Assert.Empty(stops);
     }
 
     [Fact]
     public void Pagina_inicial()
     {
-        var (text, stops) = Emmet.Expand("!")!.Value;
+        var page = Emmet.Expand("!")!;
 
-        Assert.StartsWith("<!DOCTYPE html>\n<html lang=\"pt-BR\">", text);
-        Assert.Contains("    <meta charset=\"UTF-8\">", text);
-        Assert.Equal(2, stops.Count);
-        Assert.Equal("Documento", text.Substring(stops[0], 9));
-        Assert.Equal("</body>", text.Substring(stops[1] + 1, 7));
+        Assert.Equal(
+            "<!DOCTYPE html>\n<html lang=\"pt-BR\">\n<head>\n    <meta charset=\"UTF-8\">\n"
+            + "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Documento</title>\n"
+            + "</head>\n<body>\n    \n</body>\n</html>", page.Text);
+        // Na ordem do VS Code: a largura e a escala da tela, o título e o corpo.
+        var fields = page.Order.Select(index => page.Stops.First(stop => stop.Index == index)).ToList();
+        Assert.Equal(["device-width", "1.0", "Documento", ""], fields.Select(stop => page.Text.Substring(stop.Offset, stop.Length)));
+        Assert.Equal("\n</body>", page.Text.Substring(fields[3].Offset, 8));
     }
 
     [Fact]
     public void Respeita_recuo_e_quebra_de_linha()
     {
-        var (text, _) = Emmet.Expand("ul>li", "\t", "\r\n", "  ")!.Value;
+        var (text, _) = Emmet.Expand("ul>li", "\t", "\r\n", "  ")!;
         Assert.Equal("<ul>\r\n  \t<li></li>\r\n  </ul>", text);
+    }
+
+    // A tabela oficial do Emmet, a mesma do VS Code
+
+    [Theory]
+    [InlineData("!!!", "<!DOCTYPE html>")]
+    [InlineData("a:link", "<a href=\"http://\"></a>")]
+    [InlineData("a:mail", "<a href=\"mailto:\"></a>")]
+    [InlineData("a:blank", "<a href=\"http://\" target=\"_blank\" rel=\"noopener noreferrer\"></a>")]
+    [InlineData("a:tel", "<a href=\"tel:+\"></a>")]
+    [InlineData("c", "<!--  -->")]
+    [InlineData("inp", "<input type=\"text\" name=\"\" id=\"\">")]
+    [InlineData("input:t", "<input type=\"text\" name=\"\" id=\"\">")]
+    [InlineData("input:p", "<input type=\"password\" name=\"\" id=\"\">")]
+    [InlineData("input:submit", "<input type=\"submit\" value=\"\">")]
+    [InlineData("input:reset", "<input type=\"reset\" value=\"\">")]
+    [InlineData("btn:s", "<button type=\"submit\"></button>")]
+    [InlineData("btn:d", "<button disabled></button>")]
+    [InlineData("select:d", "<select name=\"\" id=\"\" disabled></select>")]
+    [InlineData("link:favicon", "<link rel=\"shortcut icon\" href=\"favicon.ico\" type=\"image/x-icon\">")]
+    [InlineData("meta:vp", "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">")]
+    [InlineData("meta:edge", "<meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\">")]
+    [InlineData("form:post", "<form action=\"\" method=\"post\"></form>")]
+    [InlineData("textarea", "<textarea name=\"\" id=\"\"></textarea>")]
+    [InlineData("opt", "<option value=\"\"></option>")]
+    [InlineData("acronym", "<acronym title=\"\"></acronym>")]
+    [InlineData("hr", "<hr>")]
+    [InlineData("param", "<param name=\"\" value=\"\">")]
+    [InlineData("script:module", "<script type=\"module\" src=\"\"></script>")]
+    [InlineData("ri:a", "<picture>\n    <source media=\"(min-width: )\" srcset=\"\">\n    <img src=\"\" alt=\"\">\n</picture>")]
+    public void Atalhos_da_tabela(string abbreviation, string expected) => Assert.Equal(expected, Out(abbreviation));
+
+    [Fact]
+    public void Atalho_recebe_classe_e_filhos()
+    {
+        Assert.Equal("<a href=\"http://\" class=\"x\"></a>", Out("a:link.x"));
+        // Um elemento em linha fica junto, e três quebram, como no próprio Emmet.
+        Assert.Equal("<form action=\"\" method=\"post\"><input type=\"text\" name=\"\" id=\"\"></form>", Out("form:post>input:t"));
+        Assert.Equal("<div>\n    <input type=\"text\" name=\"\" id=\"\">\n    <input type=\"password\" name=\"\" id=\"\">\n    <input type=\"submit\" value=\"\">\n</div>",
+            Out("div>input:t+input:p+input:s"));
+        Assert.Equal("<a href=\"http://\"></a>\n<a href=\"http://\"></a>", Out("a:link*2"));
+    }
+
+    [Fact]
+    public void Campos_da_tabela_vem_selecionados()
+    {
+        var css = Emmet.Expand("link:css")!;
+        var first = css.Stops.First(stop => stop.Index == css.Order[0]);
+        Assert.Equal("style", css.Text.Substring(first.Offset, first.Length));
+    }
+
+    [Fact]
+    public void Mesmo_atalho_repetido_tem_campos_proprios() =>
+        Assert.Equal(6, Emmet.Expand("inp*2")!.Order.Count);
+
+    [Theory]
+    [InlineData("a:", new[] { "a:blank", "a:link", "a:mail", "a:tel" })]
+    [InlineData("!", new[] { "!", "!!!" })]
+    [InlineData("ul>a:", new string[0])]
+    [InlineData("p.a", new string[0])]
+    public void Lista_mostra_as_chaves_que_comecam_pelo_nome(string typed, string[] labels) =>
+        Assert.Equal(labels, Emmet.SuggestionsAt(typed, typed.Length, "a.html", "    ", "\n").Select(s => s.Label).Where(l => l != typed || l == "!"));
+
+    [Fact]
+    public void Chave_da_tabela_troca_a_abreviacao_inteira()
+    {
+        var suggestion = Emmet.SuggestionsAt("<div>a:", 7, "a.html", "    ", "\n").First(s => s.Label == "a:link");
+        Assert.Equal("<a href=\"http://\"></a>", suggestion.Expansion.Text);
+        Assert.Equal((5, 2), (suggestion.Expansion.Start, suggestion.Expansion.Length));
     }
 
     [Theory]
@@ -489,7 +561,7 @@ public class EmmetTests
         window.KeyTextInput("!");
         Dispatcher.UIThread.RunJobs();
         Assert.True(window.IsCompletionOpen);
-        Assert.Equal(["!"], window.CompletionLabels);
+        Assert.Equal(["!", "!!!"], window.CompletionLabels);
 
         Enter(window);
 
@@ -585,14 +657,18 @@ public class EmmetTests
         window.Close();
     }
 
-    [AvaloniaFact]
-    public void Expandir_emmet_so_aparece_em_html_e_php()
+    [AvaloniaTheory]
+    [InlineData("a.js", false)]
+    [InlineData("a.txt", false)]
+    [InlineData("a.css", true)]
+    [InlineData("a.php", true)]
+    public void Expandir_emmet_so_aparece_onde_ha_emmet(string file, bool shown)
     {
         using var temp = new TempFolder();
         using var settings = new TempFolder();
-        var window = Open(temp, settings, "a.css", "a {}");
+        var window = Open(temp, settings, file, "a {}");
 
-        Assert.DoesNotContain("Expandir Emmet", window.PaletteCommandNames("emmet"));
+        Assert.Equal(shown, window.PaletteCommandNames("emmet").Contains("Expandir Emmet"));
         window.Close();
     }
 

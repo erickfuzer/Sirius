@@ -25,11 +25,11 @@ public static class LineEditing
         var extension = Path.GetExtension(path ?? "").ToLowerInvariant();
         if (MixedMarkup.Contains(extension))
         {
-            if (IsOpen(text, offset, "<?", "?>") || string.CompareOrdinal(text, offset, "<?", 0, 2) == 0)
+            if (Markup.InPhp(text, offset) || string.CompareOrdinal(text, offset, "<?", 0, 2) == 0)
                 return CommentStyle.Slashes;
-            if (IsOpen(text, offset, "<style", "</style"))
+            if (Markup.InStyle(text, offset))
                 return CommentStyle.Css;
-            if (IsOpen(text, offset, "<script", "</script"))
+            if (Markup.InScript(text, offset))
                 return CommentStyle.Slashes;
             return CommentStyle.Html;
         }
@@ -47,14 +47,6 @@ public static class LineEditing
             ".xml" or ".svg" or ".xaml" or ".axaml" or ".csproj" or ".md" => CommentStyle.Html,
             _ => Path.GetFileName(path ?? "").ToLowerInvariant() is ".gitignore" or ".env" or "dockerfile" ? CommentStyle.Hash : null,
         };
-    }
-
-    private static bool IsOpen(string text, int offset, string open, string close)
-    {
-        if (offset <= 0)
-            return false;
-        var before = text.AsSpan(0, Math.Min(offset, text.Length));
-        return before.LastIndexOf(open, StringComparison.OrdinalIgnoreCase) > before.LastIndexOf(close, StringComparison.OrdinalIgnoreCase);
     }
 
     // As linhas tocadas pela seleção. Uma seleção que termina no começo de uma linha não a inclui,

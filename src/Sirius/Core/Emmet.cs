@@ -1,23 +1,33 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Sirius.Core;
 
-// O resultado de expandir: o trecho a substituir, o texto novo e as paradas do Tab, já no documento.
-public sealed record EmmetExpansion(int Start, int Length, string Text, IReadOnlyList<int> Stops)
+// O resultado de expandir: o trecho a substituir e o texto novo, com os campos do Tab contados a partir de Start.
+public sealed record EmmetExpansion(int Start, int Length, SnippetText Snippet)
 {
-    // Quanto do texto cada parada seleciona: o título da página entra marcado, como no VS Code.
-    public IReadOnlyList<int>? StopLengths { get; init; }
-
-    // Para o mecanismo de trechos: campos 1, 2, 3... na ordem do texto, contados a partir de Start.
-    public SnippetText ToSnippet() => new(Text, Stops.Select((stop, i) => new SnippetStop(i + 1, stop - Start, StopLengths is { } lengths && i < lengths.Count ? lengths[i] : 0)).ToList());
+    public string Text => Snippet.Text;
 }
 
-// Abreviações de HTML, como ul>li*3. Feito aqui, sem servidor: o Tab precisa responder na hora,
-// e isto funciona sem Node e sem internet.
+// Abreviações de HTML, como ul>li*3. Feito aqui, sem servidor: a sugestão precisa aparecer na hora,
+// e isto funciona sem Node e sem internet. Os atalhos com nome, como a:link e !, vêm da tabela oficial
+// do Emmet (Assets\Snippets\emmet-html.json, licença MIT), a mesma do VS Code.
 public static class Emmet
 {
     private const int MaxAbbreviationLength = 500;
     private const int MaxElements = 1000;
+    private const int MaxDepth = 10;
+    private const int MaxSuggestions = 50;
+    public const string PageTitle = "Documento";
+
+    // Os campos da tabela, como ${1:style}, viram marcas fora do texto comum, para o leitor não confundir
+    // a chave do campo com a do texto nem o $ com o da numeração.
+    private const char FieldOpen = '';
+    private const char FieldClose = '';
+    private const char FieldSeparator = '';
+    // Atributo sem valor, como o disabled de button:d.
+    private const string BooleanValue = "";
 
     private static readonly HashSet<string> KnownTags = new(StringComparer.Ordinal)
     {
@@ -41,61 +51,79 @@ public static class Emmet
         "mark", "q", "s", "samp", "select", "small", "span", "strong", "sub", "sup", "textarea", "time", "u", "var", "wbr",
     };
 
-    private static readonly Dictionary<string, string> ShortNames = new(StringComparer.Ordinal)
-    {
-        ["btn"] = "button", ["bq"] = "blockquote", ["hdr"] = "header", ["ftr"] = "footer", ["sect"] = "section",
-        ["art"] = "article", ["fig"] = "figure", ["figc"] = "figcaption", ["pic"] = "picture", ["str"] = "strong",
-        ["ifr"] = "iframe", ["emb"] = "embed", ["obj"] = "object", ["cap"] = "caption", ["colg"] = "colgroup",
-        ["fst"] = "fieldset", ["leg"] = "legend", ["sel"] = "select", ["opt"] = "option", ["tarea"] = "textarea", ["acr"] = "abbr",
-    };
+    private static readonly Lazy<Dictionary<string, string>> Table = new(LoadTable);
+    private static readonly Regex TableField = new(@"\$\{(\d+)(?::([^}]*))?\}", RegexOptions.CultureInvariant);
 
-    private static readonly Dictionary<string, (string Name, string Value)[]> DefaultAttributes = new(StringComparer.Ordinal)
+    // Cada chave pode ter apelidos, como "opt|option". O título e a língua da página vêm em português.
+    private static Dictionary<string, string> LoadTable()
     {
-        ["a"] = [("href", "")],
-        ["img"] = [("src", ""), ("alt", "")],
-        ["input"] = [("type", "text")],
-        ["link"] = [("rel", "stylesheet"), ("href", "")],
-        ["form"] = [("action", "")],
-        ["label"] = [("for", "")],
-        ["iframe"] = [("src", ""), ("frameborder", "0")],
-        ["audio"] = [("src", "")],
-        ["video"] = [("src", "")],
-        ["source"] = [("src", ""), ("type", "")],
-        ["area"] = [("shape", ""), ("coords", ""), ("href", ""), ("alt", "")],
-        ["select"] = [("name", ""), ("id", "")],
-        ["textarea"] = [("name", ""), ("id", ""), ("cols", "30"), ("rows", "10")],
-        ["meta"] = [("name", ""), ("content", "")],
-    };
+        var table = new Dictionary<string, string>(StringComparer.Ordinal);
+        using var stream = SnippetLibrary.Resource("emmet-html.json");
+        if (stream is null)
+            return table;
+        using var document = JsonDocument.Parse(stream);
+        foreach (var item in document.RootElement.EnumerateObject())
+        {
+            var value = (item.Value.GetString() ?? "")
+                .Replace("${lang}", "pt-BR")
+                .Replace("${charset}", "UTF-8")
+                .Replace("${1:Document}", "${1:" + PageTitle + "}");
+            value = TableField.Replace(value, match => Field(int.Parse(match.Groups[1].Value), match.Groups[2].Value));
+            foreach (var key in item.Name.Split('|'))
+                table[key.Trim()] = value;
+        }
+        return table;
+    }
+
+    private static string Field(int index, string placeholder) => $"{FieldOpen}{index}{FieldSeparator}{placeholder}{FieldClose}";
 
     public static bool Supports(string? path) => Path.GetExtension(path ?? "").ToLowerInvariant() is ".html" or ".htm" or ".php" or ".vue" or ".svelte";
 
-    // A abreviação que termina no cursor, ou null se ali o Tab deve fazer o que sempre fez.
-    public static EmmetExpansion? TryExpandAt(string text, int caret, string? path, string indent, string newline)
+    // A abreviação que termina no cursor, ou null se ali não há abreviação.
+    public static EmmetExpansion? TryExpandAt(string text, int caret, string? path, string indent, string newline) =>
+        SuggestionsAt(text, caret, path, indent, newline, withTable: false).Select(s => s.Expansion).FirstOrDefault();
+
+    // O que a lista mostra, como no VS Code: a abreviação digitada e, depois dela, as chaves da tabela que
+    // começam pelo último nome, como a:link e a:mail para "a:", ou !!! para "!".
+    public static List<(string Label, EmmetExpansion Expansion)> SuggestionsAt(string text, int caret, string? path, string indent, string newline, bool withTable = true)
     {
+        var result = new List<(string, EmmetExpansion)>();
         if (!Supports(path) || caret <= 0 || caret > text.Length)
-            return null;
+            return result;
 
         var lineStart = text.LastIndexOf('\n', caret - 1) + 1;
         var end = PastClosers(text, lineStart, caret);
-        if (FindStart(text, lineStart, end) is not { } start)
-            return null;
-        if (!IsPlainMarkup(text, start))
-            return null;
+        if (FindStart(text, lineStart, end) is not { } start || !IsPlainMarkup(text, start))
+            return result;
 
         var abbreviation = text[start..end];
         var leading = LeadingWhitespace(text, lineStart);
+        var aloneOnLine = start == lineStart + leading.Length;
 
-        // A página inicial só faz sentido sozinha na linha.
-        var isPage = abbreviation is "!" or "html:5";
-        if (isPage && start != lineStart + leading.Length)
-            return null;
-
-        if (Expand(abbreviation, indent, newline, leading) is not { } expanded)
-            return null;
-        return new EmmetExpansion(start, end - start, expanded.Text, expanded.Stops.Select(stop => start + stop).ToList())
+        void Add(string label, string candidate)
         {
-            StopLengths = isPage ? [PageTitle.Length] : null,
-        };
+            // A página inicial só faz sentido sozinha na linha.
+            if (candidate is "!" or "html:5" && !aloneOnLine)
+                return;
+            if (Expand(candidate, indent, newline, leading) is { } expanded)
+                result.Add((label, new EmmetExpansion(start, end - start, expanded)));
+        }
+
+        Add(abbreviation, abbreviation);
+        if (!withTable)
+            return result;
+
+        // Como no VS Code, só para um nome sozinho: o filtro da lista compara a abreviação inteira com a chave,
+        // e "ul>li" não bate com "link".
+        if (!abbreviation.All(c => char.IsAsciiLetterOrDigit(c) || c is ':' or '!' or '-'))
+            return result;
+        foreach (var key in Table.Value.Keys.Where(key => key.Length > abbreviation.Length && key.StartsWith(abbreviation, StringComparison.Ordinal)).Order(StringComparer.Ordinal))
+        {
+            if (result.Count >= MaxSuggestions)
+                break;
+            Add(key, key);
+        }
+        return result;
     }
 
     // O fechamento automático deixa o cursor antes do que a própria abreviação precisa, como em div{oi|}.
@@ -192,33 +220,23 @@ public static class Emmet
 
     public static bool IsPlainMarkup(string text, int offset)
     {
-        return !IsOpen(text, offset, "<?", "?>")
-            && !IsOpen(text, offset, "<!--", "-->")
-            && !IsOpen(text, offset, "<style", "</style")
-            && !IsOpen(text, offset, "<script", "</script")
+        return !Markup.InPhp(text, offset)
+            && !Markup.InComment(text, offset)
+            && !Markup.InStyle(text, offset)
+            && !Markup.InScript(text, offset)
             // Dentro de uma tag, como no valor de um atributo.
             && (offset == 0 || text.LastIndexOf('<', offset - 1) <= text.LastIndexOf('>', offset - 1));
     }
 
-    private static bool IsOpen(string text, int offset, string open, string close)
+    public static SnippetText? Expand(string abbreviation, string indent = "    ", string newline = "\n", string leading = "")
     {
-        if (offset == 0)
-            return false;
-        var before = text.AsSpan(0, offset);
-        return before.LastIndexOf(open, StringComparison.OrdinalIgnoreCase) > before.LastIndexOf(close, StringComparison.OrdinalIgnoreCase);
-    }
-
-    public static (string Text, List<int> Stops)? Expand(string abbreviation, string indent = "    ", string newline = "\n", string leading = "")
-    {
-        if (abbreviation.Length == 0 || abbreviation.Length > MaxAbbreviationLength)
+        if (abbreviation.Length == 0 || abbreviation.Length > MaxAbbreviationLength || abbreviation.Any(c => c is >= FieldOpen and <= ''))
             return null;
-        if (abbreviation is "!" or "html:5")
-            return Page(indent, newline, leading);
 
         List<Node>? nodes;
         try
         {
-            nodes = new Parser(abbreviation).Parse();
+            nodes = new Parser(abbreviation, [], trusted: false).Parse();
         }
         catch (FormatException)
         {
@@ -234,26 +252,7 @@ public static class Emmet
 
         var writer = new Writer(indent, newline, leading);
         writer.WriteAll(concrete);
-        return (writer.Text, writer.Stops);
-    }
-
-    private const string PageTitle = "Documento";
-
-    private static (string, List<int>) Page(string indent, string newline, string leading)
-    {
-        const string Before = "<!DOCTYPE html>\n<html lang=\"pt-BR\">\n<head>\n\t<meta charset=\"UTF-8\">\n\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n\t<title>";
-        const string Title = PageTitle;
-        const string Middle = "</title>\n</head>\n<body>\n\t";
-        const string After = "\n</body>\n</html>";
-
-        string Format(string part) => part.Replace("\t", indent).Replace("\n", newline + leading);
-
-        var text = new StringBuilder(Format(Before));
-        var stops = new List<int> { text.Length };
-        text.Append(Title).Append(Format(Middle));
-        stops.Add(text.Length);
-        text.Append(Format(After));
-        return (text.ToString(), stops);
+        return writer.Result;
     }
 
     // A árvore da abreviação, com cada repetição já aberta em elementos de verdade.
@@ -261,11 +260,16 @@ public static class Emmet
     private sealed class Node
     {
         public string? Name { get; set; }
-        public List<(string Name, string Value)> Attributes { get; } = [];
+        public List<(string Name, string Value)> Attributes { get; set; } = [];
         public string? Text { get; set; }
         public int Repeat { get; set; } = 1;
         public bool Repeats { get; set; }
         public bool IsGroup { get; init; }
+        public bool SelfClosing { get; set; }
+        // O nome veio da tabela, como acronym ou marquee, que a lista de tags conhecidas não tem.
+        public bool Trusted { get; init; }
+        // Onde entram os filhos que a pessoa escreveu depois de um atalho: no elemento mais fundo dele.
+        public Node? Deepest { get; set; }
         public List<Node> Children { get; set; } = [];
     }
 
@@ -274,6 +278,7 @@ public static class Emmet
         public string? Name { get; init; }
         public List<(string Name, string Value)> Attributes { get; init; } = [];
         public string? Text { get; init; }
+        public bool SelfClosing { get; init; }
         public List<Element> Children { get; init; } = [];
     }
 
@@ -299,7 +304,7 @@ public static class Emmet
                     return null;
 
                 var name = node.Name is null ? (node.Attributes.Count == 0 && node.Text is not null ? null : ImplicitName(parent)) : Number(node.Name, current);
-                if (name is not null && !IsAllowedName(name))
+                if (name is not null && !node.Trusted && !IsAllowedName(name))
                     return null;
 
                 var children = Instantiate(node.Children, name, current, ref count);
@@ -309,8 +314,9 @@ public static class Emmet
                 result.Add(new Element
                 {
                     Name = name,
-                    Attributes = name is null ? [] : BuildAttributes(name, node, current),
+                    Attributes = name is null ? [] : MergeAttributes(node, current),
                     Text = node.Text is null ? null : Number(node.Text, current),
+                    SelfClosing = node.SelfClosing,
                     Children = children,
                 });
             }
@@ -333,19 +339,18 @@ public static class Emmet
 
     private static bool IsAllowedName(string name) => KnownTags.Contains(name) || name.Contains('-');
 
-    private static List<(string Name, string Value)> BuildAttributes(string name, Node node, int number)
+    // Os da tabela vêm primeiro e os da pessoa depois. O mesmo atributo repetido fica no lugar do primeiro,
+    // com o último valor, e as classes se somam.
+    private static List<(string Name, string Value)> MergeAttributes(Node node, int number)
     {
         var attributes = new List<(string Name, string Value)>();
-        if (DefaultAttributes.TryGetValue(name, out var defaults))
-            attributes.AddRange(defaults);
-
         foreach (var (attribute, value) in node.Attributes)
         {
             var numbered = Number(value, number);
             var index = attributes.FindIndex(existing => existing.Name == attribute);
             if (index < 0)
                 attributes.Add((attribute, numbered));
-            else if (attribute == "class" && attributes[index].Value.Length > 0)
+            else if (attribute == "class" && attributes[index].Value.Length > 0 && numbered.Length > 0)
                 attributes[index] = (attribute, attributes[index].Value + " " + numbered);
             else
                 attributes[index] = (attribute, numbered);
@@ -380,9 +385,10 @@ public static class Emmet
     private sealed class Writer(string indent, string newline, string leading)
     {
         private readonly StringBuilder _text = new();
+        private readonly List<SnippetStop> _stops = [];
+        private int _field = 1;
 
-        public string Text => _text.ToString();
-        public List<int> Stops { get; } = [];
+        public SnippetText Result => new(_text.ToString(), _stops);
 
         public void WriteAll(List<Element> elements)
         {
@@ -401,32 +407,79 @@ public static class Emmet
                 _text.Append(indent);
         }
 
+        // Como no Emmet: cada valor numera os campos dele a partir do contador, que depois passa do maior.
+        // Assim os campos seguem a ordem do texto, e um valor vazio é um campo novo.
+        private void WriteValue(string value, bool fieldWhenEmpty)
+        {
+            if (value.Length == 0)
+            {
+                if (fieldWhenEmpty)
+                    _stops.Add(new SnippetStop(_field++, _text.Length, 0));
+                return;
+            }
+
+            var largest = -1;
+            var at = 0;
+            while (at < value.Length)
+            {
+                var open = value.IndexOf(FieldOpen, at);
+                if (open < 0)
+                {
+                    _text.Append(value, at, value.Length - at);
+                    break;
+                }
+                _text.Append(value, at, open - at);
+                var separator = value.IndexOf(FieldSeparator, open);
+                var close = value.IndexOf(FieldClose, separator);
+                var index = int.Parse(value.AsSpan(open + 1, separator - open - 1));
+                var placeholder = value[(separator + 1)..close];
+                _stops.Add(new SnippetStop(_field + index, _text.Length, placeholder.Length));
+                _text.Append(placeholder);
+                largest = Math.Max(largest, index);
+                at = close + 1;
+            }
+            if (largest >= 0)
+                _field += largest + 1;
+        }
+
         private void Write(Element element, int level)
         {
             if (element.Name is null)
             {
-                _text.Append(element.Text);
+                WriteValue(element.Text ?? "", fieldWhenEmpty: false);
                 return;
             }
 
             _text.Append('<').Append(element.Name);
             foreach (var (name, value) in element.Attributes)
             {
-                _text.Append(' ').Append(name).Append("=\"");
-                if (value.Length == 0)
-                    Stops.Add(_text.Length);
-                _text.Append(value).Append('"');
+                _text.Append(' ').Append(name);
+                if (value == BooleanValue)
+                    continue;
+                _text.Append("=\"");
+                WriteValue(value, fieldWhenEmpty: true);
+                _text.Append('"');
             }
             _text.Append('>');
 
-            if (VoidTags.Contains(element.Name))
+            if (element.SelfClosing || VoidTags.Contains(element.Name))
                 return;
 
-            _text.Append(element.Text);
+            if (element.Text is not null)
+                WriteValue(element.Text, fieldWhenEmpty: false);
             if (element.Children.Count == 0)
             {
-                if (element.Text is null)
-                    Stops.Add(_text.Length);
+                if (element.Text is null && element.Name == "body")
+                {
+                    // O corpo vazio da página abre uma linha para o cursor, como no VS Code.
+                    NewLine(level + 1);
+                    WriteValue("", fieldWhenEmpty: true);
+                    NewLine(level);
+                }
+                else if (element.Text is null)
+                {
+                    WriteValue("", fieldWhenEmpty: true);
+                }
             }
             else if (FitsOnOneLine(element))
             {
@@ -435,10 +488,12 @@ public static class Emmet
             }
             else
             {
+                // O head e o body ficam rentes ao html, sem recuo, como no VS Code.
+                var inner = element.Name == "html" ? level : level + 1;
                 foreach (var child in element.Children)
                 {
-                    NewLine(level + 1);
-                    Write(child, level + 1);
+                    NewLine(inner);
+                    Write(child, inner);
                 }
                 NewLine(level);
             }
@@ -451,8 +506,9 @@ public static class Emmet
             && element.Children.All(child => child.Name is null || (InlineTags.Contains(child.Name) && (child.Children.Count == 0 || FitsOnOneLine(child))));
     }
 
-    // Lê a abreviação. Qualquer coisa fora do formato cancela tudo, e o Tab fica como sempre foi.
-    private sealed class Parser(string text)
+    // Lê a abreviação. Qualquer coisa fora do formato cancela tudo, e nada é sugerido.
+    // "trusted" é o texto de um atalho da tabela, que pode ter campos e nomes de tag antigos.
+    private sealed class Parser(string text, List<string> stack, bool trusted)
     {
         private int _position;
 
@@ -482,9 +538,10 @@ public static class Emmet
                 {
                     case '>':
                         _position++;
-                        if (item.IsGroup)
+                        var parent = item.Deepest ?? item;
+                        if (parent.IsGroup)
                             throw new FormatException();
-                        levels.Push(item.Children);
+                        levels.Push(parent.Children);
                         break;
                     case '+':
                         _position++;
@@ -519,7 +576,7 @@ public static class Emmet
             }
             else
             {
-                node = ParseElement();
+                node = Resolve(ParseElement());
             }
 
             if (!AtEnd && Current == '*')
@@ -541,10 +598,10 @@ public static class Emmet
 
         private Node ParseElement()
         {
-            var node = new Node();
+            var node = new Node { Trusted = trusted };
             var name = ReadName();
             if (name.Length > 0)
-                ApplyName(node, name);
+                node.Name = name;
 
             var any = name.Length > 0;
             while (!AtEnd)
@@ -565,6 +622,10 @@ public static class Emmet
                     case '{':
                         node.Text = ReadText();
                         break;
+                    case '/' when any:
+                        _position++;
+                        node.SelfClosing = true;
+                        break;
                     case '*' when any:
                         // Em qualquer ordem: li*2{x} e li{x}*2 são a mesma coisa.
                         ReadRepeat(node);
@@ -581,39 +642,48 @@ public static class Emmet
             return node;
         }
 
-        private static void ApplyName(Node node, string name)
+        // Troca um nome da tabela, como a:link, pelo que ele quer dizer, como no próprio Emmet: os atributos
+        // e o texto da pessoa vão para o atalho, e um atalho que cita a si mesmo, como "img", para ali.
+        private Node Resolve(Node node)
         {
-            var colon = name.IndexOf(':');
-            if (colon > 0)
+            if (node.Name is not { } name || !Table.Value.TryGetValue(name, out var snippet) || stack.Contains(snippet))
+                return node;
+            if (stack.Count >= MaxDepth)
+                throw new FormatException();
+
+            stack.Add(snippet);
+            List<Node>? nodes;
+            try
             {
-                var (tag, kind) = (name[..colon], name[(colon + 1)..]);
-                switch (tag)
-                {
-                    case "input" when kind.Length > 0:
-                        node.Name = "input";
-                        node.Attributes.Add(("type", kind));
-                        return;
-                    case "link" when kind == "css":
-                        node.Name = "link";
-                        node.Attributes.Add(("href", "style.css"));
-                        return;
-                    case "script" when kind == "src":
-                        node.Name = "script";
-                        node.Attributes.Add(("src", ""));
-                        return;
-                    case "a" when kind == "link":
-                        node.Name = "a";
-                        node.Attributes.Add(("href", "http://"));
-                        return;
-                    case "a" when kind == "mail":
-                        node.Name = "a";
-                        node.Attributes.Add(("href", "mailto:"));
-                        return;
-                    default:
-                        throw new FormatException();
-                }
+                nodes = new Parser(snippet, stack, trusted: true).Parse();
             }
-            node.Name = ShortNames.GetValueOrDefault(name, name);
+            finally
+            {
+                stack.RemoveAt(stack.Count - 1);
+            }
+            if (nodes is null or { Count: 0 })
+                throw new FormatException();
+
+            foreach (var top in nodes)
+            {
+                top.Attributes = [.. top.Attributes, .. node.Attributes];
+                if (node.Text is not null)
+                    top.Text = node.Text;
+                if (node.Repeats)
+                {
+                    top.Repeat = node.Repeat;
+                    top.Repeats = true;
+                }
+                if (node.SelfClosing)
+                    top.SelfClosing = true;
+            }
+
+            var result = nodes.Count == 1 ? nodes[0] : new Node { IsGroup = true, Trusted = true, Children = nodes };
+            var deepest = result;
+            while (deepest.Children.Count > 0)
+                deepest = deepest.Children[^1];
+            result.Deepest = deepest;
+            return result;
         }
 
         private static void AddClass(Node node, string name)
@@ -625,10 +695,16 @@ public static class Emmet
                 node.Attributes[index] = ("class", node.Attributes[index].Value + " " + name);
         }
 
-        // Só minúsculas: com maiúscula é texto, como "Olá" ou "Usuario".
+        // Só minúsculas: com maiúscula é texto, como "Olá" ou "Usuario". O "!" e o "!!!" são da tabela.
         private string ReadName()
         {
             var start = _position;
+            if (!AtEnd && Current == '!')
+            {
+                while (!AtEnd && Current == '!')
+                    _position++;
+                return text[start.._position];
+            }
             if (AtEnd || !(char.IsAsciiLetterLower(Current)))
                 return "";
             while (!AtEnd && (char.IsAsciiLetterLower(Current) || char.IsAsciiDigit(Current) || Current is '-' or ':' or '$'))
@@ -683,6 +759,12 @@ public static class Emmet
                 {
                     _position++;
                     value = ReadAttributeValue();
+                }
+                else if (!AtEnd && Current == '.')
+                {
+                    // [disabled.]: o atributo sozinho, sem ="".
+                    _position++;
+                    value = BooleanValue;
                 }
                 node.Attributes.Add((name, value));
             }

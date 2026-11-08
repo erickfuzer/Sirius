@@ -39,7 +39,7 @@ public static partial class AutoPairs
     }
 
     // Olha só a linha atual: aspas e comentários de várias linhas não mudam quase nada aqui.
-    private static bool IsInStringOrComment(string text, int caret)
+    public static bool IsInStringOrComment(string text, int caret)
     {
         var lineStart = caret == 0 ? 0 : text.LastIndexOf('\n', caret - 1) + 1;
         char? quote = null;

@@ -25,7 +25,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Editor:** abas, sintaxe colorida para dezenas de linguagens, zoom, temas claro e grafite, modo foco e quebra de linha. Aspas, parênteses, chaves e tags de HTML se fecham enquanto você digita
 - **Edição do dia a dia:** comentar linhas, duplicar e mover linhas, ir para uma linha e formatar o arquivo inteiro, pelo teclado, pela barra de comando ou pelo botão direito do mouse no editor
 - **Cores do CSS:** um quadradinho mostra cada cor no código, e clicar nele abre um seletor que altera o texto na hora. Funciona em CSS, SCSS, Sass e Less, e dentro de `<style>` e `style="..."` em HTML e PHP
-- **Emmet:** em HTML e PHP, `div.cartao>h2+p` vira o HTML pronto, e `!` cria a página inicial. Como no VS Code, a abreviação aparece na lista de sugestões com a prévia do HTML: <kbd>Enter</kbd> ou <kbd>Tab</kbd> expande, e "Expandir Emmet" no botão direito também. O <kbd>Tab</kbd> seguinte pula para o próximo campo vazio, e isso funciona sem instalar nada
+- **Emmet e atalhos:** como no VS Code, tudo aparece na lista de sugestões com a prévia do que vai entrar, e <kbd>Enter</kbd>, <kbd>Tab</kbd> ou um clique aceitam. Em HTML e PHP, `div.cartao>h2+p` vira o HTML pronto, `!` cria a página inicial, e as abreviações oficiais, como `!!!`, `a:link` e `input:email`, também valem. Em CSS, SCSS, Less e dentro de `<style>`, `m10` vira `margin: 10px;` e `poa` vira `position: absolute;`. PHP, JavaScript, TypeScript, Markdown, C#, C e C++ têm os atalhos de fábrica do VS Code, como `foreach` e `log`. Depois de entrar, o <kbd>Tab</kbd> pula de campo em campo. Funciona sem instalar nada, e "Expandir Emmet" no botão direito também expande
 - **Imagens:** PNG, JPG, GIF, WebP, BMP e ICO abrem em uma aba, com zoom, arrastar, xadrez atrás da transparência e a foto na posição certa. O SVG abre como código, para poder editar, com o desenho ao lado acompanhando a digitação. A prévia nunca busca nada fora do arquivo
 - **Abrir de fora:** arraste arquivos ou pastas do Explorer para a janela, ou clique com o botão direito neles e use "Abrir com Sirius". Isso vale para código, texto, imagens e pastas. Com a Sirius já aberta, o arquivo vira uma aba da mesma janela, mesmo vários de uma vez, e a pasta abre uma janela nova
 - **Barra de comando:** <kbd>Ctrl</kbd> + <kbd>K</kbd> encontra arquivos e executa ações sem tirar a mão do teclado
@@ -144,7 +144,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 | <kbd>Shift</kbd> <kbd>Alt</kbd> <kbd>F</kbd> | Formatar o arquivo |
 | <kbd>Ctrl</kbd> <kbd>G</kbd> ou clique em "Ln" na cápsula | Ir para uma linha |
 | <kbd>Alt</kbd> <kbd>Z</kbd> | Ligar ou desligar a quebra de linha |
-| <kbd>Tab</kbd> | Em HTML e PHP, expandir uma abreviação do Emmet e pular entre os campos vazios. Sem a tecla, use "Expandir Emmet" no botão direito |
+| <kbd>Tab</kbd> | Com a lista de sugestões aberta, aceitar a sugestão, como uma abreviação do Emmet. Depois, pular entre os campos, e <kbd>Shift</kbd> <kbd>Tab</kbd> volta. Sem a tecla, use "Expandir Emmet" no botão direito |
 
 ### Para desenvolver
 
@@ -181,7 +181,7 @@ Sirius/
 
 ## Créditos
 
-Interface feita com [Avalonia](https://avaloniaui.net) e [AvaloniaEdit](https://github.com/AvaloniaUI/AvaloniaEdit), com sintaxe pelo [TextMateSharp](https://github.com/danipen/TextMateSharp) e prévia de SVG pelo [Svg.Skia](https://github.com/wieslawsoltes/Svg.Skia), todos sob a licença MIT, que usa também o [SVG.NET](https://github.com/svg-net/SVG), sob a licença MS-PL. As fontes [Geist](https://vercel.com/font) e [IBM Plex Mono](https://www.ibm.com/plex/) são distribuídas sob a licença SIL Open Font, com os textos em `src/Sirius/Assets/Fonts`. Desenvolvido com o auxílio do [Claude](https://claude.ai) (Anthropic).
+Interface feita com [Avalonia](https://avaloniaui.net) e [AvaloniaEdit](https://github.com/AvaloniaUI/AvaloniaEdit), com sintaxe pelo [TextMateSharp](https://github.com/danipen/TextMateSharp) e prévia de SVG pelo [Svg.Skia](https://github.com/wieslawsoltes/Svg.Skia), todos sob a licença MIT, que usa também o [SVG.NET](https://github.com/svg-net/SVG), sob a licença MS-PL. As abreviações do [Emmet](https://emmet.io) e os atalhos de fábrica do [VS Code](https://github.com/microsoft/vscode) também são da licença MIT, com os textos em `src/Sirius/Assets/Snippets`. As fontes [Geist](https://vercel.com/font) e [IBM Plex Mono](https://www.ibm.com/plex/) são distribuídas sob a licença SIL Open Font, com os textos em `src/Sirius/Assets/Fonts`. Desenvolvido com o auxílio do [Claude](https://claude.ai) (Anthropic).
 
 ## Licença
 

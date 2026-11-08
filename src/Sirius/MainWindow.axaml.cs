@@ -899,7 +899,7 @@ public partial class MainWindow : Window
         {
             case Key.Space when CodeEditor.TextArea.IsKeyboardFocusWithin:
                 e.Handled = true;
-                await RequestCompletionAsync();
+                await RequestCompletionAsync(explicitRequest: true);
                 break;
             case Key.OemPlus or Key.Add when IsImageShown:
                 e.Handled = true;
@@ -1092,7 +1092,7 @@ public partial class MainWindow : Window
             actions.Add(("Ir para a definição", "F12", () => _ = GoToDefinitionAsync()));
             actions.Add(("Encontrar todos os usos", "Shift F12", () => _ = FindUsesAsync()));
             actions.Add(("Renomear símbolo", "F2 no editor", () => _ = RenameSymbolAsync()));
-            actions.Add(("Mostrar sugestões", "Ctrl Espaço", () => _ = RequestCompletionAsync()));
+            actions.Add(("Mostrar sugestões", "Ctrl Espaço", () => _ = RequestCompletionAsync(explicitRequest: true)));
             actions.Add(("Mostrar problemas", "", ShowProblems));
             if (!active.IsUntitled)
                 actions.Add(("Renomear arquivo", "F2 na lista", () => _ = RenameAsync(active.FullPath)));

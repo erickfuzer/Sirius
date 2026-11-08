@@ -484,10 +484,12 @@ public class LanguageWindowTests
     public async Task Digitar_abre_sugestoes_e_enter_completa()
     {
         using var temp = new TempFolder();
-        var path = temp.File("a.php", "");
+        // Dentro do <?php: fora dele, "im" também mostraria o img do Emmet, como no VS Code.
+        var path = temp.File("a.php", "<?php ");
         var (window, server) = Open(temp);
         window.OpenFile(path);
         await Received(server, "textDocument/didOpen");
+        window.SetCaretOffset(6);
         Dispatcher.UIThread.RunJobs();
 
         window.KeyTextInput("im");
@@ -497,7 +499,7 @@ public class LanguageWindowTests
         window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
         Dispatcher.UIThread.RunJobs();
 
-        Assert.Equal("imprimir", window.ActiveDocument!.Document.Text);
+        Assert.Equal("<?php imprimir", window.ActiveDocument!.Document.Text);
         Assert.False(window.IsCompletionOpen);
         window.Close();
     }
@@ -517,7 +519,8 @@ public class LanguageWindowTests
         window.OpenFile(path);
         await Received(server, "textDocument/didOpen");
         window.GoToLocation(path, 2, 1);
-        window.ActiveDocument!.Document.Insert(3, "ab");
+        // Letras que não começam nenhuma abreviação do Emmet, para a lista só depender do servidor.
+        window.ActiveDocument!.Document.Insert(3, "zq");
         window.GoToLocation(path, 2, 3);
 
         await window.RequestCompletionAsync();

@@ -343,7 +343,8 @@ public class WebCompletionTests
 
         await Request(window, 5);
 
-        Assert.Equal(["z-index"], window.CompletionLabels);
+        // O primeiro é o Emmet de CSS (z vira z-index), que vem antes do servidor, como no VS Code.
+        Assert.Equal(["z", "z-index"], window.CompletionLabels);
         window.Close();
     }
 
