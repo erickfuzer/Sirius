@@ -28,7 +28,7 @@ public partial class MainWindow : Window
     private const double EditorMinFontSize = 9;
     private const double EditorMaxFontSize = 32;
 
-    private readonly ObservableCollection<TreeRow> _treeRows = new();
+    private readonly RowList<TreeRow> _treeRows = new();
     private readonly ObservableCollection<TabRow> _tabRows = new();
     private readonly ObservableCollection<CommandRow> _commandRows = new();
     private readonly List<OpenDocument> _documents = new();
@@ -213,11 +213,7 @@ public partial class MainWindow : Window
             AddTreeLevel(RootFolder, 0, rows);
 
         // Sem mudanças, a lista fica intacta: não pisca nem fecha um menu aberto.
-        if (rows.SequenceEqual(_treeRows))
-            return;
-        _treeRows.Clear();
-        foreach (var row in rows)
-            _treeRows.Add(row);
+        _treeRows.ReplaceAll(rows);
     }
 
     private void AddTreeLevel(string folder, int depth, List<TreeRow> rows)
@@ -1355,7 +1351,8 @@ public partial class MainWindow : Window
         _searchIndex = index;
         _searchRows[index] = _searchRows[index] with { Background = Palette.Current.Tint };
         var target = index;
-        Dispatcher.UIThread.Post(() => SearchList.ContainerFromIndex(target)?.BringIntoView());
+        // A lista é virtualizada: um resultado fora da tela ainda não tem linha, e o ScrollIntoView a cria.
+        Dispatcher.UIThread.Post(() => SearchList.ScrollIntoView(target));
     }
 
     private void OnSearchKeyDown(object? sender, KeyEventArgs e)

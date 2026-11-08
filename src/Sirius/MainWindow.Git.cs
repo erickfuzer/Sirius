@@ -19,7 +19,7 @@ public partial class MainWindow
     private const int MaxMarkedChars = 2_000_000;
     private static readonly TimeSpan FetchInterval = TimeSpan.FromSeconds(60);
 
-    private readonly ObservableCollection<GitRow> _gitRows = new();
+    private readonly RowList<GitRow> _gitRows = new();
     private readonly HashSet<string> _gitExcluded = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (string Letter, GitChangeKind Kind)> _gitMarks = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _gitChangedFolders = new(StringComparer.OrdinalIgnoreCase);
@@ -196,17 +196,19 @@ public partial class MainWindow
 
     private void RefreshGitRows()
     {
-        _gitRows.Clear();
         if (GitState is not { } snapshot)
+        {
+            _gitRows.Clear();
             return;
+        }
 
         // Conflitos primeiro, porque impedem o resto.
-        foreach (var change in snapshot.Status.Changes.OrderBy(c => c.Kind != GitChangeKind.Conflict).ThenBy(c => c.Path, StringComparer.OrdinalIgnoreCase))
-        {
-            var folder = Path.GetDirectoryName(change.Path)?.Replace(Path.DirectorySeparatorChar, '/') ?? "";
-            _gitRows.Add(new GitRow(Path.GetFileName(change.Path), folder, LetterOf(change.Kind), BrushOf(change.Kind),
-                !_gitExcluded.Contains(change.Path), change));
-        }
+        _gitRows.ReplaceAll(snapshot.Status.Changes
+            .OrderBy(c => c.Kind != GitChangeKind.Conflict).ThenBy(c => c.Path, StringComparer.OrdinalIgnoreCase)
+            .Select(change => new GitRow(Path.GetFileName(change.Path),
+                Path.GetDirectoryName(change.Path)?.Replace(Path.DirectorySeparatorChar, '/') ?? "",
+                LetterOf(change.Kind), BrushOf(change.Kind), !_gitExcluded.Contains(change.Path), change))
+            .ToList());
         // O Git só deixa de chamar de conflito depois do commit. Para a pessoa, sem marcas já está resolvido,
         // e o aviso vermelho ao lado de "faça o commit" confundia.
         GitConflictNotice.IsVisible = snapshot.Status.Changes.Any(c => c.Kind == GitChangeKind.Conflict && HasConflictMarkers(FullPathOf(snapshot, c.Path)));
