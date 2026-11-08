@@ -101,7 +101,7 @@
       <div class="win-title">
         <span class="win-name"><svg><use href="#estrela-dupla"/></svg><b>Sirius</b> observatorio</span>
         <span class="win-search">Ir para arquivo ou comando</span>
-        <span class="win-controls"><svg viewBox="0 0 10 10"><path d="M0 5H10"/></svg><svg viewBox="0 0 10 10"><path d="M2 .5H8A1.500 1.500 0 0 1 9.500 2V8A1.500 1.500 0 0 1 8 9.500H2A1.500 1.500 0 0 1 .5 8V2A1.500 1.500 0 0 1 2 .5Z"/></svg><svg viewBox="0 0 10 10"><path d="M1 1L9 9M9 1L1 9"/></svg></span>
+        <span class="win-controls"><svg class="win-settings" viewBox="0 0 13 12"><path d="M0 2.500H13M0 9.500H13M4 0V5M9 7V12"/></svg><svg viewBox="0 0 10 10"><path d="M0 5H10"/></svg><svg viewBox="0 0 10 10"><path d="M2 .5H8A1.500 1.500 0 0 1 9.500 2V8A1.500 1.500 0 0 1 8 9.500H2A1.500 1.500 0 0 1 .5 8V2A1.500 1.500 0 0 1 2 .5Z"/></svg><svg viewBox="0 0 10 10"><path d="M1 1L9 9M9 1L1 9"/></svg></span>
       </div>
       <div class="win-body">
         <div class="win-tree">
@@ -145,9 +145,18 @@
                 <p>[Thu Nov  5 21:10:03 2026] [::1]:52114 Closing</p>
               </div>
               <div class="sheet-vars">
-                <p><i>›</i><b>$estrelas</b><span>array(2)</span><small>array</small></p>
-                <p><b>$nome</b><span>'Vega'</span><small>string</small></p>
-                <p><i>›</i><b>$_GET</b><span>array(1)</span><small>array</small></p>
+                <div class="vars-calls">
+                  <h4>Chamadas</h4>
+                  <p class="on"><b>magnitude()</b><small>index.php:8</small></p>
+                  <p><b>Arquivo principal</b><small>index.php:12</small></p>
+                </div>
+                <div class="vars-list">
+                  <p class="vars-add">+ Vigiar expressão</p>
+                  <p><b>count($estrelas)</b><span>2</span><small>int</small></p>
+                  <p><i>›</i><b>$estrelas</b><span>array(2)</span><small>array</small></p>
+                  <p><b>$nome</b><span>'Vega'</span><small>string</small></p>
+                  <p><i>›</i><b>$_GET</b><span>array(1)</span><small>array</small></p>
+                </div>
               </div>
             </div>
             <div class="bar">
@@ -172,10 +181,10 @@
     <article class="card wide reveal">
       <div class="card-text">
         <h3>Depuração de PHP de verdade.</h3>
-        <p>Avance linha por linha, entre nas funções, veja quem chamou cada uma e pare o mouse sobre uma variável para ver o valor. O Xdebug é baixado na primeira vez, se você aceitar, sem mexer na sua instalação do PHP.</p>
+        <p>Avance linha por linha, entre nas funções, veja quem chamou cada uma e pare o mouse sobre uma variável para ver o valor. Pare só quando uma condição for verdadeira e vigie expressões a cada parada. Funciona pelo Executar e também nas páginas do Apache. O Xdebug é baixado na primeira vez, se você aceitar.</p>
       </div>
       <div class="shot">
-        <img class="for-grafite" loading="lazy" src="screenshot-depuracao.png" width="1320" height="860" alt="Sirius parada em uma linha de PHP dentro de uma função, com a linha destacada e as variáveis na cápsula">
+        <img class="for-grafite" loading="lazy" src="screenshot-depuracao.png" width="1320" height="860" alt="Sirius parada em uma linha de PHP dentro de uma função, com a linha destacada, a pilha de chamadas, uma expressão vigiada e as variáveis na cápsula">
         <img class="for-claro" loading="lazy" src="screenshot-depuracao-claro.png" width="1320" height="860" alt="A mesma parada de depuração no tema claro">
       </div>
     </article>
@@ -208,7 +217,7 @@
     <article class="card wide reveal">
       <div class="card-text">
         <h3>Git sem sair do código.</h3>
-        <p>Mudanças na árvore e na margem, comparação lado a lado, commit por arquivo, enviar, receber, branches e histórico.</p>
+        <p>Mudanças na árvore e na margem, comparação lado a lado, conflitos resolvidos com um clique, commit por arquivo, enviar, receber, branches e histórico.</p>
       </div>
       <div class="shot">
         <img loading="lazy" src="screenshot-git.png" width="1320" height="860" alt="Painel de Git com a lista de mudanças e a comparação lado a lado de um arquivo PHP">
@@ -218,7 +227,7 @@
     <article class="card reveal">
       <div class="card-text">
         <h3>Inteligência de código.</h3>
-        <p>Autocompletar, erros, definição, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação.</p>
+        <p>Autocompletar, erros, definição, todos os usos, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação.</p>
       </div>
       <ul class="chips">
         <li>PHP</li><li>HTML</li><li>CSS</li><li>JavaScript</li><li>TypeScript</li><li>Python</li><li>C#</li>

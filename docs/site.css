@@ -162,6 +162,7 @@ h1 { margin: 22px auto 0; max-width: 13em; font-size: clamp(44px, 7.6vw, 108px);
 .win-search { padding: .22em 1em; width: 25em; border-radius: 1em; background: var(--tint); color: var(--muted); font-size: .92em; }
 .win-controls { display: flex; justify-content: flex-end; gap: 1.5em; }
 .win-controls svg { width: .72em; height: .72em; fill: none; stroke: var(--muted); stroke-width: 1.1; }
+.win-controls .win-settings { width: .94em; height: .87em; }
 .win-body { display: grid; grid-template-columns: 11em 1fr; height: 35.5em; padding: 0 .55em .55em 0; }
 .win-tree { padding: .4em .5em; font-size: .94em; }
 .win-tree p { padding: .3em .7em; border-radius: .45em; }
@@ -198,10 +199,15 @@ u.s { color: var(--st); text-decoration: none; } u.n { color: var(--nu); text-de
 .sheet-tabs small { margin-left: auto; font: 400 .86em "Geist Mono", monospace; display: none; }
 .sheet-run, .sheet-vars { display: none; margin-top: .75em; font: 400 .9em/1.55 "Geist Mono", monospace; overflow: hidden; }
 .sheet-run p { white-space: pre-wrap; }
-.sheet-vars p { display: grid; grid-template-columns: 1em 9em 1fr auto; padding: .08em .3em; }
-.sheet-vars p > :first-child:not(i) { grid-column: 2; }
+.vars-list p { display: grid; grid-template-columns: 1em 10.5em 1fr auto; padding: .08em .3em; white-space: nowrap; }
+.vars-list p > :first-child:not(i) { grid-column: 2; }
+.vars-list .vars-add { display: block; padding-bottom: .2em; font-family: Geist, sans-serif; color: var(--capsule-muted); }
+.vars-calls h4 { padding: 0 .3em .15em; font-weight: 600; color: var(--capsule-ink); }
+.vars-calls p { display: flex; justify-content: space-between; gap: .8em; padding: .08em .3em; border-radius: .35em; white-space: nowrap; }
+.vars-calls .on { background: var(--capsule-mark); }
 .sheet-vars i { font-style: normal; color: var(--capsule-muted); }
 .sheet-vars b { font-weight: 400; color: var(--capsule-muted); }
+.vars-calls b { color: var(--capsule-ink); }
 .sheet-vars small { color: var(--capsule-muted); font-size: .9em; }
 .bar { flex: none; display: flex; align-items: center; gap: .3em; height: 2.9em; padding: .25em; white-space: nowrap; }
 .bar-run { display: flex; align-items: center; gap: .55em; height: 100%; padding: 0 1.05em 0 .95em; border-radius: 1.2em; background: var(--run); color: var(--run-ink); font-weight: 600; flex: none; }
@@ -234,15 +240,16 @@ u.s { color: var(--st); text-decoration: none; } u.n { color: var(--nu); text-de
 .win[data-stage="1"] .sheet-run p:nth-child(4) { animation-delay: .9s; }
 @keyframes linha { from { opacity: 0; transform: translateY(5px); } }
 /* Passo 3: a parada */
-.win[data-stage="2"] .sheet-vars { display: block; }
+.win[data-stage="2"] .sheet-vars { display: grid; grid-template-columns: 16.5em 1fr; gap: 1.6em; align-items: start; }
 .win[data-stage="2"] .info-vars { display: block; }
 .win[data-stage="2"] .bar-debug { display: flex; }
 .win[data-stage="2"] .bar-branch { display: none; }
 .win[data-stage="2"] .paused-band { opacity: 1; }
 .win[data-stage="2"] .breakpoint { opacity: 1; transform: none; }
 .win[data-stage="2"] .sheet-vars p { animation: linha .5s both; }
-.win[data-stage="2"] .sheet-vars p:nth-child(2) { animation-delay: .1s; }
-.win[data-stage="2"] .sheet-vars p:nth-child(3) { animation-delay: .2s; }
+.win[data-stage="2"] .sheet-vars p:nth-child(3) { animation-delay: .1s; }
+.win[data-stage="2"] .vars-list p:nth-child(4) { animation-delay: .15s; }
+.win[data-stage="2"] .vars-list p:nth-child(5) { animation-delay: .2s; }
 
 /* Seções */
 .band { padding: clamp(80px, 12vh, 150px) 20px; background: var(--alt); }
