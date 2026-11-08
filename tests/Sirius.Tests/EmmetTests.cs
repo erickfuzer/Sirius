@@ -447,6 +447,60 @@ public class EmmetTests
         window.Close();
     }
 
+    // O "!" se digita com Shift. No notebook do dono, o "!" com Tab não fez nada: o Shift ainda apertado é o suspeito.
+    [AvaloniaFact]
+    public void Exclamacao_com_shift_ainda_apertado_vira_pagina()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = Open(temp, settings, "index.html", "!");
+
+        Tab(window, RawInputModifiers.Shift);
+
+        Assert.StartsWith("<!DOCTYPE html>", Text(window));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Expandir_pela_barra_de_comando_sem_a_tecla_tab()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = Open(temp, settings, "a.html", "ul>li");
+        Assert.Contains("Expandir Emmet", window.PaletteCommandNames("emmet"));
+
+        window.ExpandEmmet();
+
+        Assert.Contains("<ul>", Text(window));
+        Assert.Contains("<li></li>", Text(window));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Expandir_sem_abreviacao_explica()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = Open(temp, settings, "a.html", "Olá mundo ");
+
+        window.ExpandEmmet();
+
+        Assert.Equal("Olá mundo ", Text(window));
+        Assert.Contains("abreviação", window.StatusText);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Expandir_emmet_so_aparece_em_html_e_php()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = Open(temp, settings, "a.css", "a {}");
+
+        Assert.DoesNotContain("Expandir Emmet", window.PaletteCommandNames("emmet"));
+        window.Close();
+    }
+
     [AvaloniaFact]
     public void Com_selecao_o_tab_recua_e_nao_expande()
     {

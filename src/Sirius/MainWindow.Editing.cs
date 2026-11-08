@@ -211,12 +211,15 @@ public partial class MainWindow
         var uses = Item("Encontrar todos os usos", () => _ = FindUsesAsync(), "Shift+F12");
         var rename = Item("Renomear símbolo", () => _ = RenameSymbolAsync(), "F2");
         var goToLine = Item("Ir para a linha", OpenGoToLine, "Ctrl+G");
+        // Só em HTML e PHP. O mesmo do Tab, para quem não alcança a tecla.
+        var emmet = Item("Expandir Emmet", ExpandEmmet, "Tab");
 
         var menu = new ContextMenu();
         menu.Items.Add(cut);
         menu.Items.Add(copy);
         menu.Items.Add(paste);
         menu.Items.Add(new Separator());
+        menu.Items.Add(emmet);
         foreach (var item in editing)
             menu.Items.Add(item);
         menu.Items.Add(new Separator());
@@ -238,6 +241,8 @@ public partial class MainWindow
             paste.IsEnabled = CanEditText;
             foreach (var item in editing)
                 item.IsEnabled = CanEditText;
+            emmet.IsVisible = CanUseEmmet;
+            emmet.IsEnabled = CanEditText;
         };
         return menu;
     }

@@ -797,7 +797,8 @@ public partial class MainWindow : Window
         }
 
         // Aqui, antes da lista de sugestões, que também quer o Tab.
-        if (e.Key == Key.Tab && e.KeyModifiers == KeyModifiers.None && TryEmmetTab())
+        if (e.Key == Key.Tab && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift
+            && TryEmmetTab(shift: e.KeyModifiers == KeyModifiers.Shift))
         {
             e.Handled = true;
             return;
@@ -1072,6 +1073,8 @@ public partial class MainWindow : Window
             actions.Add(("Mover linha para cima", "Alt ↑", () => MoveLines(up: true)));
             actions.Add(("Mover linha para baixo", "Alt ↓", () => MoveLines(up: false)));
             actions.Add(("Formatar arquivo", "Shift Alt F", () => _ = FormatDocumentAsync()));
+            if (CanUseEmmet)
+                actions.Insert(1, ("Expandir Emmet", "Tab, como ! ou ul>li", ExpandEmmet));
             if (SvgRender.Supports(active.FullPath))
                 actions.Insert(1, (_settings.SvgPreview ? "Esconder a prévia do SVG" : "Mostrar a prévia do SVG", "", ToggleSvgPreview));
             actions.Add(("Ir para a linha", "Ctrl G", OpenGoToLine));

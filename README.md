@@ -144,7 +144,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 | <kbd>Shift</kbd> <kbd>Alt</kbd> <kbd>F</kbd> | Formatar o arquivo |
 | <kbd>Ctrl</kbd> <kbd>G</kbd> ou clique em "Ln" na cápsula | Ir para uma linha |
 | <kbd>Alt</kbd> <kbd>Z</kbd> | Ligar ou desligar a quebra de linha |
-| <kbd>Tab</kbd> | Em HTML e PHP, expandir uma abreviação do Emmet e pular entre os campos vazios |
+| <kbd>Tab</kbd> | Em HTML e PHP, expandir uma abreviação do Emmet e pular entre os campos vazios. Sem a tecla, use "Expandir Emmet" no botão direito |
 
 ### Para desenvolver
 

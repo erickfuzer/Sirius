@@ -16,18 +16,38 @@ public partial class MainWindow
     public void SelectAllForTests() => CodeEditor.SelectAll();
 
     // true quando o Tab foi usado aqui. Com false, ele segue seu caminho normal.
-    private bool TryEmmetTab()
+    // O "!" se digita com Shift, e quem ainda o segura ao bater o Tab manda Shift Tab. Por isso o "!" sozinho
+    // também vira página com Shift Tab. As outras abreviações não: ali o Shift Tab continua recuando a linha.
+    private bool TryEmmetTab(bool shift = false)
     {
         var area = CodeEditor.TextArea;
         if (ActiveDocument is not { } document || !area.IsKeyboardFocusWithin || !area.Selection.IsEmpty)
             return false;
+        if (shift && !Emmet.IsPageRequest(document.Document.Text, area.Caret.Offset))
+            return false;
 
-        if (JumpToNextEmmetStop(document) || ExpandEmmetAtCaret(document))
+        if ((!shift && JumpToNextEmmetStop(document)) || ExpandEmmetAtCaret(document))
             return true;
 
         ExplainRefusedPage(document);
         return false;
     }
+
+    // Pelo mouse: o botão direito e a barra de comando, para não depender da tecla Tab.
+    public void ExpandEmmet()
+    {
+        if (ActiveDocument is not { IsImage: false } document || CodeEditor.IsReadOnly)
+            return;
+        if (ExpandEmmetAtCaret(document))
+            return;
+        if (Emmet.IsPageRequest(document.Document.Text, CodeEditor.TextArea.Caret.Offset))
+            ExplainRefusedPage(document);
+        else
+            ShowStatus("Ponha o cursor logo depois de uma abreviação, como ! ou ul>li.");
+    }
+
+    // A aba sem nome conta, porque o "!" nela vira página.
+    private bool CanUseEmmet => ActiveDocument is { IsImage: false } document && (document.IsUntitled || Emmet.Supports(document.FullPath));
 
     // Sem isto, o Tab só anda alguns espaços, e parece que o Emmet não funciona.
     private void ExplainRefusedPage(OpenDocument document)
