@@ -172,6 +172,8 @@ h1 { margin: 22px auto 0; max-width: 13em; font-size: clamp(44px, 7.6vw, 108px);
 .win-tabs { display: flex; gap: 1.2em; padding: .75em 1.1em .5em; font-size: .94em; color: var(--muted); }
 .win-tabs .on { color: var(--ink); font-weight: 600; }
 .win-tabs i { font-style: normal; color: var(--muted); font-weight: 400; margin-left: .3em; }
+/* O ícone de cada arquivo, como na Sirius. */
+.win svg.fi { display: inline-block; width: 1.05em; height: 1.05em; margin-right: .45em; vertical-align: -.18em; }
 
 .code { --lh: 1.56em; position: relative; font: 400 1em/var(--lh) "Geist Mono", Consolas, monospace; padding-top: .4em; }
 .l { display: flex; height: var(--lh); position: relative; }
