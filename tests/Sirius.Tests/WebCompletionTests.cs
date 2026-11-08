@@ -60,7 +60,8 @@ public class WebCompletionTests
     [InlineData("a\\\\b$0", "a\\b", 3)]
     public void Modelo_vira_texto_e_posicao_do_cursor(string snippet, string text, int caret)
     {
-        Assert.Equal((text, caret), LspParsers.ExpandSnippet(snippet));
+        var parsed = Snippet.Parse(snippet);
+        Assert.Equal((text, (int?)caret), (parsed.Text, LspParsers.FirstStop(parsed)));
     }
 
     [Theory]
@@ -70,7 +71,8 @@ public class WebCompletionTests
     [InlineData("${nao fecha")]
     public void Texto_sem_parada_fica_igual_e_sem_posicao(string snippet)
     {
-        Assert.Equal((snippet, (int?)null), LspParsers.ExpandSnippet(snippet));
+        var parsed = Snippet.Parse(snippet);
+        Assert.Equal((snippet, (int?)null), (parsed.Text, LspParsers.FirstStop(parsed)));
     }
 
     // Respostas

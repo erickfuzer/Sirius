@@ -21,6 +21,7 @@ public partial class MainWindow
         CodeEditor.WordWrap = _settings.WordWrap;
         ApplyIndentation();
         CodeEditor.TextArea.AddHandler(PointerPressedEvent, OnEditorRightPressed, RoutingStrategies.Tunnel);
+        CodeEditor.TextArea.Caret.PositionChanged += (_, _) => OnCaretMovedForSnippet();
         CodeEditor.ContextMenu = BuildEditorMenu();
         CaretPosition.PointerPressed += OnCaretPositionPressed;
     }

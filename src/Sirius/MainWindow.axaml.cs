@@ -797,12 +797,22 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Aqui, antes da lista de sugestões, que também quer o Tab.
-        if (e.Key == Key.Tab && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift
-            && TryEmmetTab(shift: e.KeyModifiers == KeyModifiers.Shift))
+        // Com a lista de sugestões aberta, o Tab e o Esc são dela. Fora isso, num trecho com campos,
+        // o Tab vai ao próximo, o Shift Tab volta e o Esc sai, como no VS Code.
+        if (_completion is null && CodeEditor.TextArea.IsKeyboardFocusWithin)
         {
-            e.Handled = true;
-            return;
+            if (e.Key == Key.Tab && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift
+                && MoveInSnippet(e.KeyModifiers == KeyModifiers.Shift ? -1 : 1))
+            {
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && IsInSnippet)
+            {
+                e.Handled = true;
+                EndSnippet();
+                return;
+            }
         }
 
         if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && TryOpenPairOnEnter())

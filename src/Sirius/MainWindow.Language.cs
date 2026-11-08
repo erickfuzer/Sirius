@@ -290,7 +290,7 @@ public partial class MainWindow
             var after = entry.Edit is { } edit && edit.EndLine == caretLine.LineNumber - 1
                 ? Math.Max(0, Math.Min(caretLine.EndOffset, caretLine.Offset + edit.EndCharacter) - caret)
                 : 0;
-            items.Add(new CompletionItem(entry, EditStart(entry), after, SuggestAgainSoon));
+            items.Add(new CompletionItem(entry, EditStart(entry), after, SuggestAgainSoon, InsertSnippet));
         }
 
         window.Closed += (_, _) =>

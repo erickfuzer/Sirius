@@ -3,7 +3,14 @@ using System.Text;
 namespace Sirius.Core;
 
 // O resultado de expandir: o trecho a substituir, o texto novo e as paradas do Tab, já no documento.
-public sealed record EmmetExpansion(int Start, int Length, string Text, IReadOnlyList<int> Stops);
+public sealed record EmmetExpansion(int Start, int Length, string Text, IReadOnlyList<int> Stops)
+{
+    // Quanto do texto cada parada seleciona: o título da página entra marcado, como no VS Code.
+    public IReadOnlyList<int>? StopLengths { get; init; }
+
+    // Para o mecanismo de trechos: campos 1, 2, 3... na ordem do texto, contados a partir de Start.
+    public SnippetText ToSnippet() => new(Text, Stops.Select((stop, i) => new SnippetStop(i + 1, stop - Start, StopLengths is { } lengths && i < lengths.Count ? lengths[i] : 0)).ToList());
+}
 
 // Abreviações de HTML, como ul>li*3. Feito aqui, sem servidor: o Tab precisa responder na hora,
 // e isto funciona sem Node e sem internet.
@@ -85,7 +92,10 @@ public static class Emmet
 
         if (Expand(abbreviation, indent, newline, leading) is not { } expanded)
             return null;
-        return new EmmetExpansion(start, end - start, expanded.Text, expanded.Stops.Select(stop => start + stop).ToList());
+        return new EmmetExpansion(start, end - start, expanded.Text, expanded.Stops.Select(stop => start + stop).ToList())
+        {
+            StopLengths = isPage ? [PageTitle.Length] : null,
+        };
     }
 
     // O fechamento automático deixa o cursor antes do que a própria abreviação precisa, como em div{oi|}.
@@ -227,10 +237,12 @@ public static class Emmet
         return (writer.Text, writer.Stops);
     }
 
+    private const string PageTitle = "Documento";
+
     private static (string, List<int>) Page(string indent, string newline, string leading)
     {
         const string Before = "<!DOCTYPE html>\n<html lang=\"pt-BR\">\n<head>\n\t<meta charset=\"UTF-8\">\n\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n\t<title>";
-        const string Title = "Documento";
+        const string Title = PageTitle;
         const string Middle = "</title>\n</head>\n<body>\n\t";
         const string After = "\n</body>\n</html>";
 

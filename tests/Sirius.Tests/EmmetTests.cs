@@ -267,6 +267,13 @@ public class EmmetTests
         Dispatcher.UIThread.RunJobs();
     }
 
+    // Pelo "Expandir Emmet" do botão direito: com a lista fechada, o Tab não expande, como no VS Code.
+    private static void Expand(MainWindow window)
+    {
+        window.ExpandEmmet();
+        Dispatcher.UIThread.RunJobs();
+    }
+
     [AvaloniaFact]
     public void Exclamacao_dentro_do_php_explica_por_que_nao_expandiu()
     {
@@ -274,7 +281,7 @@ public class EmmetTests
         using var settings = new TempFolder();
         var window = Open(temp, settings, "a.php", "<?php\n!");
 
-        Tab(window);
+        Expand(window);
 
         Assert.DoesNotContain("DOCTYPE", Text(window));
         Assert.Contains("<?php", window.StatusText);
@@ -288,7 +295,7 @@ public class EmmetTests
         using var settings = new TempFolder();
         var window = Open(temp, settings, "a.css", "!");
 
-        Tab(window);
+        Expand(window);
 
         Assert.DoesNotContain("DOCTYPE", Text(window));
         Assert.Contains(".html", window.StatusText);
@@ -308,25 +315,25 @@ public class EmmetTests
 
         window.KeyTextInput("p");
         Dispatcher.UIThread.RunJobs();
-        Tab(window);
+        Expand(window);
         Assert.DoesNotContain("<p>", Text(window));
 
         window.ActiveDocument!.Document.Text = "!";
         window.SetCaretOffset(1);
         Dispatcher.UIThread.RunJobs();
-        Tab(window);
+        Expand(window);
         Assert.Contains("<!DOCTYPE html>", Text(window));
         window.Close();
     }
 
     [AvaloniaFact]
-    public void Tab_expande_e_coloca_o_cursor_no_primeiro_campo()
+    public void Expandir_coloca_o_cursor_no_primeiro_campo()
     {
         using var temp = new TempFolder();
         using var settings = new TempFolder();
         var window = Open(temp, settings, "a.html", ".cartao");
 
-        Tab(window);
+        Expand(window);
 
         Assert.Equal("<div class=\"cartao\"></div>", Text(window));
         Assert.Equal(20, window.CaretOffset);
@@ -334,14 +341,14 @@ public class EmmetTests
     }
 
     [AvaloniaFact]
-    public void Tab_de_novo_passa_pelos_campos_e_depois_volta_ao_normal()
+    public void Tab_passa_pelos_campos_e_depois_volta_ao_normal()
     {
         using var temp = new TempFolder();
         using var settings = new TempFolder();
         // A primeira linha define a quebra de linha do que for escrito.
         var window = Open(temp, settings, "a.html", "\nul>li*2");
 
-        Tab(window);
+        Expand(window);
         Assert.Equal("\n<ul>\n    <li></li>\n    <li></li>\n</ul>", Text(window));
         Assert.Equal(14, window.CaretOffset);
         Assert.Equal(1, window.EmmetStopsLeft);
@@ -367,7 +374,7 @@ public class EmmetTests
         using var settings = new TempFolder();
         var window = Open(temp, settings, "a.html", "ul>li*3");
 
-        Tab(window);
+        Expand(window);
         window.ActiveDocument!.Document.UndoStack.Undo();
 
         Assert.Equal("ul>li*3", Text(window));
@@ -381,7 +388,7 @@ public class EmmetTests
         using var settings = new TempFolder();
         var window = Open(temp, settings, "a.html", "x\n\nul>li*2");
 
-        Tab(window);
+        Expand(window);
         window.SetCaretOffset(1);
         Tab(window);
 
@@ -396,7 +403,7 @@ public class EmmetTests
         using var temp = new TempFolder();
         using var settings = new TempFolder();
         var window = Open(temp, settings, "a.html", "ul>li*2");
-        Tab(window);
+        Expand(window);
 
         window.OpenFile(temp.File("b.html", "abc"));
         Dispatcher.UIThread.RunJobs();
@@ -447,17 +454,21 @@ public class EmmetTests
         window.Close();
     }
 
-    // O "!" se digita com Shift. No notebook do dono, o "!" com Tab não fez nada: o Shift ainda apertado é o suspeito.
-    [AvaloniaFact]
-    public void Exclamacao_com_shift_ainda_apertado_vira_pagina()
+    // Como no VS Code (emmet.triggerExpansionOnTab vem desligado): sem a lista aberta, o Tab só recua.
+    // Assim um Tab sem querer nunca troca o texto por HTML.
+    [AvaloniaTheory]
+    [InlineData("!")]
+    [InlineData("ul>li")]
+    public void Tab_com_a_lista_fechada_nao_expande(string abbreviation)
     {
         using var temp = new TempFolder();
         using var settings = new TempFolder();
-        var window = Open(temp, settings, "index.html", "!");
+        var window = Open(temp, settings, "index.html", abbreviation);
 
-        Tab(window, RawInputModifiers.Shift);
+        Tab(window);
 
-        Assert.StartsWith("<!DOCTYPE html>", Text(window));
+        Assert.StartsWith(abbreviation, Text(window));
+        Assert.DoesNotContain("<", Text(window));
         window.Close();
     }
 
@@ -641,7 +652,7 @@ public class EmmetTests
         using var settings = new TempFolder();
         var window = Open(temp, settings, "a.html", "x\r\nul>li");
 
-        Tab(window);
+        Expand(window);
 
         Assert.Equal("x\r\n<ul>\r\n    <li></li>\r\n</ul>", Text(window));
         window.Close();

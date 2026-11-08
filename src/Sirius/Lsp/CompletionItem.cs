@@ -8,7 +8,9 @@ using AvaloniaEdit.Editing;
 namespace Sirius.Lsp;
 
 // Uma linha da lista de sugestões.
-public sealed class CompletionItem(CompletionEntry entry, int? editStart, int charactersAfterCaret, Action? suggestAgain) : ICompletionData
+// insertSnippet põe um trecho com vários campos pelo mecanismo da janela, em que o Tab anda entre eles.
+public sealed class CompletionItem(CompletionEntry entry, int? editStart, int charactersAfterCaret, Action? suggestAgain,
+    Action<int, int, Sirius.Core.SnippetText>? insertSnippet = null) : ICompletionData
 {
     private const double DescriptionWidth = 420;
 
@@ -30,6 +32,12 @@ public sealed class CompletionItem(CompletionEntry entry, int? editStart, int ch
         var document = textArea.Document;
         var start = editStart ?? completionSegment.Offset;
         var end = Math.Min(document.TextLength, completionSegment.EndOffset + charactersAfterCaret);
+
+        if (entry.Snippet is { } snippet && insertSnippet is not null)
+        {
+            insertSnippet(start, end - start, snippet);
+            return;
+        }
 
         document.Replace(start, end - start, entry.InsertText);
         if (entry.CaretInInsertText is { } caret)
