@@ -19,6 +19,9 @@ public sealed class SessionState
 
     // As condições desses pontos, como $i == 5, por arquivo e linha. Só as linhas que têm condição.
     public Dictionary<string, Dictionary<int, string>> BreakpointConditions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    // As expressões vigiadas na depuração, como $total * 2.
+    public List<string> Watches { get; set; } = new();
 }
 
 public sealed class AppSettings

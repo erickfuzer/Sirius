@@ -509,24 +509,38 @@
                                                 <TextBlock x:Name="PageOutputText" FontFamily="{DynamicResource CodeFont}" FontSize="12" Foreground="{DynamicResource CapsuleInk}" TextWrapping="Wrap" />
                                             </ScrollViewer>
                                         </DockPanel>
-                                        <TextBlock x:Name="VariablesHint" Grid.Column="1" Margin="10,10,0,0" FontSize="12" IsVisible="False" Foreground="{DynamicResource CapsuleMuted}" TextWrapping="Wrap" />
-                                        <ScrollViewer x:Name="VariablesScroll" Grid.Column="1" Margin="0,6,0,4" IsVisible="{Binding #VariablesList.IsVisible}">
+                                        <DockPanel Grid.Column="1">
+                                        <!-- Acompanhar uma expressão, como $total * 2, a cada parada. -->
+                                        <Button x:Name="AddWatchButton" DockPanel.Dock="Top" HorizontalAlignment="Left" Classes="flat terminaltab" Height="22" Padding="6,0" Margin="2,6,0,0" IsVisible="False"
+                                                Click="OnAddWatch" ToolTip.Tip="Acompanhar o valor de uma expressão, como $total * 2, a cada parada">
+                                            <StackPanel Orientation="Horizontal" Spacing="5">
+                                                <Path Stroke="{DynamicResource CapsuleMuted}" StrokeThickness="1.3" VerticalAlignment="Center" Data="M4 0V8M0 4H8" />
+                                                <TextBlock Text="Vigiar expressão" FontSize="12" Foreground="{DynamicResource CapsuleMuted}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                        <TextBlock x:Name="VariablesHint" DockPanel.Dock="Top" Margin="10,8,0,0" FontSize="12" IsVisible="False" Foreground="{DynamicResource CapsuleMuted}" TextWrapping="Wrap" />
+                                        <ScrollViewer x:Name="VariablesScroll" Margin="0,4,0,4" IsVisible="{Binding #VariablesList.IsVisible}">
                                             <ItemsControl x:Name="VariablesList" IsVisible="False">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="s:VariableRow">
                                                         <Button Classes="flat terminaltab" Height="22" CornerRadius="6" Padding="4,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                                                 Background="{Binding Background}" Click="OnVariableClick" ToolTip.Tip="{Binding Value}">
-                                                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="{Binding Indent}">
+                                                            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="{Binding Indent}">
                                                                 <Path Grid.Column="0" Width="12" Margin="0,0,3,0" VerticalAlignment="Center" Stroke="{DynamicResource CapsuleMuted}" StrokeThickness="1.2" Data="{Binding Chevron}" />
                                                                 <TextBlock Grid.Column="1" Text="{Binding Name}" MinWidth="110" Margin="0,0,14,0" FontFamily="{DynamicResource CodeFont}" Foreground="{DynamicResource CapsuleMuted}" VerticalAlignment="Center" />
                                                                 <TextBlock Grid.Column="2" Text="{Binding Value}" FontFamily="{DynamicResource CodeFont}" Foreground="{DynamicResource CapsuleInk}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                                                                 <TextBlock Grid.Column="3" Text="{Binding Type}" Margin="12,0,4,0" FontFamily="{DynamicResource CodeFont}" FontSize="11" Foreground="{DynamicResource CapsuleMuted}" VerticalAlignment="Center" />
+                                                                <Button Grid.Column="4" Classes="flat option" Width="18" Height="18" IsVisible="{Binding IsWatch}" Click="OnRemoveWatch"
+                                                                        AutomationProperties.Name="Parar de vigiar" ToolTip.Tip="Parar de vigiar">
+                                                                    <Path Stroke="{DynamicResource CapsuleMuted}" StrokeThickness="1.1" Data="M0 0L6 6M6 0L0 6" />
+                                                                </Button>
                                                             </Grid>
                                                         </Button>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
                                         </ScrollViewer>
+                                        </DockPanel>
                                         </Grid>
                                     </Grid>
                                     <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" Margin="4">

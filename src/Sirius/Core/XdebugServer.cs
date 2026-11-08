@@ -17,8 +17,9 @@ public sealed record DebugStackFrame(string Path, int Line, string Name, IReadOn
 // Function é null no corpo principal do arquivo. Depth diz quantas funções há até aqui, contando o corpo principal.
 // HeldOutput é o que a página escreveu e o PHP ainda segura, por causa do output_buffering.
 // Stack começa onde o programa parou e segue por quem chamou, até o arquivo principal.
+// Watches são as expressões vigiadas, na ordem da lista, avaliadas onde o programa parou.
 public sealed record DebugPause(string Path, int Line, IReadOnlyList<DebugVariable> Variables, string? Function = null, int Depth = 1, string HeldOutput = "",
-    IReadOnlyList<DebugStackFrame>? Stack = null)
+    IReadOnlyList<DebugStackFrame>? Stack = null, IReadOnlyList<DebugVariable>? Watches = null)
 {
     public IReadOnlyList<DebugStackFrame> Frames =>
         Stack is { Count: > 0 } stack ? stack : [new DebugStackFrame(Path, Line, DbgpParser.FrameName(Function), Variables)];
@@ -133,6 +134,19 @@ public static class DbgpParser
         }
     }
 
+    // O resultado de uma expressão vigiada. Um erro, como variável que não existe, vira um aviso no lugar do valor.
+    public static DebugVariable WatchResult(XElement response, string expression)
+    {
+        var key = "vigiar:" + expression;
+        if (response.Element(Protocol + "property") is { } property)
+        {
+            var value = Variable(property);
+            return value with { Name = expression, FullName = key };
+        }
+        var message = response.Element(Protocol + "error")?.Element(Protocol + "message")?.Value.Trim();
+        return new DebugVariable(expression, key, "", string.IsNullOrEmpty(message) ? "não dá para calcular aqui" : message, []);
+    }
+
     // Lê a saída de "stack_get": o primeiro é onde o programa está, e os outros são quem chamou.
     public static DebugFrame? TopFrame(XElement response)
     {
@@ -224,6 +238,7 @@ public sealed class XdebugServer : IDisposable
     private readonly object _lock = new();
     private Dictionary<string, IReadOnlyCollection<int>> _breakpoints = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, IReadOnlyDictionary<int, string>> _conditions = new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<string> _watches = [];
     private volatile bool _paused;
     private TcpClient? _client;
 
@@ -259,6 +274,15 @@ public sealed class XdebugServer : IDisposable
             _conditions = new Dictionary<string, IReadOnlyDictionary<int, string>>(conditions, StringComparer.OrdinalIgnoreCase);
         if (_paused)
             _commands.Writer.TryWrite("sync");
+    }
+
+    // Expressões vigiadas, como $total * 2. Mudá-las durante uma parada recalcula na hora.
+    public void SetWatches(IReadOnlyList<string> expressions)
+    {
+        lock (_lock)
+            _watches = expressions.ToList();
+        if (_paused)
+            _commands.Writer.TryWrite("refresh");
     }
 
     public void Continue() => Send("run");
@@ -364,9 +388,19 @@ public sealed class XdebugServer : IDisposable
             while (true)
             {
                 var command = await server._commands.Reader.ReadAsync(Cancel);
-                if (command != "sync")
-                    return command;
-                await SyncBreakpointsAsync();
+                if (command == "sync")
+                {
+                    await SyncBreakpointsAsync();
+                    continue;
+                }
+                if (command == "refresh")
+                {
+                    // A mesma parada, lida de novo: as expressões vigiadas mudaram.
+                    if (await ReadPauseAsync() is { } again)
+                        server.Paused?.Invoke(again);
+                    continue;
+                }
+                return command;
             }
         }
 
@@ -396,7 +430,17 @@ public sealed class XdebugServer : IDisposable
 
             // Só lê o buffer, sem esvaziar: mudar o output_buffering faria header() se comportar diferente aqui.
             var held = DbgpParser.EvalText(await RequestAsync("eval -- " + ReadHeldOutput));
-            return new DebugPause(LspParsers.ToPath(frame.File), frame.Line, variables, frame.Function, frame.Depth, held, frames);
+
+            IReadOnlyList<string> expressions;
+            lock (server._lock)
+                expressions = server._watches;
+            var watches = new List<DebugVariable>();
+            foreach (var expression in expressions)
+            {
+                var code = Convert.ToBase64String(Encoding.UTF8.GetBytes(expression));
+                watches.Add(DbgpParser.WatchResult(await RequestAsync("eval -- " + code), expression));
+            }
+            return new DebugPause(LspParsers.ToPath(frame.File), frame.Line, variables, frame.Function, frame.Depth, held, frames, watches);
         }
 
         private static bool IsFile(string uri) => uri.StartsWith("file:", StringComparison.OrdinalIgnoreCase);

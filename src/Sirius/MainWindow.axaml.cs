@@ -162,6 +162,7 @@ public partial class MainWindow : Window
         SaveSession();
         _closedBreakpoints.Clear();
         _closedConditions.Clear();
+        _watches.Clear();
         RootFolder = Path.GetFullPath(folder);
         _settings.LastFolder = RootFolder;
         _settings.RememberFolder(RootFolder);
@@ -1095,6 +1096,8 @@ public partial class MainWindow : Window
             actions.Add(("Ir para a linha", "Ctrl G", OpenGoToLine));
             if (CanSetBreakpointHere)
                 actions.Add(("Parar nesta linha só quando…", "condição", () => _ = EditBreakpointConditionAsync()));
+            if (IsDebugging)
+                actions.Add(("Vigiar uma expressão", "depuração", () => _ = AddWatchAsync()));
             actions.Add(("Ir para a definição", "F12", () => _ = GoToDefinitionAsync()));
             actions.Add(("Encontrar todos os usos", "Shift F12", () => _ = FindUsesAsync()));
             actions.Add(("Renomear símbolo", "F2 no editor", () => _ = RenameSymbolAsync()));

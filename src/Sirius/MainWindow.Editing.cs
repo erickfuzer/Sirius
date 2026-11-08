@@ -214,6 +214,8 @@ public partial class MainWindow
         var goToLine = Item("Ir para a linha", OpenGoToLine, "Ctrl+G");
         // Só em PHP, onde há depuração. Também pelo botão direito no ponto vermelho.
         var condition = Item("Parar aqui só quando…", () => _ = EditBreakpointConditionAsync());
+        // Durante a depuração: o texto selecionado, como $preco * $qtd, entra na lista das vigiadas.
+        var watch = Item("Vigiar seleção", () => _ = AddWatchAsync(CodeEditor.TextArea.Selection.GetText()));
         // Só em HTML e PHP. O mesmo do Tab, para quem não alcança a tecla.
         var emmet = Item("Expandir Emmet", ExpandEmmet, "Tab");
 
@@ -231,6 +233,7 @@ public partial class MainWindow
         menu.Items.Add(rename);
         menu.Items.Add(goToLine);
         menu.Items.Add(condition);
+        menu.Items.Add(watch);
 
         menu.Opening += (_, e) =>
         {
@@ -248,6 +251,7 @@ public partial class MainWindow
             emmet.IsVisible = CanUseEmmet;
             emmet.IsEnabled = CanEditText;
             condition.IsVisible = CanSetBreakpointHere;
+            watch.IsVisible = IsDebugging && hasSelection;
         };
         return menu;
     }

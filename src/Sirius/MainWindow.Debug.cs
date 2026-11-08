@@ -93,6 +93,48 @@ public partial class MainWindow
 
     public bool CanSetBreakpointHere => CanHaveBreakpoints(ActiveDocument);
 
+    // Expressões vigiadas
+
+    private readonly List<string> _watches = new();
+    public IReadOnlyList<string> Watches => _watches;
+
+    private void OnAddWatch(object? sender, RoutedEventArgs e) => _ = AddWatchAsync();
+
+    private void OnRemoveWatch(object? sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if ((sender as Control)?.DataContext is VariableRow { IsWatch: true } row)
+            RemoveWatch(row.Name);
+    }
+
+    // Sem texto, pergunta. Com texto, como a seleção do editor, vigia direto.
+    public async Task AddWatchAsync(string? expression = null)
+    {
+        expression ??= await AskTextAsync("Vigiar expressão",
+            "Escreva uma expressão em PHP, como $total * 2 ou count($lista). O valor aparece em cima das variáveis a cada parada.", "Vigiar",
+            value => string.IsNullOrWhiteSpace(value) ? "Escreva uma expressão." : null);
+        if (string.IsNullOrWhiteSpace(expression))
+            return;
+        expression = expression.Trim();
+        if (!_watches.Contains(expression))
+            _watches.Add(expression);
+        WatchesChanged();
+        ShowVariables();
+    }
+
+    public void RemoveWatch(string expression)
+    {
+        if (_watches.Remove(expression))
+            WatchesChanged();
+    }
+
+    private void WatchesChanged()
+    {
+        SaveSession();
+        _debug?.SetWatches(_watches.ToList());
+        RefreshVariableRows();
+    }
+
     // Parar só quando a condição em PHP for verdadeira, como $i == 5. Pelo botão direito no ponto,
     // pelo menu do editor ou pela barra de comando. Sem ponto na linha, ele é criado.
     public async Task EditBreakpointConditionAsync(int? line = null)
@@ -274,6 +316,7 @@ public partial class MainWindow
         var server = new XdebugServer();
         server.SetConditions(ConditionsSnapshot());
         server.SetBreakpoints(BreakpointsSnapshot());
+        server.SetWatches(_watches.ToList());
 
         // Os eventos vêm de uma thread de fundo. Este método roda na da interface.
         var dispatcher = Dispatcher.UIThread;
@@ -539,6 +582,7 @@ public partial class MainWindow
         TaskTabButton.IsVisible = _task is not null;
         VariablesTabButton.Classes.Set("on", true);
         _showingVariables = true;
+        AddWatchButton.IsVisible = true;
         RefreshVariableRows();
     }
 
@@ -546,6 +590,7 @@ public partial class MainWindow
     {
         _showingVariables = false;
         VariablesTabButton.Classes.Set("on", false);
+        AddWatchButton.IsVisible = false;
         VariablesList.IsVisible = false;
         VariablesHint.IsVisible = false;
         PageOutputBox.IsVisible = false;
@@ -584,6 +629,16 @@ public partial class MainWindow
     private void RefreshVariableRows()
     {
         _variableRows.Clear();
+
+        // As vigiadas vêm primeiro, calculadas onde o programa parou.
+        foreach (var expression in _watches)
+        {
+            var result = _pause?.Watches?.FirstOrDefault(watch => watch.Name == expression)
+                ?? new DebugVariable(expression, "vigiar:" + expression, "", _pause is null ? "aparece na próxima parada" : "…", []);
+            AddVariableRows([result], 0, highlight: false, watch: true);
+        }
+        var watchRows = _variableRows.Count;
+
         if (SelectedFrame is { } frame)
         {
             // Na primeira parada da página tudo é novidade, e pintar tudo não diz nada. O que mudou
@@ -596,13 +651,13 @@ public partial class MainWindow
             return;
         UpdatePageOutput();
         VariablesList.IsVisible = _variableRows.Count > 0;
-        VariablesHint.IsVisible = _variableRows.Count == 0;
+        VariablesHint.IsVisible = _variableRows.Count == watchRows;
         VariablesHint.Text = _pause is not null
             ? "Nenhuma variável nesta linha ainda."
             : "As variáveis aparecem aqui quando o programa parar em uma linha marcada. Abra a página no navegador.";
     }
 
-    private void AddVariableRows(IEnumerable<DebugVariable> variables, int depth, bool highlight)
+    private void AddVariableRows(IEnumerable<DebugVariable> variables, int depth, bool highlight, bool watch = false)
     {
         foreach (var variable in variables)
         {
@@ -610,7 +665,7 @@ public partial class MainWindow
             var expanded = _expandedVariables.Contains(variable.FullName);
             var chevron = variable.Children.Count == 0 ? null : expanded ? ChevronOpen : ChevronClosed;
             _variableRows.Add(new VariableRow(variable.Name, variable.Value, variable.Type, new Thickness(depth * VariableIndent, 0, 0, 0), chevron,
-                changed ? Palette.Current.DiffAdded : Brushes.Transparent, variable));
+                changed ? Palette.Current.DiffAdded : Brushes.Transparent, variable, watch));
             if (expanded)
                 AddVariableRows(variable.Children, depth + 1, highlight);
         }

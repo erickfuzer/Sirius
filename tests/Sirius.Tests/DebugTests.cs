@@ -296,7 +296,7 @@ public sealed class FakeXdebug : IDisposable
 {
     // CallerVariables e CallerLine descrevem quem chamou a função, no nível 1 da pilha.
     public sealed record Stop(string File, int Line, string Variables = "", string Globals = "", string? Function = null, byte[][]? Output = null, string? Held = null,
-        string? CallerVariables = null, int CallerLine = 1, string? CallerFile = null);
+        string? CallerVariables = null, int CallerLine = 1, string? CallerFile = null, IReadOnlyDictionary<string, string>? Evals = null);
 
     private readonly TcpClient _client = new();
     private readonly Queue<Stop> _stops;
@@ -384,6 +384,11 @@ public sealed class FakeXdebug : IDisposable
                     : command.Contains("-d 1 ") && _current!.CallerVariables is { } caller ? caller
                     : _current!.Variables;
                 break;
+            case "eval" when Expression(command) is { } expression && expression != "ob_get_contents()":
+                // Uma expressão vigiada: o resultado combinado na parada, ou um erro como o do Xdebug.
+                inner = _current!.Evals?.GetValueOrDefault(expression)
+                    ?? "<error code=\"206\"><message><![CDATA[error evaluating code]]></message></error>";
+                break;
             case "eval":
                 // Sem buffer aberto, ob_get_contents() devolve false.
                 inner = _current!.Held is { } held
@@ -397,6 +402,12 @@ public sealed class FakeXdebug : IDisposable
             return true;
         _client.Close();
         return false;
+    }
+
+    private static string? Expression(string command)
+    {
+        var at = command.IndexOf(" -- ", StringComparison.Ordinal);
+        return at < 0 ? null : Encoding.UTF8.GetString(Convert.FromBase64String(command[(at + 4)..]));
     }
 
     private static async Task WriteAsync(NetworkStream stream, string xml)
@@ -619,6 +630,33 @@ public class XdebugServerTests
         var changed = Convert.ToBase64String(Encoding.UTF8.GetBytes("$i > 9"));
         await Until(() => php.Commands.Any(c => c.EndsWith("-- " + changed)));
         await Until(() => php.Commands.Any(c => c.StartsWith("breakpoint_remove")));
+    }
+
+    [Fact]
+    public async Task Expressoes_vigiadas_sao_calculadas_a_cada_parada()
+    {
+        var file = @"C:\a.php";
+        using var server = new XdebugServer();
+        var pauses = new ConcurrentQueue<DebugPause>();
+        server.Paused += pauses.Enqueue;
+        server.SetWatches(["$total * 2", "$nada"]);
+        server.Start();
+        var evals = new Dictionary<string, string> { ["$total * 2"] = "<property type=\"int\"><![CDATA[84]]></property>" };
+        using var php = new FakeXdebug(new FakeXdebug.Stop(file, 1, Evals: evals));
+        php.Connect(server.Port);
+        await Until(() => !pauses.IsEmpty);
+
+        pauses.TryPeek(out var pause);
+        Assert.Equal(["$total * 2", "$nada"], pause!.Watches!.Select(w => w.Name));
+        Assert.Equal("84", pause.Watches![0].Value);
+        Assert.Equal("error evaluating code", pause.Watches[1].Value);
+
+        // Uma nova durante a parada é calculada na hora, sem esperar a próxima.
+        server.SetWatches(["$total * 2", "$nada", "$total * 2 + 1"]);
+        await Until(() => pauses.Count == 2);
+        Assert.Equal(3, pauses.Last().Watches!.Count);
+        server.Continue();
+        await php.Finished;
     }
 
     [Fact]
@@ -1039,6 +1077,62 @@ public class DebugWindowTests
 
         Assert.Equal("$a === 1", reopened.ConditionsSnapshot()[php][2]);
         Assert.Equal("$a === 1", reopened.ActiveDocument!.BreakpointConditions[2]);
+        reopened.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Vigiar_mostra_a_expressao_em_cima_e_o_x_tira()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$total = 42;\n");
+        var window = Open(temp, config);
+        window.OpenFile(php);
+        var server = window.StartDebugServerForTest();
+        var evals = new Dictionary<string, string> { ["$total * 2"] = "<property type=\"int\"><![CDATA[84]]></property>" };
+        using var fake = new FakeXdebug(new FakeXdebug.Stop(php, 2, FakeXdebug.Int("$total", 42), Evals: evals));
+
+        var asking = window.AddWatchAsync();
+        await Until(() => window.IsDialogOpen);
+        Answer(window, "$total * 2");
+        await asking;
+        Assert.Equal(["$total * 2"], window.Watches);
+        Assert.Equal("aparece na próxima parada", window.VariableRows[0].Value);
+
+        fake.Connect(server.Port);
+        await Until(() => window.IsDebugPaused && window.VariableRows.Count == 2);
+        Assert.True(window.VariableRows[0].IsWatch);
+        Assert.Equal(("$total * 2", "84"), (window.VariableRows[0].Name, window.VariableRows[0].Value));
+        Assert.Equal("$total", window.VariableRows[1].Name);
+        Assert.False(window.VariableRows[1].IsWatch);
+
+        window.RemoveWatch("$total * 2");
+        Assert.Empty(window.Watches);
+        Assert.Equal("$total", Assert.Single(window.VariableRows).Name);
+        server.Continue();
+        await fake.Finished;
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Vigiadas_voltam_ao_reabrir_a_pasta()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        temp.File("a.php", "<?php\n");
+        var window = Open(temp, config, new AppSettings());
+        await window.AddWatchAsync("count($lista)");
+        window.Close();
+
+        var saved = AppSettings.Load(Path.Combine(config.Path, "settings.json"));
+        saved.LastFolder = null;
+        var reopened = new MainWindow(saved, Path.Combine(config.Path, "settings.json"), null);
+        reopened.Language.IsInstalled = _ => false;
+        reopened.Show();
+        reopened.OpenFolder(temp.Path);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(["count($lista)"], reopened.Watches);
         reopened.Close();
     }
 
