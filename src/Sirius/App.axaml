@@ -192,18 +192,22 @@
         </Style>
 
         <!-- Lista de sugestões: sem isto, o destaque usa a cor de destaque do Windows, como roxo.
-             Cantos retos porque são janelas à parte, e os arredondados apareceram escuros na captura. -->
+             Cantos pouco arredondados, como o resto da IDE. É uma janela à parte, mas o fundo dela é
+             transparente: os cantos escuros só aparecem na captura por PrintWindow, não na tela. -->
         <Style Selector="cc|CompletionListBox">
             <Setter Property="Background" Value="{DynamicResource Pop}" />
             <Setter Property="Foreground" Value="{DynamicResource Ink}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Tint}" />
             <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="3" />
             <Setter Property="FontFamily" Value="{DynamicResource CodeFont}" />
             <Setter Property="FontSize" Value="12.5" />
         </Style>
         <Style Selector="cc|CompletionListBox ListBoxItem">
-            <Setter Property="Padding" Value="9,4" />
+            <Setter Property="Padding" Value="8,4" />
             <Setter Property="MinHeight" Value="0" />
+            <Setter Property="CornerRadius" Value="5" />
             <Setter Property="Foreground" Value="{DynamicResource Ink}" />
         </Style>
         <Style Selector="cc|CompletionListBox ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
@@ -227,6 +231,7 @@
             <Setter Property="Foreground" Value="{DynamicResource Muted}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Tint}" />
             <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
             <Setter Property="Padding" Value="10,8" />
         </Style>
     </Application.Styles>
