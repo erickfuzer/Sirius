@@ -905,6 +905,36 @@ public class DebugWindowTests
         window.Close();
     }
 
+    // Pelo botão direito de verdade: soltar o botão não pode tirar o foco da caixa, senão o que se digita some.
+    [AvaloniaFact]
+    public async Task Botao_direito_no_ponto_pede_a_condicao_e_recebe_o_texto()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", "<?php\n$a = 1;\n$b = 2;\n");
+        var window = Open(temp, config);
+        window.OpenFile(php);
+        Dispatcher.UIThread.RunJobs();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+        var gutter = window.GetVisualDescendants().OfType<GutterMargin>().Single();
+        var firstLine = gutter.TranslatePoint(new Point(10, 8), window)!.Value;
+
+        window.MouseMove(firstLine);
+        window.MouseDown(firstLine, MouseButton.Right);
+        window.MouseUp(firstLine, MouseButton.Right);
+        await Until(() => window.IsDialogOpen);
+        window.KeyTextInput("$a > 0");
+        Dispatcher.UIThread.RunJobs();
+        window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        await Until(() => !window.IsDialogOpen);
+
+        Assert.Equal("$a > 0", window.ActiveDocument!.BreakpointConditions[1]);
+        Assert.Equal("<?php\n$a = 1;\n$b = 2;\n", window.ActiveDocument.Document.Text);
+        window.Close();
+    }
+
     [AvaloniaFact]
     public void Margem_de_outros_arquivos_nao_marca_nada()
     {

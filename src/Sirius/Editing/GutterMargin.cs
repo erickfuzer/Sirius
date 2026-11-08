@@ -76,6 +76,25 @@ public sealed class GutterMargin : AbstractMargin
         _area = area;
         _area.Caret.PositionChanged += (_, _) => InvalidateVisual();
         _timer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, (_, _) => Step());
+        // O menu do editor abre ao soltar o botão direito e roubava o foco da caixa da condição.
+        AddHandler(ContextRequestedEvent, (_, e) =>
+        {
+            if (e.TryGetPosition(this, out var point) && IsBreakpointZone(point))
+                e.Handled = true;
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel | Avalonia.Interactivity.RoutingStrategies.Bubble);
+    }
+
+    private int? _rightPressedLine;
+
+    // A condição só é pedida ao soltar o botão, depois de tudo que o clique faz, para a caixa ficar com o foco.
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+        if (e.InitialPressMouseButton != MouseButton.Right || _rightPressedLine is not { } line)
+            return;
+        _rightPressedLine = null;
+        e.Handled = true;
+        BreakpointConditionRequested?.Invoke(line);
     }
 
     // Vai direto para a linha, sem animar. Usado ao trocar de arquivo.
@@ -110,7 +129,7 @@ public sealed class GutterMargin : AbstractMargin
         if (view is not null && Document is not null && properties.IsRightButtonPressed && IsBreakpointZone(e.GetPosition(this))
             && view.GetVisualLineFromVisualTop(e.GetPosition(this).Y + view.VerticalOffset) is { } clicked)
         {
-            BreakpointConditionRequested?.Invoke(clicked.FirstDocumentLine.LineNumber);
+            _rightPressedLine = clicked.FirstDocumentLine.LineNumber;
             e.Handled = true;
             return;
         }
