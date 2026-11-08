@@ -44,6 +44,9 @@ public sealed class AppSettings
     // O desenho ao lado do código, nos arquivos .svg.
     public bool SvgPreview { get; set; } = true;
 
+    // A pessoa ligou "Depurar páginas do servidor" e não desligou: a Sirius volta a ouvir ao abrir.
+    public bool ListenToServer { get; set; }
+
     // As últimas pastas abertas, a mais recente primeiro.
     public List<string> RecentFolders { get; set; } = new();
 

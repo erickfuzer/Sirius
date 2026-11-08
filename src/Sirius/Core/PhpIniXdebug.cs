@@ -45,6 +45,20 @@ public static partial class PhpIniXdebug
 
     public static bool HasBlock(string ini) => ini.Contains(Begin, StringComparison.Ordinal);
 
+    // O arquivo do Xdebug que o bloco da Sirius carrega. Null sem bloco, ou quando o PHP já tinha o Xdebug dele.
+    public static string? ExtensionIn(string ini)
+    {
+        var start = ini.IndexOf(Begin, StringComparison.Ordinal);
+        var end = start < 0 ? -1 : ini.IndexOf(End, start, StringComparison.Ordinal);
+        if (end < 0)
+            return null;
+        var match = ExtensionLine().Match(ini[start..end]);
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    [GeneratedRegex("^zend_extension=\"([^\"]+)\"", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
+    private static partial Regex ExtensionLine();
+
     // O bloco vai no fim, para valer depois de qualquer outra linha do arquivo. Um bloco antigo é trocado.
     public static string Add(string ini, string? extensionFile)
     {

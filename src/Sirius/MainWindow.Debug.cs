@@ -69,6 +69,7 @@ public partial class MainWindow
     {
         PrepareXdebug = PrepareRealXdebugAsync;
         ServerXdebugFile = RealServerXdebugFileAsync;
+        Opened += (_, _) => _ = ResumeServerDebugAsync();
         VariablesList.ItemsSource = _variableRows;
         FramesList.ItemsSource = _frameRows;
         _gutter.BreakpointClicked += ToggleBreakpoint;
@@ -332,13 +333,17 @@ public partial class MainWindow
 
     private void StartDebugTask(string command, string iniFolder)
     {
-        var server = CreateDebugServer();
-        server.Start();
+        // Ouvindo o servidor, o Executar usa a mesma escuta: as páginas dos dois param, e nenhum desliga o outro.
+        var shared = IsListeningToServer;
+        var server = shared ? _debug! : CreateDebugServer();
+        if (!shared)
+            server.Start();
         LastDebugCommand = XdebugSetup.Command(command, iniFolder, server.Port);
         StartTask(command, null, LastDebugCommand);
         if (!IsTaskRunning)
         {
-            server.Dispose();
+            if (!shared)
+                server.Dispose();
             return;
         }
 

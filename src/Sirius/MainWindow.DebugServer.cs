@@ -50,10 +50,76 @@ public partial class MainWindow
         if (IsListeningToServer)
         {
             EndDebug();
+            RememberListening(false);
             ShowStatus("A Sirius parou de ouvir o servidor.");
             return;
         }
         await StartServerDebugAsync();
+    }
+
+    // O Executar, o Parar e o Enviar do Git terminam a depuração deles. Ouvir o servidor só para quando a pessoa pede:
+    // antes, um Executar desligava a escuta sem aviso, e a página do Apache passava direto.
+    private void EndTaskDebug()
+    {
+        if (!IsListeningToServer)
+            EndDebug();
+    }
+
+    private void RememberListening(bool listening)
+    {
+        if (_settings.ListenToServer == listening)
+            return;
+        _settings.ListenToServer = listening;
+        _settings.Save(_settingsPath);
+    }
+
+    // Ao abrir: quem deixou ligado não precisa lembrar de ligar de novo. Em silêncio, sem perguntar nada.
+    private async Task ResumeServerDebugAsync()
+    {
+        if (!_settings.ListenToServer || IsListeningToServer)
+            return;
+        var ini = await FindPhpIni();
+        string? text = null;
+        try
+        {
+            if (ini is not null && File.Exists(ini))
+                text = PhpIniXdebug.Read(ini);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+        }
+        // Tiraram o bloco por fora: não há o que ouvir.
+        if (text is null || !PhpIniXdebug.HasBlock(text))
+        {
+            RememberListening(false);
+            return;
+        }
+        // Outra janela da Sirius já ouve a porta: esta fica quieta.
+        if (Listen(showPanel: false))
+            ShowStatus("Ouvindo o servidor para depurar. Para parar, use \"Parar de ouvir o servidor\".");
+    }
+
+    private bool Listen(bool showPanel)
+    {
+        EndDebug();
+        var server = CreateDebugServer(ServerDebugPort);
+        try
+        {
+            server.Start();
+        }
+        catch (SocketException)
+        {
+            server.Dispose();
+            return false;
+        }
+
+        AttachDebug(server);
+        _listeningToServer = true;
+        TerminalInfo.Text = "Aguardando uma página do servidor";
+        if (showPanel)
+            ShowVariables();
+        RememberListening(true);
+        return true;
     }
 
     public async Task StartServerDebugAsync()
@@ -97,24 +163,28 @@ public partial class MainWindow
             }
             turnedOn = true;
         }
-
-        EndDebug();
-        var server = CreateDebugServer(ServerDebugPort);
-        try
+        else if (PhpIniXdebug.ExtensionIn(text) is { } missing && !File.Exists(missing))
         {
-            server.Start();
+            // O bloco aponta para um Xdebug que sumiu, e o PHP sobe sem ele ("Failed loading"): baixa de novo.
+            if (await ServerXdebugFile() is not { Length: > 0 } extension)
+                return;
+            try
+            {
+                PhpIniXdebug.Write(ini, PhpIniXdebug.Add(text, extension));
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                ShowStatus("Sem permissão para mudar o php.ini. Abra a Sirius como administrador ou mude o arquivo à mão.");
+                return;
+            }
+            turnedOn = true;
         }
-        catch (SocketException)
+
+        if (!Listen(showPanel: true))
         {
-            server.Dispose();
             ShowStatus($"Outro programa já ouve a porta {ServerDebugPort} do Xdebug, como outro editor depurando. Feche-o e tente de novo.");
             return;
         }
-
-        AttachDebug(server);
-        _listeningToServer = true;
-        TerminalInfo.Text = "Aguardando uma página do servidor";
-        ShowVariables();
         ShowStatus(turnedOn
             ? "Xdebug ligado no php.ini. Reinicie o Apache e abra a página no navegador."
             : "Ouvindo o servidor. Abra a página no navegador.");
@@ -125,6 +195,7 @@ public partial class MainWindow
     {
         if (IsListeningToServer)
             EndDebug();
+        RememberListening(false);
         if (await FindPhpIni() is not { } ini || !File.Exists(ini))
         {
             ShowStatus("Este PHP não tem php.ini, então não há o que desligar.");

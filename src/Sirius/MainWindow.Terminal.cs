@@ -237,7 +237,7 @@ public partial class MainWindow
     // O que aparece e define o site é "command". "shellCommand" é o que roda de fato, com o preparo da depuração.
     private void StartTask(string command, Action<int>? onExit, string? shellCommand = null)
     {
-        EndDebug();
+        EndTaskDebug();
         _task?.Dispose();
         _task = null;
         var wasOpen = _terminalOpen;
@@ -273,7 +273,7 @@ public partial class MainWindow
         if (session != _task)
             return;
 
-        EndDebug();
+        EndTaskDebug();
         UpdateRunButton();
         UpdateTerminalInfo();
         ShowStatus(code == 0 ? "Concluído" : $"Terminou com erro (código {code})");
@@ -286,7 +286,7 @@ public partial class MainWindow
             return;
 
         // Sem isto, uma página parada na depuração seguraria o PHP e o Ctrl C não chegaria nele.
-        EndDebug();
+        EndTaskDebug();
 
         // Primeiro pede com jeito, como o Ctrl C; se o programa ignorar, encerra à força.
         session.Write("\x03");

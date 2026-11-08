@@ -32,6 +32,15 @@ public class PhpIniXdebugTests
     }
 
     [Fact]
+    public void Acha_o_arquivo_do_xdebug_no_bloco()
+    {
+        Assert.Equal("C:/Sirius/x.dll", PhpIniXdebug.ExtensionIn(PhpIniXdebug.Add("[PHP]\n", @"C:\Sirius\x.dll")));
+        Assert.Null(PhpIniXdebug.ExtensionIn(PhpIniXdebug.Add("[PHP]\n", null)));
+        // Fora do bloco da Sirius não é dela.
+        Assert.Null(PhpIniXdebug.ExtensionIn("zend_extension=\"C:/outro.dll\"\n"));
+    }
+
+    [Fact]
     public void Quebra_de_linha_segue_o_arquivo()
     {
         var on = PhpIniXdebug.Add("[PHP]\r\na=1\r\n", null);
@@ -79,7 +88,7 @@ public class ServerDebugWindowTests
         }
     }
 
-    private static int FreePort()
+    internal static int FreePort()
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -88,14 +97,14 @@ public class ServerDebugWindowTests
         return port;
     }
 
-    private static MainWindow Open(TempFolder temp, TempFolder config, string ini)
+    private static MainWindow Open(TempFolder temp, TempFolder config, string ini, AppSettings? settings = null, int? port = null)
     {
-        var window = new MainWindow(new AppSettings(), Path.Combine(config.Path, "settings.json"), temp.Path);
+        var window = new MainWindow(settings ?? new AppSettings(), Path.Combine(config.Path, "settings.json"), temp.Path);
         window.Language.IsInstalled = _ => false;
         window.OpenUrl = _ => true;
         window.FindPhpIni = () => Task.FromResult<string?>(ini);
         window.ServerXdebugFile = () => Task.FromResult<string?>(@"C:\Sirius\php_xdebug.dll");
-        window.ServerDebugPort = FreePort();
+        window.ServerDebugPort = port ?? FreePort();
         window.Show();
         Dispatcher.UIThread.RunJobs();
         return window;
@@ -204,5 +213,86 @@ public class ServerDebugWindowTests
             other.Stop();
             window.Close();
         }
+    }
+
+    // O dono ligou a escuta, clicou em Executar, e a página do Apache passou direto: o Executar desligava a escuta.
+    [AvaloniaFact]
+    public async Task Executar_usa_a_mesma_escuta_e_nao_desliga()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("index.php", "<?php\n$a = 1;\n");
+        var ini = temp.File("php.ini", PhpIniXdebug.Add("[PHP]\n", null));
+        var settings = new AppSettings();
+        settings.RunCommands[temp.Path] = "php -v";
+        var window = Open(temp, config, ini, settings);
+        window.IsPhpInstalled = () => true;
+        window.OpenFile(php);
+        window.ToggleBreakpoint(2);
+        window.PrepareXdebug = () => Task.FromResult(new DebugPreparation(false, config.Path));
+        await window.StartServerDebugAsync();
+        Assert.True(window.IsListeningToServer);
+
+        await window.RunProjectAsync();
+        Assert.Contains($"client_port={window.ServerDebugPort}", window.LastDebugCommand);
+        await Until(() => !window.IsTaskRunning);
+
+        // A tarefa acabou, e a escuta continua: uma página do servidor ainda para.
+        Assert.True(window.IsListeningToServer);
+        using var page = new FakeXdebug(new FakeXdebug.Stop(php, 2));
+        page.Connect(window.ServerDebugPort);
+        await Until(() => window.IsDebugPaused);
+        window.DebugContinue();
+        await page.Finished;
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Escuta_ligada_volta_ao_abrir_e_desligada_nao()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var ini = temp.File("php.ini", PhpIniXdebug.Add("[PHP]\n", null));
+        var settings = new AppSettings();
+        var port = ServerDebugWindowTests.FreePort();
+        var window = Open(temp, config, ini, settings, port);
+        await window.StartServerDebugAsync();
+        Assert.True(settings.ListenToServer);
+        window.Close();
+        Dispatcher.UIThread.RunJobs();
+
+        var reopened = Open(temp, config, ini, settings, port);
+        await Until(() => reopened.IsListeningToServer);
+        Assert.Contains("Ouvindo o servidor", reopened.StatusText);
+
+        await reopened.ToggleServerDebugAsync();
+        Assert.False(settings.ListenToServer);
+        reopened.Close();
+        Dispatcher.UIThread.RunJobs();
+
+        var third = Open(temp, config, ini, settings, port);
+        await Task.Delay(200);
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(third.IsListeningToServer);
+        third.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Bloco_sem_o_arquivo_do_xdebug_baixa_de_novo()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        // Como hoje no computador do dono: o php.ini aponta para um Xdebug que sumiu.
+        var ini = temp.File("php.ini", PhpIniXdebug.Add("[PHP]\n", Path.Combine(temp.Path, "sumiu.dll")));
+        var novo = temp.File("novo.dll", "x");
+        var window = Open(temp, config, ini);
+        window.ServerXdebugFile = () => Task.FromResult<string?>(novo);
+
+        await window.StartServerDebugAsync();
+
+        Assert.Equal(novo.Replace('\\', '/'), PhpIniXdebug.ExtensionIn(File.ReadAllText(ini)));
+        Assert.True(window.IsListeningToServer);
+        Assert.Contains("Reinicie o Apache", window.StatusText);
+        window.Close();
     }
 }
