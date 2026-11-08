@@ -168,9 +168,50 @@ public partial class MainWindow
     {
         if (!CanHaveBreakpoints(ActiveDocument))
             return;
-        ActiveDocument!.ToggleBreakpoint(line);
+        var marked = ActiveDocument!.ToggleBreakpoint(line);
         _gutter.RedrawBreakpoints();
         BreakpointsChanged();
+        if (marked && IsHtmlOnlyLine(ActiveDocument, line))
+            ShowStatus($"A linha {line} é só HTML, sem PHP para parar. Na depuração, o ponto vai para a próxima linha com PHP.");
+    }
+
+    // Fora de <?php ... ?> e sem abrir PHP na própria linha: o Xdebug não tem onde parar ali.
+    private static bool IsHtmlOnlyLine(OpenDocument document, int line)
+    {
+        var text = document.Document.Text;
+        var start = document.Document.GetLineByNumber(line);
+        return !Markup.InPhp(text, start.Offset) && !document.Document.GetText(start).Contains("<?", StringComparison.Ordinal);
+    }
+
+    // O Xdebug levou o ponto para a linha com código mais próxima. A margem acompanha, com a condição junto,
+    // para a pessoa ver onde a página vai parar de verdade, como no VS Code.
+    private void OnBreakpointMoved(XdebugServer server, string path, int from, int to)
+    {
+        if (server != _debug)
+            return;
+        if (_documents.Find(d => string.Equals(d.FullPath, path, StringComparison.OrdinalIgnoreCase)) is { } document)
+        {
+            if (!document.BreakpointLines.Contains(from) || to < 1 || to > document.Document.LineCount)
+                return;
+            var condition = document.BreakpointConditions.GetValueOrDefault(from);
+            document.ToggleBreakpoint(from);
+            if (!document.BreakpointLines.Contains(to))
+                document.SetBreakpointCondition(to, condition);
+            _gutter.RedrawBreakpoints();
+        }
+        else if (_closedBreakpoints.TryGetValue(path, out var lines) && lines.Remove(from))
+        {
+            if (!lines.Contains(to))
+                lines.Add(to);
+            if (_closedConditions.TryGetValue(path, out var conditions) && conditions.Remove(from, out var condition))
+                conditions[to] = condition;
+        }
+        else
+        {
+            return;
+        }
+        BreakpointsChanged();
+        ShowStatus($"O ponto da linha {from} foi para a {to}, a próxima com PHP: na {from} não há código para parar.");
     }
 
     private void BreakpointsChanged()
@@ -325,6 +366,7 @@ public partial class MainWindow
         server.Resumed += () => dispatcher.Post(() => OnDebugResumed(server));
         server.PageEnded += () => dispatcher.Post(() => OnDebugPageEnded(server));
         server.OutputWritten += text => dispatcher.Post(() => OnDebugOutput(server, text));
+        server.BreakpointMoved += (path, from, to) => dispatcher.Post(() => OnBreakpointMoved(server, path, from, to));
         return server;
     }
 

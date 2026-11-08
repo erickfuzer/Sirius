@@ -305,6 +305,11 @@ public sealed class FakeXdebug : IDisposable
     public FakeXdebug(params Stop[] stops) => _stops = new Queue<Stop>(stops);
 
     public ConcurrentQueue<string> Commands { get; } = new();
+    // Pontos que o Xdebug leva para outra linha: na hora de marcar, como num arquivo já carregado,
+    // ou por aviso ao rodar, como num arquivo carregado depois.
+    public Dictionary<int, int> Moves { get; } = new();
+    public Dictionary<int, int> LateMoves { get; } = new();
+    private readonly Dictionary<string, int> _breakpointLines = new();
     public Task Finished { get; private set; } = Task.CompletedTask;
 
     public static string Int(string name, int value) =>
@@ -357,8 +362,22 @@ public sealed class FakeXdebug : IDisposable
         {
             case "breakpoint_set":
                 attributes = $" id=\"{id}\"";
+                var marked = int.Parse(parts[Array.IndexOf(parts, "-n") + 1]);
+                _breakpointLines[id] = marked;
+                if (Moves.ContainsKey(marked))
+                    attributes += " resolved=\"resolved\"";
+                break;
+            case "breakpoint_get":
+                var asked = parts[Array.IndexOf(parts, "-d") + 1];
+                inner = $"<breakpoint id=\"{asked}\" type=\"line\" resolved=\"resolved\" lineno=\"{Moves[_breakpointLines[asked]]}\"/>";
                 break;
             case "run" or "step_over" or "step_into" or "step_out":
+                if (name == "run" && LateMoves.Count > 0)
+                {
+                    foreach (var (breakpoint, line) in _breakpointLines.Where(pair => LateMoves.ContainsKey(pair.Value)).ToList())
+                        await WriteAsync(stream, $"<notify xmlns=\"urn:debugger_protocol_v1\" name=\"breakpoint_resolved\"><breakpoint id=\"{breakpoint}\" type=\"line\" resolved=\"resolved\" lineno=\"{LateMoves[line]}\"/></notify>");
+                    LateMoves.Clear();
+                }
                 if (_stops.TryDequeue(out var next))
                 {
                     _current = next;
@@ -660,6 +679,28 @@ public class XdebugServerTests
     }
 
     [Fact]
+    public async Task Ponto_que_o_xdebug_muda_de_linha_e_avisado()
+    {
+        var file = @"C:\a.php";
+        using var server = new XdebugServer();
+        var moves = new ConcurrentQueue<(string File, int From, int To)>();
+        server.BreakpointMoved += (path, from, to) => moves.Enqueue((path, from, to));
+        server.SetBreakpoints(Points(file, 3, 7));
+        server.Start();
+        using var php = new FakeXdebug(new FakeXdebug.Stop(file, 5));
+        // A linha 3 é resolvida na hora; a 7, por aviso quando o arquivo carrega.
+        php.Moves[3] = 5;
+        php.LateMoves[7] = 9;
+        php.Connect(server.Port);
+
+        await Until(() => moves.Count == 2);
+        Assert.Contains((file, 3, 5), moves);
+        Assert.Contains((file, 7, 9), moves);
+        Assert.Contains(php.Commands, c => c.StartsWith("feature_set") && c.Contains("resolved_breakpoints"));
+        Assert.Contains(php.Commands, c => c.StartsWith("feature_set") && c.Contains("notify_ok"));
+    }
+
+    [Fact]
     public async Task Cada_pagina_e_uma_conexao_e_a_seguinte_tambem_para()
     {
         var file = @"C:\a.php";
@@ -932,6 +973,53 @@ public class DebugWindowTests
 
         Assert.Equal("$a > 0", window.ActiveDocument!.BreakpointConditions[1]);
         Assert.Equal("<?php\n$a = 1;\n$b = 2;\n", window.ActiveDocument.Document.Text);
+        window.Close();
+    }
+
+    // Como no index.php do dono: uma linha de HTML puro entre o else e o endif.
+    private const string HtmlBetweenPhp = "<?php $erro = ''; ?>\n<?php if (false): ?>\n<p>sim</p>\n<?php else: ?>\n<div class=\"barra\"></div>\n<?php endif; ?>\n<p>fim</p>\n";
+
+    [AvaloniaFact]
+    public void Marcar_linha_so_de_html_avisa()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", HtmlBetweenPhp);
+        var window = Open(temp, config);
+        window.OpenFile(php);
+
+        window.ToggleBreakpoint(5);
+        Assert.Contains("A linha 5 é só HTML", window.StatusText);
+
+        window.ToggleBreakpoint(5);
+        window.ToggleBreakpoint(4);
+        Assert.DoesNotContain("A linha 4 é só HTML", window.StatusText);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Ponto_movido_pelo_xdebug_anda_na_margem_com_a_condicao()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var php = temp.File("a.php", HtmlBetweenPhp);
+        var window = Open(temp, config);
+        window.OpenFile(php);
+        window.ActiveDocument!.SetBreakpointCondition(5, "$erro !== ''");
+        window.ToggleBreakpoint(1);
+        var server = window.StartDebugServerForTest();
+        using var page = new FakeXdebug(new FakeXdebug.Stop(php, 6));
+        page.LateMoves[5] = 6;
+
+        page.Connect(server.Port);
+        await Until(() => window.ActiveDocument!.BreakpointLines.Contains(6));
+
+        Assert.Equal([1, 6], window.ActiveDocument!.BreakpointLines);
+        Assert.Equal("$erro !== ''", window.ActiveDocument.BreakpointConditions[6]);
+        Assert.Contains("O ponto da linha 5 foi para a 6", window.StatusText);
+        Assert.Equal([1, 6], window.BreakpointsSnapshot()[php]);
+        window.DebugContinue();
+        await page.Finished;
         window.Close();
     }
 

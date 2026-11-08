@@ -147,6 +147,17 @@ public static class DbgpParser
         return new DebugVariable(expression, key, "", string.IsNullOrEmpty(message) ? "não dá para calcular aqui" : message, []);
     }
 
+    // Um ponto que o Xdebug levou para outra linha, porque a marcada não tinha código, como HTML puro.
+    // Vem de "breakpoint_get" ou do aviso "breakpoint_resolved": o id do ponto e a linha onde ele ficou.
+    public static (string Id, int Line)? ResolvedBreakpoint(XElement message)
+    {
+        var breakpoint = message.Name.LocalName == "breakpoint" ? message : message.Element(Protocol + "breakpoint");
+        if (breakpoint is null || (string?)breakpoint.Attribute("resolved") != "resolved"
+            || (string?)breakpoint.Attribute("id") is not { } id || !int.TryParse((string?)breakpoint.Attribute("lineno"), out var line))
+            return null;
+        return (id, line);
+    }
+
     // Lê a saída de "stack_get": o primeiro é onde o programa está, e os outros são quem chamou.
     public static DebugFrame? TopFrame(XElement response)
     {
@@ -251,6 +262,8 @@ public sealed class XdebugServer(int port = 0) : IDisposable
     public event Action? Resumed;
     public event Action? PageEnded;
     public event Action<string>? OutputWritten;
+    // Arquivo, linha marcada e linha onde o Xdebug pôs o ponto, a próxima com código.
+    public event Action<string, int, int>? BreakpointMoved;
 
     public void Start()
     {
@@ -352,6 +365,11 @@ public sealed class XdebugServer(int port = 0) : IDisposable
             await RequestAsync("feature_set -n max_depth -v 3");
             await RequestAsync("feature_set -n max_children -v 100");
             await RequestAsync("feature_set -n max_data -v 4096");
+            // Ponto numa linha sem PHP, como HTML puro, vai para a linha com código mais próxima, como no VS Code.
+            // Xdebug antes da 3.2 recusa o pedido, e aí nada muda.
+            await RequestAsync("feature_set -n resolved_breakpoints -v 1");
+            // Sem isto, o Xdebug não avisa quando acha a linha certa de um ponto num arquivo ainda não carregado.
+            await RequestAsync("feature_set -n notify_ok -v 1");
             // Copia: a saída continua indo para o navegador normalmente.
             await RequestAsync("stdout -c 1");
             await SyncBreakpointsAsync();
@@ -471,8 +489,22 @@ public sealed class XdebugServer(int port = 0) : IDisposable
                     ? $"breakpoint_set -t line -f {uri} -n {item.Line}"
                     : $"breakpoint_set -t conditional -f {uri} -n {item.Line} -- {Convert.ToBase64String(Encoding.UTF8.GetBytes(item.Condition))}";
                 var response = await RequestAsync(command);
-                if ((string?)response.Attribute("id") is { } id)
-                    _applied[item] = id;
+                if ((string?)response.Attribute("id") is not { } id)
+                    continue;
+                _applied[item] = id;
+                // Arquivo já carregado: o Xdebug acha a linha na hora, e a resposta só diz que achou.
+                if ((string?)response.Attribute("resolved") == "resolved"
+                    && DbgpParser.ResolvedBreakpoint(await RequestAsync($"breakpoint_get -d {id}")) is { } resolved)
+                    ReportResolved(resolved.Id, resolved.Line);
+            }
+        }
+
+        private void ReportResolved(string id, int line)
+        {
+            foreach (var (key, value) in _applied)
+            {
+                if (value == id && key.Line != line)
+                    server.BreakpointMoved?.Invoke(key.File, key.Line, line);
             }
         }
 
@@ -491,6 +523,10 @@ public sealed class XdebugServer(int port = 0) : IDisposable
                     return message;
                 if (message.Name.LocalName == "stream" && (string?)message.Attribute("type") == "stdout")
                     ReportOutput(message.Value);
+                // Arquivo carregado depois de marcar o ponto: o Xdebug avisa a linha quando acha.
+                if (message.Name.LocalName == "notify" && (string?)message.Attribute("name") == "breakpoint_resolved"
+                    && DbgpParser.ResolvedBreakpoint(message) is { } resolved)
+                    ReportResolved(resolved.Id, resolved.Line);
             }
         }
 
