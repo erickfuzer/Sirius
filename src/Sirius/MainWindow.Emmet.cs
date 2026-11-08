@@ -73,6 +73,8 @@ public partial class MainWindow
             ShowStatus(Emmet.Supports(document.FullPath)
                 ? "O ! só vira página fora de <?php, <style> e <script>."
                 : "O ! só vira página em arquivos .html e .php.");
+        else if (CssEmmet.IsSass(document.FullPath))
+            ShowStatus("Ponha o cursor logo depois de uma abreviação numa linha com recuo, como m10 ou d:f.");
         else if (CssEmmet.Supports(document.FullPath) && !Emmet.Supports(document.FullPath))
             ShowStatus("Ponha o cursor logo depois de uma abreviação dentro das chaves, como m10 ou d:f.");
         else

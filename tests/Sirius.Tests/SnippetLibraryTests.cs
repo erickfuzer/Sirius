@@ -262,6 +262,55 @@ public class SnippetLibraryTests
     }
 
     [AvaloniaFact]
+    public void Emmet_de_css_no_atributo_style()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = Open(temp, settings, "a.html", "<div style=\"\"></div>");
+        window.SetCaretOffset("<div style=\"".Length);
+        Dispatcher.UIThread.RunJobs();
+
+        Type(window, "m10");
+        Assert.True(window.IsCompletionOpen);
+        Assert.Equal(["m10"], window.CompletionLabels);
+        Assert.True(window.AcceptCompletion("m10"));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("<div style=\"margin: 10px;\"></div>", Text(window));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Emmet_de_css_no_sass_sai_sem_ponto_e_virgula()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = Open(temp, settings, "a.sass", "nav\n  ");
+
+        Type(window, "m10");
+        Assert.Equal(["m10"], window.CompletionLabels);
+        Assert.True(window.AcceptCompletion("m10"));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("nav\n  margin: 10px", Text(window));
+        window.Close();
+    }
+
+    // Sem servidor para o Sass, a lista só teria o Emmet, e o Enter trocaria o seletor por uma propriedade.
+    [AvaloniaFact]
+    public void Seletor_aninhado_no_sass_nao_abre_a_lista()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var window = Open(temp, settings, "a.sass", "nav\n  ");
+
+        Type(window, "li");
+        Assert.False(window.IsCompletionOpen);
+        Assert.Equal("nav\n  li", Text(window));
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public void Emmet_de_css_com_opcoes_seleciona_a_primeira()
     {
         using var temp = new TempFolder();

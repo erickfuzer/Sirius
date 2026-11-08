@@ -26,9 +26,24 @@ public static class CssEmmet
     private static readonly Regex PropertyPattern = new(@"^([a-z-]+)(?:\s*:\s*([^\n\r;]+?);*)?$", RegexOptions.CultureInvariant);
 
     public static bool Supports(string? path) =>
-        IsStylesheet(path) || Emmet.Supports(path);
+        IsStylesheet(path) || IsSass(path) || Emmet.Supports(path);
 
     private static bool IsStylesheet(string? path) => Path.GetExtension(path ?? "").ToLowerInvariant() is ".css" or ".scss" or ".less";
+
+    // O Sass sem chaves: cada linha é uma declaração, e o recuo diz o que está dentro de quê.
+    public static bool IsSass(string? path) => Path.GetExtension(path ?? "").Equals(".sass", StringComparison.OrdinalIgnoreCase);
+
+    // No Sass, uma tag sozinha numa linha com recuo é um seletor aninhado, como "  li". Sem servidor para o
+    // Sass, a lista só teria o Emmet, e o Enter para ir à linha de baixo trocaria o li por list-style.
+    private static readonly HashSet<string> TagNames =
+    [
+        "a", "abbr", "article", "aside", "audio", "b", "blockquote", "body", "button", "canvas", "caption", "code",
+        "dd", "details", "dialog", "div", "dl", "dt", "em", "fieldset", "figcaption", "figure", "footer", "form",
+        "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr", "html", "i", "iframe", "img", "input", "label", "legend",
+        "li", "main", "mark", "menu", "nav", "ol", "option", "p", "pre", "q", "s", "section", "select", "small",
+        "span", "strong", "sub", "summary", "sup", "svg", "table", "tbody", "td", "textarea", "tfoot", "th", "thead",
+        "tr", "u", "ul", "video",
+    ];
 
     // A tabela
 
@@ -184,17 +199,29 @@ public static class CssEmmet
 
     private enum Place { None, TopLevel, Property, Value }
 
-    // A abreviação que termina no cursor, em .css, .scss, .less ou dentro de <style>.
+    // A abreviação que termina no cursor, em .css, .scss, .less, .sass, dentro de <style> ou de style="...".
     public static CssExpansion? TryExpandAt(string text, int caret, string? path)
     {
         if (caret <= 0 || caret > text.Length)
             return null;
 
         int regionStart;
+        var inAttribute = false;
+        var sass = IsSass(path);
         if (IsStylesheet(path))
             regionStart = 0;
-        else if (Emmet.Supports(path) && Markup.InStyle(text, caret) && !Markup.InPhp(text, caret) && !Markup.InComment(text, caret))
+        else if (sass)
+            regionStart = text.LastIndexOf('\n', caret - 1) + 1;
+        else if (!Emmet.Supports(path) || Markup.InPhp(text, caret) || Markup.InComment(text, caret))
+            return null;
+        else if (Markup.InStyle(text, caret))
             regionStart = Markup.StyleContentStart(text, caret);
+        // Como no VS Code, o valor do style é CSS de dentro de uma regra.
+        else if (!Markup.InScript(text, caret) && Markup.StyleAttributeStart(text, caret) is >= 0 and var value)
+        {
+            regionStart = value;
+            inAttribute = true;
+        }
         else
             return null;
 
@@ -210,9 +237,15 @@ public static class CssEmmet
             return null;
         if (abbreviation.Contains('#') && !HexColor.IsMatch(abbreviation) && !PropertyHexColor.IsMatch(abbreviation))
             return null;
+        // Num atributo não cabe @media nem outra regra.
+        if (inAttribute && abbreviation.StartsWith('@'))
+            return null;
+        if (sass && TagNames.Contains(abbreviation))
+            return null;
 
-        var lineComments = Path.GetExtension(path ?? "").ToLowerInvariant() is ".scss" or ".less";
-        string? snippet = PlaceAt(text, regionStart, start, lineComments) switch
+        var lineComments = sass || Path.GetExtension(path ?? "").ToLowerInvariant() is ".scss" or ".less";
+        var place = sass ? SassPlaceAt(text, regionStart, start) : PlaceAt(text, regionStart, start, lineComments, inAttribute ? 1 : 0);
+        string? snippet = place switch
         {
             // Fora das chaves só o que começa por @, como @media.
             Place.TopLevel => abbreviation.StartsWith('@') ? Expand(abbreviation) : null,
@@ -221,13 +254,52 @@ public static class CssEmmet
             Place.Value => abbreviation == "!" ? "!important" : HexColor.IsMatch(abbreviation) ? ColorText(ParseColor(abbreviation[1..])) : null,
             _ => null,
         };
-        return snippet is null ? null : new CssExpansion(start, caret - start, abbreviation, snippet);
+        if (snippet is null)
+            return null;
+        // m10+p5 num atributo fica numa linha só, separado por espaço, porque quebra de linha não cabe ali.
+        if (inAttribute)
+            snippet = snippet.Replace("\n", " ");
+        else if (sass)
+            snippet = ToSass(snippet);
+        return new CssExpansion(start, caret - start, abbreviation, snippet);
+    }
+
+    // No Sass a linha é a declaração: sem nada antes, com recuo é o nome da propriedade e sem recuo é um
+    // seletor. Depois de um ":", é o valor. Depois de outra palavra, como em "nav ul", é um seletor.
+    private static Place SassPlaceAt(string text, int lineStart, int start)
+    {
+        var before = text.AsSpan(lineStart, start - lineStart);
+        if (before.IsWhiteSpace())
+            return before.Length > 0 ? Place.Property : Place.TopLevel;
+        return PlaceAt(text, lineStart, start, lineComments: true, depth: 1) switch
+        {
+            Place.Value => Place.Value,
+            _ => Place.None,
+        };
+    }
+
+    // Como o Emmet faz para o Sass: sem o ";" no fim e, nos trechos prontos, sem as chaves.
+    private static string ToSass(string snippet)
+    {
+        var lines = new List<string>();
+        foreach (var raw in snippet.Split('\n'))
+        {
+            var line = raw.TrimEnd();
+            if (line.Trim() == "}")
+                continue;
+            if (line.EndsWith(" {", StringComparison.Ordinal))
+                line = line[..^2];
+            else if (line.EndsWith(';'))
+                line = line[..^1];
+            lines.Add(line);
+        }
+        return string.Join("\n", lines);
     }
 
     // Em que ponto do CSS a abreviação começa: fora das chaves, no nome da propriedade ou no valor.
-    private static Place PlaceAt(string text, int from, int to, bool lineComments)
+    // Num style="...", o texto já começa dentro de uma regra.
+    private static Place PlaceAt(string text, int from, int to, bool lineComments, int depth = 0)
     {
-        var depth = 0;
         var sawColon = false;
         char? quote = null;
         var parens = 0;

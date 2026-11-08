@@ -96,7 +96,55 @@ public class CssEmmetTests
     [InlineData("a { $x|")]
     public void Nao_expande_fora_do_lugar(string marked) => Assert.Null(At(marked));
 
+    // Dentro de style="...", como no VS Code: CSS de dentro de uma regra.
+
     [Theory]
+    [InlineData("<div style=\"m10|\">", "margin: 10px;")]
+    [InlineData("<div style=\"m10|", "margin: 10px;")]
+    [InlineData("<div class=\"a\" style='color: red; p5|'>", "padding: 5px;")]
+    [InlineData("<div style=\"m10+p5|\">", "margin: 10px; padding: 5px;")]
+    [InlineData("<div style=\"color: #f|\">", "#fff")]
+    [InlineData("<div style=\"color: red !|\">", "!important")]
+    [InlineData("<div title=\"<?= $t ?>\" style=\"df|\">", "display: flex;")]
+    [InlineData("<div style=\"color: <?= $c ?>; m10|\">", "margin: 10px;")]
+    [InlineData("<p>oi</p>\n<img\n  src=\"a.png\"\n  style=\"w100p|\">", "width: 100%;")]
+    public void Expande_no_atributo_style(string marked, string expected) => Assert.Equal(expected, At(marked, "a.php"));
+
+    [Theory]
+    [InlineData("<div class=\"m10|\">")]
+    [InlineData("<div style=\"m10\" class=\"p5|\">")]
+    [InlineData("<div style=\"@m|\">")]
+    [InlineData("<div style=\"color: m10|\">")]
+    [InlineData("<div style=\"<?= m10| ?>\">")]
+    [InlineData("<p>style=\"m10|")]
+    [InlineData("<!-- <div style=\"m10| -->")]
+    [InlineData("<script>let s = '<div style=\"m10|';</script>")]
+    public void Nao_expande_fora_do_style(string marked) => Assert.Null(At(marked, "a.php"));
+
+    // No Sass, sem chaves e sem ";", como o Emmet faz.
+
+    [Theory]
+    [InlineData("nav\n  m10|", "margin: 10px")]
+    [InlineData("nav\n  m10+p5|", "margin: 10px\npadding: 5px")]
+    [InlineData("nav\n  poa|\n  top: 0", "position: absolute")]
+    [InlineData("nav\n\tdf|", "display: flex")]
+    [InlineData("nav\n  color: #f|", "#fff")]
+    [InlineData("nav\n  color: red !|", "!important")]
+    [InlineData("@m|", "@media ${1:screen}\n\t${0}")]
+    [InlineData("nav\n  @i|", "@import url(${0})")]
+    public void Expande_no_sass(string marked, string expected) => Assert.Equal(expected, At(marked, "a.sass"));
+
+    [Theory]
+    [InlineData("m10|")]
+    [InlineData("nav\n  li|")]
+    [InlineData("nav\n  ul m10|")]
+    [InlineData("nav\n  // m10|")]
+    [InlineData("nav\n  color: m10|")]
+    [InlineData("nav\n  #f|")]
+    public void Nao_expande_fora_do_lugar_no_sass(string marked) => Assert.Null(At(marked, "a.sass"));
+
+    [Theory]
+    [InlineData("a.sass", true)]
     [InlineData("a.scss", true)]
     [InlineData("a.less", true)]
     [InlineData("a.js", false)]
