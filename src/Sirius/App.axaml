@@ -41,6 +41,16 @@
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
 
+        <!-- As seções das Configurações, uma embaixo da outra. -->
+        <Style Selector="Button.section">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
         <Style Selector="Button.chrome">
             <Setter Property="Width" Value="40" />
             <Setter Property="Height" Value="32" />

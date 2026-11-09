@@ -169,6 +169,7 @@ public partial class MainWindow : Window
         _closedConditions.Clear();
         _watches.Clear();
         RootFolder = Path.GetFullPath(folder);
+        StartMcpHost();
         _settings.LastFolder = RootFolder;
         _settings.RememberFolder(RootFolder);
         _settings.Save(_settingsPath);
@@ -1059,7 +1060,8 @@ public partial class MainWindow : Window
             ("Abrir pasta", "Ctrl O", () => _ = PickFolderAsync()),
             ("Trocar tema", Palette.Current == Palette.Claro ? "Grafite" : "Claro", ToggleTheme),
             ("Modo foco", "Ctrl .", ToggleFocus),
-            ("Preferências", "Ctrl ,", OpenSettings),
+            ("Configurações", "Ctrl ,", () => OpenSettings()),
+            ("Conectar o Claude Code à Sirius", "Configurações", () => OpenSettings("claude")),
             ("Quebrar linhas longas", (_settings.WordWrap ? "Ligado" : "Desligado") + " · Alt Z", ToggleWordWrap),
         };
         if (OtherRecentFolders().Count > 0)

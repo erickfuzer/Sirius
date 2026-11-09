@@ -35,8 +35,8 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Inteligência de código:** autocompletar, erros no código, ir para a definição, encontrar todos os usos, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação
 - **Git:** mudanças na árvore e na margem, e um clique na faixa colorida da margem mostra como o trecho era antes, com um botão para desfazer só ele. Pelo botão direito, dá para desfazer as mudanças de um trecho selecionado. Comparação lado a lado, conflitos resolvidos com um clique em cada trecho ("Ficar com o meu", "Ficar com o recebido" ou "Juntar os dois"), commit por arquivo, descartar, enviar, receber, branches e histórico de commits, com o que mudou em cada um. Se o computador não tiver Git, oferece a instalação
 - **Sessão:** cada pasta reabre as suas abas, e a IDE acompanha o que outros programas mudam no disco. As pastas recentes ficam na tela inicial e no nome da pasta, no topo da janela
-- **Preferências:** tema, tamanho da letra, recuo (2 ou 4 espaços, ou Tab), fechar aspas e tags, quebra de linha e aviso de versão nova, pelo botão de ajustes ao lado de minimizar, no topo da janela. Cada escolha vale na hora
-- **Atualizar pela própria IDE:** um aviso discreto na cápsula anuncia a versão nova. Em "Atualizar agora", a Sirius baixa o instalador da página de Releases, confere que ele é exatamente o arquivo que o GitHub registrou, fecha, instala por cima e abre de novo. Nada é baixado sem o seu clique, e o aviso pode ser desligado nas preferências
+- **Configurações:** pelo botão de ajustes ao lado de minimizar, no topo da janela, em seções. Aparência (tema e tamanho da letra), Editor (recuo, fechar aspas e tags, quebra de linha e prévia do SVG), PHP e depuração (comando do Executar e páginas do servidor), Git (nome e e-mail dos commits), Claude Code e Atualizações. Cada escolha vale na hora
+- **Atualizar pela própria IDE:** um aviso discreto na cápsula anuncia a versão nova. Em "Atualizar agora", a Sirius baixa o instalador da página de Releases, confere que ele é exatamente o arquivo que o GitHub registrou, fecha, instala por cima e abre de novo. Nada é baixado sem o seu clique, e o aviso pode ser desligado nas Configurações
 - **Cuidado com o seu trabalho:** salvar mantém a codificação original do arquivo e passa por um arquivo temporário, criar nunca sobrescreve e excluir vai para a Lixeira
 - **Pronta para ABNT2:** o <kbd>AltGr</kbd> nunca aciona um atalho, então `?` e `/` funcionam normalmente
 
@@ -49,6 +49,8 @@ O terminal da Sirius é um terminal completo, então o [Claude Code](https://cla
 Ele edita o arquivo, e a mudança aparece na hora no editor e nas marcas do Git:
 
 <img src="docs/screenshot-claude.png" alt="Claude Code depois do pedido: a estrela Vega foi adicionada ao arquivo PHP, o diff aparece na cápsula e a linha nova aparece no editor com a marca do Git" width="760">
+
+Em Configurações, Claude Code, **Conectado** deixa o Claude ver o que você vê na Sirius: o arquivo e o trecho selecionado, os erros, a depuração parada, com os valores das variáveis, e a saída do Executar. Dá para perguntar "o que faz a linha que selecionei?" ou, parado num ponto, "por que esse valor saiu errado?", sem colar nada. Ele só lê, e pode pedir licença antes de cada consulta.
 
 <details>
 <summary>Ver as cores do CSS</summary>
@@ -88,7 +90,9 @@ O terminal roda no ConPTY, o mesmo mecanismo de terminal do próprio Windows. A 
 
 A depuração de PHP usa o [Xdebug](https://xdebug.org): a Sirius baixa o arquivo certo para o seu PHP, confere o código dele com uma lista fixa no programa e o liga só durante a execução, sem alterar o `php.ini`. Só para páginas de outro servidor, como o Apache, ele precisa ir no `php.ini`: a Sirius pede licença, guarda uma cópia do original e desfaz por "Desligar o Xdebug do php.ini". A conversa com o Xdebug fica dentro do computador.
 
-A única consulta que a Sirius faz por conta própria é perguntar à API pública do GitHub qual é a última versão, ao abrir e ao voltar para a janela, no máximo uma vez por hora. Ela não envia nada do seu projeto e pode ser desligada em "Aviso de versão nova", nas preferências. O instalador só é baixado quando você clica em "Atualizar agora".
+A única consulta que a Sirius faz por conta própria é perguntar à API pública do GitHub qual é a última versão, ao abrir e ao voltar para a janela, no máximo uma vez por hora. Ela não envia nada do seu projeto e pode ser desligada em "Aviso de versão nova", nas Configurações. O instalador só é baixado quando você clica em "Atualizar agora".
+
+A conexão com o Claude Code usa o [MCP](https://modelcontextprotocol.io), o protocolo aberto de ferramentas do Claude. "Conectado" roda o `claude mcp add`, e daí em diante o Claude Code abre `Sirius.exe --mcp`, que conversa com a janela da pasta aberta por um canal que só o seu usuário do Windows alcança. A Sirius não usa a sua conta do Claude, não chama o Claude sozinha e não manda nada para fora do computador: quem conversa com o Claude é o próprio Claude Code.
 
 ## Como usar
 
@@ -123,7 +127,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 | <kbd>Ctrl</kbd> <kbd>F</kbd> | Procurar no arquivo |
 | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>F</kbd> | Buscar em todo o projeto (<kbd>Enter</kbd> avança pelos resultados) |
 | <kbd>Ctrl</kbd> <kbd>.</kbd> | Modo foco |
-| <kbd>Ctrl</kbd> <kbd>,</kbd> | Preferências |
+| <kbd>Ctrl</kbd> <kbd>,</kbd> | Configurações |
 | <kbd>F5</kbd> | Executar ou parar o projeto. Parado em uma linha marcada, continuar |
 | <kbd>F10</kbd> | Parado em uma linha marcada, ir para a próxima |
 | <kbd>F11</kbd> e <kbd>Shift</kbd> <kbd>F11</kbd> | Parado em uma linha marcada, entrar na função e sair dela |
@@ -151,7 +155,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 ### Para desenvolver
 
 - **Testes:** `dotnet test Sirius.slnx`. Usam xUnit e rodam a janela de verdade, sem abrir nada na tela.
-- **Preferências:** ficam em `%APPDATA%\Sirius\settings.json`.
+- **Configurações:** ficam em `%APPDATA%\Sirius\settings.json`.
 
 ## Limitações
 
@@ -169,6 +173,10 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 - O suporte a C# precisa do SDK do .NET instalado, e o de Go, Rust e C++, do servidor da linguagem instalado à parte.
 - Dentro de `<script>` em arquivos HTML, as sugestões de JavaScript trazem só palavras-chave e os atalhos.
 - Encontrar os usos e formatar dependem do servidor de linguagem: em texto puro, a Sirius avisa que não estão disponíveis.
+
+**Claude Code**
+- A conexão só lê: o Claude não marca pontos de parada nem avança a depuração pela Sirius.
+- Ela precisa do Claude Code instalado e aberto na pasta do projeto ou numa subpasta dele. Um Claude Code que já estava aberto precisa ser reiniciado depois de conectar.
 
 **Depuração**
 - A depuração é só de PHP. Para páginas do Apache, ele precisa ser reiniciado depois de ligar o Xdebug, e a sua conta precisa poder alterar o `php.ini`.
@@ -193,7 +201,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 Sirius/
 ├── src/Sirius/
 │   ├── MainWindow.*        # janela, abas, árvore, busca, terminal, linguagem, Git, depuração e imagens
-│   ├── Core/               # lógica sem interface: arquivos, busca, Git, Emmet, Xdebug e preferências
+│   ├── Core/               # lógica sem interface: arquivos, busca, Git, Emmet, Xdebug, MCP e configurações
 │   ├── Editing/            # documento aberto, sintaxe, margem com o fio e aba de imagem
 │   ├── Lsp/                # conexão com os servidores de linguagem
 │   ├── Terminal/           # ConPTY, interpretador de sequências e tela do terminal

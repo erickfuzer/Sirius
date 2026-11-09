@@ -54,7 +54,7 @@
                 </Button>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0">
-                    <Button x:Name="SettingsButton" Classes="flat chrome" Click="OnOpenSettings" AutomationProperties.Name="Preferências" ToolTip.Tip="Preferências (Ctrl ,)">
+                    <Button x:Name="SettingsButton" Classes="flat chrome" Click="OnOpenSettings" AutomationProperties.Name="Configurações" ToolTip.Tip="Configurações (Ctrl ,)">
                         <Path Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="1.2" Data="M0 2.5H13M0 9.5H13M4 0V5M9 7V12" />
                     </Button>
                     <Button Classes="flat chrome" Click="OnMinimize" AutomationProperties.Name="Minimizar janela">
@@ -738,95 +738,196 @@
             </Border>
         </Panel>
 
-        <!-- Preferências: cada escolha vale na hora e fica guardada. -->
+        <!-- Configurações: as seções à esquerda, e cada escolha vale na hora e fica guardada. -->
         <Panel x:Name="SettingsOverlay" IsVisible="False">
             <Border Background="{DynamicResource Veil}" PointerPressed="OnSettingsOverlayPressed" />
-            <Border x:Name="SettingsCard" Width="560" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="16,44,16,16"
-                    Padding="20,14,14,16" CornerRadius="14" Background="{DynamicResource Pop}">
-                <StackPanel>
-                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
-                        <TextBlock Text="Preferências" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        <Button Grid.Column="1" Classes="flat option" Click="OnCloseSettings" AutomationProperties.Name="Fechar preferências" ToolTip.Tip="Fechar (Esc)">
-                            <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M0 0L8 8M8 0L0 8" />
-                        </Button>
-                    </Grid>
+            <Border x:Name="SettingsCard" Width="720" Height="470" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="16,44,16,16"
+                    CornerRadius="14" Background="{DynamicResource Pop}" ClipToBounds="True">
+                <Grid ColumnDefinitions="176,1,*">
+                    <!-- Seções -->
+                    <StackPanel Grid.Column="0" Margin="12,16,10,12" Spacing="2">
+                        <TextBlock Text="Configurações" FontSize="15" FontWeight="SemiBold" Margin="8,0,0,12" />
+                        <Button x:Name="SectionAparencia" Classes="flat segment section" Content="Aparência" Tag="secao:aparencia" Click="OnSettingClick" />
+                        <Button x:Name="SectionEditor" Classes="flat segment section" Content="Editor" Tag="secao:editor" Click="OnSettingClick" />
+                        <Button x:Name="SectionPhp" Classes="flat segment section" Content="PHP e depuração" Tag="secao:php" Click="OnSettingClick" />
+                        <Button x:Name="SectionGit" Classes="flat segment section" Content="Git" Tag="secao:git" Click="OnSettingClick" />
+                        <Button x:Name="SectionClaude" Classes="flat segment section" Content="Claude Code" Tag="secao:claude" Click="OnSettingClick" />
+                        <Button x:Name="SectionUpdates" Classes="flat segment section" Content="Atualizações" Tag="secao:versao" Click="OnSettingClick" />
+                    </StackPanel>
+                    <Border Grid.Column="1" Background="{DynamicResource Tint}" />
 
-                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
-                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                            <TextBlock Text="Tema" FontWeight="Medium" />
-                            <TextBlock Text="As cores da janela e do código." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                            <Button x:Name="SettingThemeClaro" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Claro" Tag="tema:claro" Click="OnSettingClick" />
-                            <Button x:Name="SettingThemeGrafite" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Grafite" Tag="tema:grafite" Click="OnSettingClick" />
-                        </StackPanel>
-                    </Grid>
-                    <Border Height="1" Background="{DynamicResource Tint}" />
+                    <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto" Margin="20,12,12,14">
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                            <TextBlock x:Name="SettingsSectionTitle" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Classes="flat option" Click="OnCloseSettings" AutomationProperties.Name="Fechar configurações" ToolTip.Tip="Fechar (Esc)">
+                                <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M0 0L8 8M8 0L0 8" />
+                            </Button>
+                        </Grid>
 
-                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
-                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                            <TextBlock Text="Tamanho da letra" FontWeight="Medium" />
-                            <TextBlock Text="No editor. Também muda com Ctrl e a roda do mouse." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                            <Button Classes="flat segment" Height="26" Width="28" FontSize="14" Content="−" Tag="fonte:-" Click="OnSettingClick" AutomationProperties.Name="Diminuir a letra" />
-                            <TextBlock x:Name="SettingFontSize" MinWidth="40" TextAlignment="Center" VerticalAlignment="Center" FontFamily="{DynamicResource CodeFont}" FontSize="12" />
-                            <Button Classes="flat segment" Height="26" Width="28" FontSize="14" Content="+" Tag="fonte:+" Click="OnSettingClick" AutomationProperties.Name="Aumentar a letra" />
-                            <Button x:Name="SettingFontDefault" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Padrão" Tag="fonte:0" Click="OnSettingClick" />
-                        </StackPanel>
-                    </Grid>
-                    <Border Height="1" Background="{DynamicResource Tint}" />
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <Panel>
+                                <!-- Aparência -->
+                                <StackPanel x:Name="PaneAparencia">
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Tema" FontWeight="Medium" />
+                                            <TextBlock Text="As cores da janela e do código." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                            <Button x:Name="SettingThemeClaro" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Claro" Tag="tema:claro" Click="OnSettingClick" />
+                                            <Button x:Name="SettingThemeGrafite" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Grafite" Tag="tema:grafite" Click="OnSettingClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource Tint}" />
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Tamanho da letra" FontWeight="Medium" />
+                                            <TextBlock Text="No editor. Também muda com Ctrl e a roda do mouse." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                            <Button Classes="flat segment" Height="26" Width="28" FontSize="14" Content="−" Tag="fonte:-" Click="OnSettingClick" AutomationProperties.Name="Diminuir a letra" />
+                                            <TextBlock x:Name="SettingFontSize" MinWidth="40" TextAlignment="Center" VerticalAlignment="Center" FontFamily="{DynamicResource CodeFont}" FontSize="12" />
+                                            <Button Classes="flat segment" Height="26" Width="28" FontSize="14" Content="+" Tag="fonte:+" Click="OnSettingClick" AutomationProperties.Name="Aumentar a letra" />
+                                            <Button x:Name="SettingFontDefault" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Padrão" Tag="fonte:0" Click="OnSettingClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
 
-                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
-                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                            <TextBlock Text="Recuo" FontWeight="Medium" />
-                            <TextBlock Text="Quanto o Tab e o Enter afastam a linha, também ao formatar." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                            <Button x:Name="SettingIndent2" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="2 espaços" Tag="recuo:2" Click="OnSettingClick" />
-                            <Button x:Name="SettingIndent4" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="4 espaços" Tag="recuo:4" Click="OnSettingClick" />
-                            <Button x:Name="SettingIndentTab" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Tab" Tag="recuo:tab" Click="OnSettingClick" />
-                        </StackPanel>
-                    </Grid>
-                    <Border Height="1" Background="{DynamicResource Tint}" />
+                                <!-- Editor -->
+                                <StackPanel x:Name="PaneEditor" IsVisible="False">
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Recuo" FontWeight="Medium" />
+                                            <TextBlock Text="Quanto o Tab e o Enter afastam a linha, também ao formatar." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                            <Button x:Name="SettingIndent2" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="2 espaços" Tag="recuo:2" Click="OnSettingClick" />
+                                            <Button x:Name="SettingIndent4" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="4 espaços" Tag="recuo:4" Click="OnSettingClick" />
+                                            <Button x:Name="SettingIndentTab" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Tab" Tag="recuo:tab" Click="OnSettingClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource Tint}" />
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Fechar aspas e tags" FontWeight="Medium" />
+                                            <TextBlock Text="Aspas, parênteses, chaves e tags ganham o fechamento ao digitar." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                            <Button x:Name="SettingPairsOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Ligado" Tag="pares:sim" Click="OnSettingClick" />
+                                            <Button x:Name="SettingPairsOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desligado" Tag="pares:nao" Click="OnSettingClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource Tint}" />
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Quebra de linha" FontWeight="Medium" />
+                                            <TextBlock Text="Linhas longas continuam embaixo, em vez de seguir para a direita." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                            <Button x:Name="SettingWrapOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Ligada" Tag="quebra:sim" Click="OnSettingClick" />
+                                            <Button x:Name="SettingWrapOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desligada" Tag="quebra:nao" Click="OnSettingClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource Tint}" />
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Prévia do SVG" FontWeight="Medium" />
+                                            <TextBlock Text="O desenho ao lado do código, num arquivo .svg. Também pelo botão Prévia, ao lado das abas." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                            <Button x:Name="SettingSvgOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Ligada" Tag="svg:sim" Click="OnSettingClick" />
+                                            <Button x:Name="SettingSvgOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desligada" Tag="svg:nao" Click="OnSettingClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
 
-                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
-                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                            <TextBlock Text="Fechar aspas e tags" FontWeight="Medium" />
-                            <TextBlock Text="Aspas, parênteses, chaves e tags ganham o fechamento ao digitar." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                            <Button x:Name="SettingPairsOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Ligado" Tag="pares:sim" Click="OnSettingClick" />
-                            <Button x:Name="SettingPairsOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desligado" Tag="pares:nao" Click="OnSettingClick" />
-                        </StackPanel>
-                    </Grid>
-                    <Border Height="1" Background="{DynamicResource Tint}" />
+                                <!-- PHP e depuração -->
+                                <StackPanel x:Name="PanePhp" IsVisible="False">
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Comando do Executar" FontWeight="Medium" />
+                                            <TextBlock x:Name="SettingRunCommand" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <Button x:Name="SettingRunChange" Grid.Column="1" Classes="secondary conflict" Content="Alterar" Tag="executar:alterar" Click="OnSettingClick" VerticalAlignment="Center" />
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource Tint}" />
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Depurar páginas do servidor" FontWeight="Medium" />
+                                            <TextBlock Text="Para páginas abertas por outro servidor, como o Apache. A cápsula mostra Ouvindo o servidor." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                            <Button x:Name="SettingServerOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Ligado" Tag="servidor:sim" Click="OnSettingClick" />
+                                            <Button x:Name="SettingServerOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desligado" Tag="servidor:nao" Click="OnSettingClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource Tint}" />
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Xdebug no php.ini" FontWeight="Medium" />
+                                            <TextBlock Text="Tira o bloco que a Sirius pôs no php.ini para o servidor. A cópia do original continua guardada." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Classes="secondary conflict" Content="Tirar do php.ini" Tag="phpini:tirar" Click="OnSettingClick" VerticalAlignment="Center" />
+                                    </Grid>
+                                </StackPanel>
 
-                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
-                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                            <TextBlock Text="Quebra de linha" FontWeight="Medium" />
-                            <TextBlock Text="Linhas longas continuam embaixo, em vez de seguir para a direita." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                            <Button x:Name="SettingWrapOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Ligada" Tag="quebra:sim" Click="OnSettingClick" />
-                            <Button x:Name="SettingWrapOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desligada" Tag="quebra:nao" Click="OnSettingClick" />
-                        </StackPanel>
-                    </Grid>
-                    <Border Height="1" Background="{DynamicResource Tint}" />
+                                <!-- Git -->
+                                <StackPanel x:Name="PaneGit" IsVisible="False">
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Nome nos commits" FontWeight="Medium" />
+                                            <TextBlock x:Name="SettingGitName" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Classes="secondary conflict" Content="Alterar" Tag="git:nome" Click="OnSettingClick" VerticalAlignment="Center" />
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource Tint}" />
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="E-mail nos commits" FontWeight="Medium" />
+                                            <TextBlock x:Name="SettingGitEmail" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Classes="secondary conflict" Content="Alterar" Tag="git:email" Click="OnSettingClick" VerticalAlignment="Center" />
+                                    </Grid>
+                                    <TextBlock Text="Valem para todos os projetos deste computador e ficam públicos se você publicar um projeto. No GitHub dá para usar um endereço noreply, em Settings, Emails." FontSize="11" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,10,6,0" />
+                                </StackPanel>
 
-                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
-                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                            <TextBlock Text="Aviso de versão nova" FontWeight="Medium" />
-                            <TextBlock Text="Avisa na cápsula, sem baixar nada sozinho." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                            <Button x:Name="SettingUpdatesOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Ligado" Tag="versao:sim" Click="OnSettingClick" />
-                            <Button x:Name="SettingUpdatesOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desligado" Tag="versao:nao" Click="OnSettingClick" />
-                        </StackPanel>
-                    </Grid>
+                                <!-- Claude Code -->
+                                <StackPanel x:Name="PaneClaude" IsVisible="False">
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Deixar o Claude Code ver a Sirius" FontWeight="Medium" />
+                                            <TextBlock Text="O Claude Code aberto numa pasta da Sirius passa a ver o arquivo e o trecho selecionado, os erros, a depuração e a saída do Executar. Ele só lê, e pede licença antes." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                            <Button x:Name="SettingClaudeOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Conectado" Tag="claude:conectar" Click="OnSettingClick" />
+                                            <Button x:Name="SettingClaudeOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desconectado" Tag="claude:desconectar" Click="OnSettingClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock x:Name="SettingClaudeStatus" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,2,6,0" />
+                                    <Border Height="1" Background="{DynamicResource Tint}" Margin="0,12,0,0" />
+                                    <TextBlock Text="Depois de conectar, abra o Claude Code no terminal da Sirius e pergunte, por exemplo: o que faz a linha que selecionei? Ou, com a depuração parada: por que esse valor saiu errado?" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,12,6,0" />
+                                </StackPanel>
 
-                    <TextBlock Text="Cada escolha vale na hora e fica guardada para a próxima vez." FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,10,0,0" />
-                </StackPanel>
+                                <!-- Atualizações -->
+                                <StackPanel x:Name="PaneUpdates" IsVisible="False">
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Aviso de versão nova" FontWeight="Medium" />
+                                            <TextBlock Text="Avisa na cápsula, sem baixar nada sozinho." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                            <Button x:Name="SettingUpdatesOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Ligado" Tag="versao:sim" Click="OnSettingClick" />
+                                            <Button x:Name="SettingUpdatesOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desligado" Tag="versao:nao" Click="OnSettingClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock x:Name="SettingVersion" FontSize="12" Foreground="{DynamicResource Muted}" Margin="0,6,6,0" />
+                                </StackPanel>
+                            </Panel>
+                        </ScrollViewer>
+
+                        <TextBlock Grid.Row="2" Text="Cada escolha vale na hora e fica guardada para a próxima vez." FontSize="11" Foreground="{DynamicResource Muted}" Margin="0,10,0,0" />
+                    </Grid>
+                </Grid>
             </Border>
         </Panel>
 

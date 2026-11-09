@@ -388,6 +388,7 @@ public partial class MainWindow
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
+        StopMcpHost();
         SaveSession();
         StopWatching();
         StopAllSessions();

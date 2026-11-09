@@ -56,7 +56,7 @@ public class SettingsTests
         Dispatcher.UIThread.RunJobs();
         Assert.False(window.IsSettingsOpen);
 
-        Assert.Contains("Preferências", window.PaletteCommandNames("prefer"));
+        Assert.Contains("Configurações", window.PaletteCommandNames("config"));
         window.KeyPressQwerty(PhysicalKey.Comma, RawInputModifiers.Control);
         Dispatcher.UIThread.RunJobs();
         Assert.True(window.IsSettingsOpen);
@@ -165,6 +165,159 @@ public class SettingsTests
         Assert.Equal("grafite", saved.Theme);
         Assert.True(saved.WordWrap);
         Assert.False(saved.CheckForUpdates);
+        window.Close();
+    }
+
+    private static async Task Until(Func<bool> condition)
+    {
+        var limit = DateTime.UtcNow.AddSeconds(15);
+        while (!condition())
+        {
+            Assert.True(DateTime.UtcNow < limit, "A condição não aconteceu a tempo.");
+            await Task.Delay(15);
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    private static bool Visible(MainWindow window, string name) => window.FindControl<Control>(name)!.IsVisible;
+
+    private static string Text(MainWindow window, string name) => window.FindControl<TextBlock>(name)!.Text ?? "";
+
+    [AvaloniaFact]
+    public void Secoes_mostram_uma_de_cada_vez()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var window = Open(temp, config);
+        window.OpenSettings();
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(Visible(window, "PaneAparencia"));
+
+        Click(window, "SectionPhp");
+        Assert.Equal("php", window.SettingsSection);
+        Assert.True(Visible(window, "PanePhp"));
+        Assert.False(Visible(window, "PaneAparencia"));
+        Assert.Equal("PHP e depuração", Text(window, "SettingsSectionTitle"));
+        Assert.Contains("on", Named(window, "SectionPhp").Classes);
+        Assert.Contains("descobre sozinha", Text(window, "SettingRunCommand"));
+
+        // A barra de comando leva direto à seção do Claude Code.
+        window.CloseSettings();
+        Assert.Contains("Conectar o Claude Code à Sirius", window.PaletteCommandNames("claude"));
+        window.OpenSettings("claude");
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(Visible(window, "PaneClaude"));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Previa_do_svg_pelas_configuracoes()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var window = Open(temp, config);
+        window.OpenSettings("editor");
+        Dispatcher.UIThread.RunJobs();
+
+        Click(window, "SettingSvgOff");
+        Assert.False(Saved(config).SvgPreview);
+        Assert.Contains("on", Named(window, "SettingSvgOff").Classes);
+        Click(window, "SettingSvgOn");
+        Assert.True(Saved(config).SvgPreview);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Nome_e_email_do_git_aparecem_e_mudam()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var gitconfig = config.File("gitconfig", "[user]\n\tname = Ana\n");
+        var window = Open(temp, config);
+        window.GitEnvironment = new Dictionary<string, string> { ["GIT_CONFIG_GLOBAL"] = gitconfig, ["GIT_CONFIG_NOSYSTEM"] = "1" };
+        window.OpenSettings("git");
+        await Until(() => Text(window, "SettingGitName") == "Ana");
+        Assert.Contains("Ainda não escolhido", Text(window, "SettingGitEmail"));
+
+        var changing = window.ChangeSettingAsync("git:email");
+        await Until(() => window.IsDialogOpen);
+        window.KeyTextInput("ana@exemplo.com");
+        window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        await changing;
+
+        Assert.Equal("ana@exemplo.com", Text(window, "SettingGitEmail"));
+        Assert.Contains("ana@exemplo.com", File.ReadAllText(gitconfig));
+        window.Close();
+    }
+
+    // O Claude Code de mentira: guarda o que foi pedido e lembra se a Sirius está na configuração dele.
+    private sealed class FakeClaude
+    {
+        public bool Connected { get; set; }
+        public List<string[]> Calls { get; } = new();
+
+        public Task<(int Code, string Output)> Run(string claude, string[] arguments)
+        {
+            Calls.Add(arguments);
+            switch (arguments[1])
+            {
+                case "add":
+                    Connected = true;
+                    break;
+                case "remove":
+                    Connected = false;
+                    break;
+                case "get":
+                    return Task.FromResult(Connected ? (0, "sirius") : (1, "No MCP server named \"sirius\""));
+            }
+            return Task.FromResult((0, ""));
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Claude_code_conecta_e_desconecta_pelos_botoes()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var window = Open(temp, config);
+        var claude = new FakeClaude();
+        window.FindClaude = () => @"C:\claude\claude.exe";
+        window.RunClaude = claude.Run;
+
+        window.OpenSettings("claude");
+        await Until(() => window.ClaudeStatusText.StartsWith("Desconectado"));
+        Assert.Contains("on", Named(window, "SettingClaudeOff").Classes);
+
+        Click(window, "SettingClaudeOn");
+        await Until(() => window.IsClaudeConnected);
+        Assert.Contains("on", Named(window, "SettingClaudeOn").Classes);
+        Assert.StartsWith("Conectado", window.ClaudeStatusText);
+        // Para todas as pastas, e com o caminho deste programa: é ele que o Claude Code abre com --mcp.
+        var add = claude.Calls.Single(call => call[1] == "add");
+        Assert.Equal(["mcp", "add", "--scope", "user", "sirius", "--", Environment.ProcessPath!, "--mcp"], add);
+
+        Click(window, "SettingClaudeOff");
+        await Until(() => window.ClaudeStatusText.StartsWith("Desconectado"));
+        Assert.False(claude.Connected);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Sem_claude_code_avisa_e_nao_conecta()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var window = Open(temp, config);
+        var claude = new FakeClaude();
+        window.FindClaude = () => null;
+        window.RunClaude = claude.Run;
+
+        window.OpenSettings("claude");
+        await Until(() => window.ClaudeStatusText.Contains("não está instalado"));
+        Assert.False(Named(window, "SettingClaudeOn").IsEnabled);
+        Click(window, "SettingClaudeOn");
+        Assert.Empty(claude.Calls);
         window.Close();
     }
 

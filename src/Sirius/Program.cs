@@ -16,6 +16,14 @@ class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // O Claude Code abre "Sirius.exe --mcp" para perguntar o que a janela mostra. Sem janela, só a ponte.
+        if (args is ["--mcp"])
+        {
+            Environment.ExitCode = McpBridge.RunAsync(Console.OpenStandardInput(), Console.OpenStandardOutput(), Environment.CurrentDirectory)
+                .GetAwaiter().GetResult();
+            return;
+        }
+
         ToolPaths.EnsureOnPath();
 
         // "Abrir com Sirius" num arquivo, com outra Sirius aberta: o arquivo vai para ela, e esta nem abre janela.
