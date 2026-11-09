@@ -7,14 +7,22 @@ namespace Sirius.Theming;
 
 // Um ícone pequeno na frente de cada arquivo, como no VS Code com o Material Icon Theme, que é o que o dono
 // usa: o index.php com o PHP em azul. Os desenhos vêm de Assets\FileIcons\icons.json (licença MIT, ao lado),
-// gerado por gerar.py. Arquivo desconhecido ganha uma folha simples na cor da paleta.
+// gerado por gerar.py. Arquivo desconhecido ganha uma folha simples na cor da paleta. As pastas também
+// vêm do Material, fechadas e abertas, pelo nome: css, js, img, includes, public.
 public static class FileIcons
 {
     public const double Size = 16;
 
     private sealed record IconData(Rect Box, (Color Color, string Data)[] Layers);
 
-    private static readonly Lazy<Dictionary<string, IconData>> Drawings = new(Load);
+    // A pasta é sempre o mesmo desenho, fechado ou aberto, numa cor, com o desenho de dentro por cima.
+    private sealed record FolderData(Color Color, (Color Color, string Data)[] Motive);
+
+    private sealed record Table(
+        Dictionary<string, IconData> Files, Dictionary<string, FolderData> Folders, Dictionary<string, string> FolderNames,
+        FolderData Folder, string Closed, string Open);
+
+    private static readonly Lazy<Table> Data = new(Load);
     private static readonly Dictionary<(string Key, string Theme), IImage> Cache = [];
 
     // Os nomes exatos vêm antes da extensão, como no VS Code: o README.md é o "i" azul, não o Markdown.
@@ -125,26 +133,69 @@ public static class FileIcons
             key = "toml_light";
         if (Cache.TryGetValue((key, palette.Name), out var cached))
             return cached;
-        var image = key.Length > 0 && Drawings.Value.TryGetValue(key, out var drawing) ? Build(drawing) : Plain(palette);
+        var image = key.Length > 0 && Data.Value.Files.TryGetValue(key, out var drawing) ? Build(drawing) : Plain(palette);
         Cache[(key, palette.Name)] = image;
         return image;
     }
 
-    private static Dictionary<string, IconData> Load()
+    // Pastas
+
+    // O ícone da pasta pelo nome, como no Material: css, js, img, includes e mais umas novecentas. Também
+    // valem com ".", "_" ou "-" na frente e entre "__", como .vscode e __tests__. Null é a pasta comum.
+    public static string? FolderKeyFor(string folderName)
     {
-        var drawings = new Dictionary<string, IconData>();
+        var names = Data.Value.FolderNames;
+        var name = folderName.ToLowerInvariant();
+        if (names.TryGetValue(name, out var icon))
+            return icon;
+        if (name.Length > 4 && name.StartsWith("__", StringComparison.Ordinal) && name.EndsWith("__", StringComparison.Ordinal))
+            return names.GetValueOrDefault(name[2..^2]);
+        if (name.Length > 1 && name[0] is '.' or '_' or '-')
+            return names.GetValueOrDefault(name[1..]);
+        return null;
+    }
+
+    public static IImage ForFolder(string folderName, bool open) => ForFolderKey(FolderKeyFor(folderName), open, Palette.Current);
+
+    public static IImage ForFolderKey(string? key, bool open, Palette palette)
+    {
+        var cacheKey = (key ?? "folder") + (open ? "-open" : "");
+        if (Cache.TryGetValue((cacheKey, palette.Name), out var cached))
+            return cached;
+        var table = Data.Value;
+        var folder = key is not null && table.Folders.TryGetValue(key, out var found) ? found : table.Folder;
+        var layers = new[] { (folder.Color, open ? table.Open : table.Closed) }.Concat(folder.Motive).ToArray();
+        var image = Build(new IconData(new Rect(0, 0, 16, 16), layers));
+        Cache[(cacheKey, palette.Name)] = image;
+        return image;
+    }
+
+    private static Table Load()
+    {
+        var files = new Dictionary<string, IconData>();
+        var folders = new Dictionary<string, FolderData>();
+        var names = new Dictionary<string, string>();
         using var stream = typeof(FileIcons).Assembly.GetManifestResourceStream("FileIcons.icons.json");
         if (stream is null)
-            return drawings;
+            return new Table(files, folders, names, new FolderData(Colors.Gray, []), "", "");
+
+        static (Color, string)[] Layers(JsonElement list) =>
+            list.EnumerateArray().Select(layer => (Color.Parse(layer[0].GetString()!), layer[1].GetString()!)).ToArray();
+
         using var document = JsonDocument.Parse(stream);
-        foreach (var icon in document.RootElement.GetProperty("icons").EnumerateObject())
+        var root = document.RootElement;
+        foreach (var icon in root.GetProperty("icons").EnumerateObject())
         {
             var box = icon.Value.GetProperty("box").EnumerateArray().Select(v => v.GetDouble()).ToArray();
-            var layers = icon.Value.GetProperty("layers").EnumerateArray()
-                .Select(layer => (Color.Parse(layer[0].GetString()!), layer[1].GetString()!)).ToArray();
-            drawings[icon.Name] = new IconData(new Rect(box[0], box[1], box[2], box[3]), layers);
+            files[icon.Name] = new IconData(new Rect(box[0], box[1], box[2], box[3]), Layers(icon.Value.GetProperty("layers")));
         }
-        return drawings;
+        foreach (var folder in root.GetProperty("folders").EnumerateObject())
+            folders[folder.Name] = new FolderData(Color.Parse(folder.Value.GetProperty("color").GetString()!), Layers(folder.Value.GetProperty("motive")));
+        foreach (var name in root.GetProperty("folderNames").EnumerateObject())
+            names[name.Name] = name.Value.GetString()!;
+        var plain = root.GetProperty("folder");
+        return new Table(files, folders, names, new FolderData(Color.Parse(plain.GetProperty("color").GetString()!), []),
+            plain.GetProperty("closed").GetString()!, plain.GetProperty("open").GetString()!);
     }
 
     // O desenho no quadrado de 16, do tamanho do viewBox: um retângulo invisível segura a caixa, senão
@@ -174,15 +225,20 @@ public static class FileIcons
         return Framed(group);
     }
 
+    // O Viewbox corta o que passa do quadrado, como o SVG faz: o desenho da pasta do Sass sai um pouco pela
+    // direita, e sem ele o ícone inteiro encolheria para caber.
     private static DrawingImage Framed(Drawing content)
     {
+        var square = new Rect(0, 0, Size, Size);
         var frame = new DrawingGroup();
-        frame.Children.Add(new GeometryDrawing { Brush = Brushes.Transparent, Geometry = new RectangleGeometry(new Rect(0, 0, Size, Size)) });
+        frame.Children.Add(new GeometryDrawing { Brush = Brushes.Transparent, Geometry = new RectangleGeometry(square) });
         frame.Children.Add(content);
-        return new DrawingImage(frame);
+        return new DrawingImage(frame) { Viewbox = square };
     }
 
     // Os nomes de ícone que existem, para os testes conferirem a tabela contra os desenhos.
-    public static IReadOnlyCollection<string> Known => Drawings.Value.Keys;
+    public static IReadOnlyCollection<string> Known => Data.Value.Files.Keys;
+    public static IReadOnlyCollection<string> KnownFolders => Data.Value.Folders.Keys;
     public static IEnumerable<string> Mapped => ByName.Values.Concat(ByExtension.Values).Distinct();
+    public static IEnumerable<string> MappedFolders => Data.Value.FolderNames.Values.Distinct();
 }

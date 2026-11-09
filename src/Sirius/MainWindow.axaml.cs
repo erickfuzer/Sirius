@@ -253,7 +253,7 @@ public partial class MainWindow : Window
                 entry.IsFolder ? palette.Muted : gitLetter.Length > 0 ? gitBrush : palette.Ink,
                 document?.IsDirty ?? false,
                 gitLetter, gitBrush,
-                entry.IsFolder ? null : FileIcons.For(entry.Name)));
+                entry.IsFolder ? FileIcons.ForFolder(entry.Name, expanded) : FileIcons.For(entry.Name)));
             if (expanded)
                 AddTreeLevel(entry.FullPath, depth + 1, rows);
         }
