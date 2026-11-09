@@ -144,46 +144,117 @@ def folder_names(folder):
     return result
 
 
-def circle(element):
-    cx, cy, r = (float(element.get(a)) for a in ("cx", "cy", "r"))
-    return f"M {cx - r:g} {cy:g} A {r:g} {r:g} 0 1 0 {cx + r:g} {cy:g} A {r:g} {r:g} 0 1 0 {cx - r:g} {cy:g} Z"
+def ellipse(cx, cy, rx, ry):
+    return f"M {cx - rx:g} {cy:g} A {rx:g} {ry:g} 0 1 0 {cx + rx:g} {cy:g} A {rx:g} {ry:g} 0 1 0 {cx - rx:g} {cy:g} Z"
 
 
-def flatten(element, fill, defs, layers):
+def rect(element):
+    x, y = float(element.get("x", 0)), float(element.get("y", 0))
+    w, h = float(element.get("width")), float(element.get("height"))
+    r = min(float(element.get("rx", element.get("ry", 0))), w / 2, h / 2)
+    if r == 0:
+        return f"M {x:g} {y:g} H {x + w:g} V {y + h:g} H {x:g} Z"
+    return (f"M {x + r:g} {y:g} H {x + w - r:g} A {r:g} {r:g} 0 0 1 {x + w:g} {y + r:g} V {y + h - r:g} "
+            f"A {r:g} {r:g} 0 0 1 {x + w - r:g} {y + h:g} H {x + r:g} A {r:g} {r:g} 0 0 1 {x:g} {y + h - r:g} "
+            f"V {y + r:g} A {r:g} {r:g} 0 0 1 {x + r:g} {y:g} Z")
+
+
+# Atributos sem efeito num desenho só de preenchimento, ou só anotações do Material.
+IGNORED = {"id", "clip-rule", "stroke-width", "stroke-linejoin", "stroke-miterlimit", "data-mit-no-recolor", "class",
+           "{http://www.w3.org/XML/1998/namespace}space"}
+SHAPES = {"path": {"d"}, "circle": {"cx", "cy", "r"}, "ellipse": {"cx", "cy", "rx", "ry"}, "rect": {"x", "y", "width", "height", "rx", "ry"},
+          "g": set(), "use": {XLINK, "href"}, "defs": set()}
+STYLE = {"fill", "fill-rule", "fill-opacity", "opacity", "transform"}
+
+
+def color_of(fill, opacity):
+    if re.fullmatch(r"#[0-9a-fA-F]{3}", fill):
+        fill = "#" + "".join(c * 2 for c in fill[1:])
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", fill):
+        raise ValueError(f"cor {fill}")
+    # Com transparência, #AARRGGBB, como o Avalonia lê.
+    return fill.lower() if opacity >= 1 else f"#{round(opacity * 255):02x}{fill[1:].lower()}"
+
+
+def matrix_of(transform):
+    result = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+    for name, args in re.findall(r"(\w+)\s*\(([^)]*)\)", transform):
+        values = [float(v) for v in re.split(r"[\s,]+", args.strip())]
+        if name == "translate":
+            step = [1, 0, 0, 1, values[0], values[1] if len(values) > 1 else 0]
+        elif name == "scale":
+            step = [values[0], 0, 0, values[1] if len(values) > 1 else values[0], 0, 0]
+        elif name == "matrix":
+            step = values
+        else:
+            raise ValueError(f"transform {name}")
+        result = multiply(result, step)
+    return result
+
+
+def multiply(m, n):
+    # m depois de n, como no SVG: o transform do pai vale por fora do do filho.
+    a, b, c, d, e, f = m
+    a2, b2, c2, d2, e2, f2 = n
+    return [a * a2 + c * b2, b * a2 + d * b2, a * c2 + c * d2, b * c2 + d * d2, a * e2 + c * f2 + e, b * e2 + d * f2 + f]
+
+
+def flatten(element, style, defs, layers):
     tag = element.tag.split("}")[1]
-    allowed = {"path": {"d", "fill", "id", "fill-rule", "clip-rule"}, "g": {"fill", "id"}, "use": {XLINK, "href"},
-               "circle": {"cx", "cy", "r", "fill"}, "defs": set()}
-    if tag not in allowed:
+    if tag not in SHAPES:
         raise ValueError(f"elemento {tag}")
     for attribute in element.attrib:
-        if attribute not in allowed[tag]:
+        if attribute not in SHAPES[tag] | STYLE | IGNORED:
             raise ValueError(f"atributo {attribute} em {tag}")
-    fill = element.get("fill", fill)
+    if element.get("stroke") not in (None, "none"):
+        raise ValueError("contorno")
+    style = dict(style)
+    for name in ("fill", "fill-rule"):
+        if name in element.attrib:
+            style[name] = element.get(name)
+    for name in ("fill-opacity", "opacity"):
+        if name in element.attrib:
+            style["opacity"] = style.get("opacity", 1.0) * float(element.get(name))
+    if "transform" in element.attrib:
+        style["matrix"] = multiply(style.get("matrix", [1, 0, 0, 1, 0, 0]), matrix_of(element.get("transform")))
     if tag == "defs":
         return
     if tag == "use":
-        target = (element.get(XLINK) or element.get("href"))[1:]
-        flatten(defs[target], fill, defs, layers)
+        flatten(defs[(element.get(XLINK) or element.get("href"))[1:]], style, defs, layers)
         return
     if tag == "g":
         for child in element:
-            flatten(child, fill, defs, layers)
+            flatten(child, style, defs, layers)
         return
+    fill = style.get("fill")
     if fill in (None, "none"):
         return
-    if not re.fullmatch(r"#[0-9a-fA-F]{6}", fill):
-        raise ValueError(f"cor {fill}")
-    data = circle(element) if tag == "circle" else normalize(element.get("d"))
+    if tag == "circle":
+        r = float(element.get("r"))
+        data = ellipse(float(element.get("cx")), float(element.get("cy")), r, r)
+    elif tag == "ellipse":
+        data = ellipse(*(float(element.get(a)) for a in ("cx", "cy", "rx", "ry")))
+    elif tag == "rect":
+        data = rect(element)
+    else:
+        data = normalize(element.get("d"))
     # F0 é a regra par-ímpar no caminho do Avalonia.
-    if element.get("fill-rule") == "evenodd":
+    if style.get("fill-rule") == "evenodd":
         data = "F0 " + data
-    layers.append([fill.lower(), data])
+    layer = [color_of(fill, style.get("opacity", 1.0)), data]
+    if "matrix" in style and style["matrix"] != [1, 0, 0, 1, 0, 0]:
+        layer.append([round(v, 6) for v in style["matrix"]])
+    layers.append(layer)
 
 
 def convert_folder(path):
     root = ET.parse(path).getroot()
-    if root.get("viewBox") != "0 0 16 16" or set(root.attrib) - {"viewBox"}:
-        raise ValueError("caixa ou atributos da raiz")
+    if root.get("viewBox") != "0 0 16 16":
+        raise ValueError("caixa")
+    for attribute in root.attrib:
+        if attribute not in {"viewBox", "fill", "fill-rule"} | IGNORED:
+            raise ValueError(f"atributo {attribute} na raiz")
+    style = {name: root.get(name) for name in ("fill", "fill-rule") if name in root.attrib}
     defs = {element.get("id"): element for defs in root if defs.tag.endswith("}defs") for element in defs}
     color = None
     motive = []
@@ -191,11 +262,11 @@ def convert_folder(path):
         if element.tag.endswith("}defs"):
             continue
         if element.get("id") == "folder":
-            if element.get("d") != FOLDER_CLOSED or set(element.attrib) != {"id", "fill", "d"}:
+            if element.get("d") != FOLDER_CLOSED or set(element.attrib) - {"id", "fill", "d", "fill-rule"}:
                 raise ValueError("pasta fora do formato")
-            color = element.get("fill").lower()
+            color = color_of(element.get("fill"), 1.0)
         else:
-            flatten(element, None, defs, motive)
+            flatten(element, style, defs, motive)
     if color is None:
         raise ValueError("sem pasta")
     return {"color": color, "motive": motive}

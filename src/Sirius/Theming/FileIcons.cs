@@ -13,10 +13,13 @@ public static class FileIcons
 {
     public const double Size = 16;
 
-    private sealed record IconData(Rect Box, (Color Color, string Data)[] Layers);
+    // Cada camada é uma cor e um caminho. Alguns desenhos de pasta vêm deslocados ou encolhidos (Transform).
+    private sealed record Layer(Color Color, string Data, Matrix? Transform = null);
+
+    private sealed record IconData(Rect Box, Layer[] Layers);
 
     // A pasta é sempre o mesmo desenho, fechado ou aberto, numa cor, com o desenho de dentro por cima.
-    private sealed record FolderData(Color Color, (Color Color, string Data)[] Motive);
+    private sealed record FolderData(Color Color, Layer[] Motive);
 
     private sealed record Table(
         Dictionary<string, IconData> Files, Dictionary<string, FolderData> Folders, Dictionary<string, string> FolderNames,
@@ -164,7 +167,7 @@ public static class FileIcons
             return cached;
         var table = Data.Value;
         var folder = key is not null && table.Folders.TryGetValue(key, out var found) ? found : table.Folder;
-        var layers = new[] { (folder.Color, open ? table.Open : table.Closed) }.Concat(folder.Motive).ToArray();
+        var layers = new[] { new Layer(folder.Color, open ? table.Open : table.Closed) }.Concat(folder.Motive).ToArray();
         var image = Build(new IconData(new Rect(0, 0, 16, 16), layers));
         Cache[(cacheKey, palette.Name)] = image;
         return image;
@@ -179,8 +182,16 @@ public static class FileIcons
         if (stream is null)
             return new Table(files, folders, names, new FolderData(Colors.Gray, []), "", "");
 
-        static (Color, string)[] Layers(JsonElement list) =>
-            list.EnumerateArray().Select(layer => (Color.Parse(layer[0].GetString()!), layer[1].GetString()!)).ToArray();
+        static Layer[] Layers(JsonElement list) => list.EnumerateArray().Select(layer =>
+        {
+            Matrix? transform = null;
+            if (layer.GetArrayLength() > 2)
+            {
+                var m = layer[2].EnumerateArray().Select(v => v.GetDouble()).ToArray();
+                transform = new Matrix(m[0], m[1], m[2], m[3], m[4], m[5]);
+            }
+            return new Layer(Color.Parse(layer[0].GetString()!), layer[1].GetString()!, transform);
+        }).ToArray();
 
         using var document = JsonDocument.Parse(stream);
         var root = document.RootElement;
@@ -207,8 +218,13 @@ public static class FileIcons
         {
             Transform = new MatrixTransform(Matrix.CreateTranslation(-drawing.Box.X, -drawing.Box.Y) * Matrix.CreateScale(scale, scale)),
         };
-        foreach (var (color, data) in drawing.Layers)
-            inner.Children.Add(new GeometryDrawing { Brush = new ImmutableSolidColorBrush(color), Geometry = Geometry.Parse(data) });
+        foreach (var layer in drawing.Layers)
+        {
+            var geometry = Geometry.Parse(layer.Data);
+            if (layer.Transform is { } transform)
+                geometry.Transform = new MatrixTransform(transform);
+            inner.Children.Add(new GeometryDrawing { Brush = new ImmutableSolidColorBrush(layer.Color), Geometry = geometry });
+        }
         return Framed(inner);
     }
 
