@@ -117,6 +117,24 @@ public class McpTests
         window.SelectForTests(document.GetLineByNumber(2).Offset, document.GetLineByNumber(3).EndOffset);
         var selected = window.McpAnswer("editor_atual").Replace("\r", "");
         Assert.Contains("Nas linhas 2 a 3:\n2: $peso = 70;\n3: $altura = 1.75;", selected);
+        Assert.DoesNotContain("peça para a pessoa salvar", selected);
+        window.Close();
+    }
+
+    // O Claude edita o disco: o que só está na tela, ele precisa saber que ainda não existe lá.
+    [AvaloniaFact]
+    public void Avisa_que_o_nao_salvo_so_existe_na_tela()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var index = temp.File("index.php", "<?php\n$a = 1;\n");
+        var window = Open(temp, config);
+        window.OpenFile(index);
+        window.ActiveDocument!.Document.Insert(0, " ");
+
+        var text = window.McpAnswer("editor_atual");
+        Assert.Contains("com alterações ainda não salvas", text);
+        Assert.Contains("Antes de editar este arquivo, peça para a pessoa salvar (Ctrl S)", text);
         window.Close();
     }
 

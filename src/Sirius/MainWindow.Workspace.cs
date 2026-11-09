@@ -32,6 +32,55 @@ public partial class MainWindow
     // Os testes respondem sem abrir a janela de escolher arquivo.
     public Func<string, Task<string?>>? PickSavePath { get; set; }
 
+    // Salvar sozinho: um segundo depois da última tecla, para a tela e o disco não ficarem diferentes, o que
+    // confundia o Claude Code, o Executar e o Git. Os testes encurtam a espera.
+    public TimeSpan AutoSaveDelay { get; set; } = TimeSpan.FromSeconds(1);
+    private DispatcherTimer? _autoSaveTimer;
+
+    private void ScheduleAutoSave()
+    {
+        if (!_settings.AutoSave)
+            return;
+        _autoSaveTimer ??= new DispatcherTimer(DispatcherPriority.Background);
+        _autoSaveTimer.Stop();
+        _autoSaveTimer.Interval = AutoSaveDelay;
+        _autoSaveTimer.Tick -= OnAutoSaveTick;
+        _autoSaveTimer.Tick += OnAutoSaveTick;
+        _autoSaveTimer.Start();
+    }
+
+    private void OnAutoSaveTick(object? sender, EventArgs e) => AutoSaveNow();
+
+    // Aba sem nome pediria um lugar, e um arquivo que outro programa mudou ou apagou espera a pessoa decidir:
+    // salvar sozinho por cima apagaria o trabalho de alguém sem perguntar.
+    public void AutoSaveNow()
+    {
+        _autoSaveTimer?.Stop();
+        if (!_settings.AutoSave)
+            return;
+        var saved = false;
+        foreach (var document in _documents.Where(d => d is { IsDirty: true, IsUntitled: false, IsImage: false }).ToList())
+        {
+            if (document.ChangedOnDisk || document.MissingOnDisk)
+                continue;
+            try
+            {
+                document.Save();
+                _language.DocumentSaved(document);
+                saved = true;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                ShowStatus($"Não foi possível salvar {document.Name} sozinho.");
+            }
+        }
+        if (saved)
+        {
+            RefreshTabs();
+            RefreshTree();
+        }
+    }
+
     private void InitializeWorkspace()
     {
         PickSavePath = PickSavePathAsync;

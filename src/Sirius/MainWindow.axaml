@@ -831,6 +831,17 @@
                                     <Border Height="1" Background="{DynamicResource Tint}" />
                                     <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
                                         <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Salvar sozinho" FontWeight="Medium" />
+                                            <TextBlock Text="Um segundo depois de parar de digitar, como o Auto Save do VS Code. Assim o Claude Code, o Executar e o Git veem o mesmo que a tela." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                            <Button x:Name="SettingAutoSaveOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Ligado" Tag="autosalvar:sim" Click="OnSettingClick" />
+                                            <Button x:Name="SettingAutoSaveOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desligado" Tag="autosalvar:nao" Click="OnSettingClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource Tint}" />
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
                                             <TextBlock Text="Prévia do SVG" FontWeight="Medium" />
                                             <TextBlock Text="O desenho ao lado do código, num arquivo .svg. Também pelo botão Prévia, ao lado das abas." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
                                         </StackPanel>

@@ -580,6 +580,7 @@ public partial class MainWindow : Window
         document.Document.Changed += (_, _) =>
         {
             _language.DocumentChanged(document);
+            ScheduleAutoSave();
             if (ActiveDocument == document)
             {
                 // Os trechos mudaram de lugar: o quadro de "como era antes" mostraria o trecho errado.
@@ -1063,6 +1064,7 @@ public partial class MainWindow : Window
             ("Configurações", "Ctrl ,", () => OpenSettings()),
             ("Conectar o Claude Code à Sirius", "Configurações", () => OpenSettings("claude")),
             ("Quebrar linhas longas", (_settings.WordWrap ? "Ligado" : "Desligado") + " · Alt Z", ToggleWordWrap),
+            ("Salvar sozinho", _settings.AutoSave ? "Ligado" : "Desligado", () => ChangeSetting(_settings.AutoSave ? "autosalvar:nao" : "autosalvar:sim")),
         };
         if (OtherRecentFolders().Count > 0)
             actions.Insert(1, ("Abrir pasta recente", "", OpenRecentFolders));

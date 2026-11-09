@@ -241,6 +241,8 @@ public partial class MainWindow
                 for (var number = first; number <= last && number < first + 80; number++)
                     text.AppendLine($"{number}: {lines.GetText(lines.GetLineByNumber(number))}");
             }
+            if (document.IsDirty && !document.IsUntitled)
+                text.AppendLine(UnsavedNote);
         }
 
         var others = _documents.Where(d => d != document).Select(d => (d.IsUntitled ? d.Name : Relative(d.FullPath)) + (d.IsDirty ? " (não salvo)" : "")).ToList();
@@ -248,6 +250,11 @@ public partial class MainWindow
             text.Append($"Outras abas: {string.Join(", ", others)}.");
         return text.ToString().TrimEnd();
     }
+
+    // O Claude Code edita o arquivo no disco: o que só está na tela ele não encontra, e gravar por cima faria a
+    // Sirius perguntar qual versão manter.
+    private const string UnsavedNote =
+        "Atenção: as alterações não salvas só existem na tela da Sirius, e o arquivo no disco ainda não as tem. Antes de editar este arquivo, peça para a pessoa salvar (Ctrl S), ou ligar Salvar sozinho nas Configurações.";
 
     private string McpProblems()
     {
@@ -263,9 +270,12 @@ public partial class MainWindow
         }
 
         var text = new StringBuilder();
+        var unsaved = false;
         foreach (var file in all.GroupBy(item => item.Path, StringComparer.OrdinalIgnoreCase))
         {
-            text.AppendLine(Relative(file.Key));
+            var dirty = _documents.Any(d => d.IsDirty && string.Equals(d.FullPath, file.Key, StringComparison.OrdinalIgnoreCase));
+            unsaved |= dirty;
+            text.AppendLine(Relative(file.Key) + (dirty ? " (com alterações não salvas)" : ""));
             foreach (var (_, diagnostic) in file)
             {
                 var kind = diagnostic.Severity switch
@@ -277,6 +287,8 @@ public partial class MainWindow
                 text.AppendLine($"  linha {diagnostic.Line + 1}, coluna {diagnostic.Character + 1}, {kind}: {diagnostic.Message}");
             }
         }
+        if (unsaved)
+            text.AppendLine(UnsavedNote);
         return text.ToString().TrimEnd();
     }
 

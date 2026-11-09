@@ -87,6 +87,12 @@ public partial class MainWindow
             case "quebra":
                 SetWordWrap(value == "sim");
                 break;
+            case "autosalvar":
+                _settings.AutoSave = value == "sim";
+                _settings.Save(_settingsPath);
+                // Ligar já salva o que estava pendente, para tela e disco ficarem iguais desde agora.
+                AutoSaveNow();
+                break;
             case "svg":
                 if ((value == "sim") != _settings.SvgPreview)
                     ToggleSvgPreview();
@@ -195,6 +201,8 @@ public partial class MainWindow
         On(SettingPairsOff, !_settings.AutoClosePairs);
         On(SettingWrapOn, _settings.WordWrap);
         On(SettingWrapOff, !_settings.WordWrap);
+        On(SettingAutoSaveOn, _settings.AutoSave);
+        On(SettingAutoSaveOff, !_settings.AutoSave);
         On(SettingSvgOn, _settings.SvgPreview);
         On(SettingSvgOff, !_settings.SvgPreview);
 

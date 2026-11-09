@@ -44,6 +44,9 @@ public sealed class AppSettings
     // O desenho ao lado do código, nos arquivos .svg.
     public bool SvgPreview { get; set; } = true;
 
+    // Salvar um segundo depois de parar de digitar, como o Auto Save do VS Code. Desligado de fábrica.
+    public bool AutoSave { get; set; }
+
     // A pessoa ligou "Depurar páginas do servidor" e não desligou: a Sirius volta a ouvir ao abrir.
     public bool ListenToServer { get; set; }
 

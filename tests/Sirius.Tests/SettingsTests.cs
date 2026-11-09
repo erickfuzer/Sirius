@@ -321,6 +321,71 @@ public class SettingsTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task Salvar_sozinho_desligado_nao_grava()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var window = Open(temp, config, file: "a.txt");
+        window.AutoSaveDelay = TimeSpan.FromMilliseconds(30);
+        var path = window.ActiveDocument!.FullPath;
+
+        window.ActiveDocument.Document.Insert(0, "novo");
+        await Task.Delay(200);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("", File.ReadAllText(path));
+        Assert.True(window.ActiveDocument.IsDirty);
+        window.ActiveDocument.Document.UndoStack.Undo();
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Salvar_sozinho_grava_depois_de_parar_de_digitar()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var window = Open(temp, config, file: "a.txt");
+        window.AutoSaveDelay = TimeSpan.FromMilliseconds(30);
+        var document = window.ActiveDocument!;
+        document.Document.Insert(0, "antes");
+
+        // Ligar já grava o que estava pendente.
+        window.OpenSettings("editor");
+        Click(window, "SettingAutoSaveOn");
+        Assert.True(Saved(config).AutoSave);
+        Assert.Equal("antes", File.ReadAllText(document.FullPath));
+        Assert.False(document.IsDirty);
+
+        document.Document.Insert(document.Document.TextLength, " e depois");
+        await Until(() => !document.IsDirty);
+        Assert.Equal("antes e depois", File.ReadAllText(document.FullPath));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Salvar_sozinho_nao_grava_por_cima_de_outro_programa_nem_aba_sem_nome()
+    {
+        using var temp = new TempFolder();
+        using var config = new TempFolder();
+        var window = Open(temp, config, new AppSettings { AutoSave = true }, file: "a.txt");
+        var document = window.ActiveDocument!;
+        document.Document.Insert(0, "meu");
+        File.WriteAllText(document.FullPath, "de fora");
+        File.SetLastWriteTimeUtc(document.FullPath, DateTime.UtcNow.AddMinutes(5));
+
+        window.NewUntitled();
+        window.ActiveDocument!.Document.Insert(0, "rascunho");
+        var asked = false;
+        window.PickSavePath = _ => { asked = true; return Task.FromResult<string?>(null); };
+        window.AutoSaveNow();
+
+        Assert.Equal("de fora", File.ReadAllText(document.FullPath));
+        Assert.True(document.IsDirty);
+        Assert.False(asked);
+        window.Close();
+    }
+
     [Fact]
     public void Preferencias_antigas_sem_os_campos_novos_usam_o_padrao()
     {
