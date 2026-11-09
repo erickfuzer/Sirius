@@ -25,15 +25,15 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Editor:** abas, sintaxe colorida para dezenas de linguagens, zoom, temas claro e grafite, modo foco e quebra de linha. Aspas, parênteses, chaves e tags de HTML se fecham enquanto você digita
 - **Edição do dia a dia:** comentar linhas, duplicar e mover linhas, ir para uma linha e formatar o arquivo inteiro, pelo teclado, pela barra de comando ou pelo botão direito do mouse no editor
 - **Cores do CSS:** um quadradinho mostra cada cor no código, e clicar nele abre um seletor que altera o texto na hora. Funciona em CSS, SCSS, Sass e Less, e dentro de `<style>` e `style="..."` em HTML e PHP
-- **Emmet e atalhos:** como no VS Code, tudo aparece na lista de sugestões com a prévia do que vai entrar, e <kbd>Enter</kbd>, <kbd>Tab</kbd> ou um clique aceitam. Em HTML e PHP, `div.cartao>h2+p` vira o HTML pronto, `!` cria a página inicial, e as abreviações oficiais, como `!!!`, `a:link` e `input:email`, também valem. Em CSS, SCSS, Sass, Less, dentro de `<style>` e no `style="..."` de uma tag, `m10` vira `margin: 10px;` e `poa` vira `position: absolute;`. PHP, JavaScript, TypeScript, Markdown, C#, C e C++ têm os atalhos de fábrica do VS Code, como `foreach` e `log`. Depois de entrar, o <kbd>Tab</kbd> pula de campo em campo. Funciona sem instalar nada, e "Expandir Emmet" no botão direito também expande
-- **Imagens:** PNG, JPG, GIF, WebP, BMP e ICO abrem em uma aba, com zoom, GIF e WebP animados (com botão de pausar), arrastar, xadrez atrás da transparência e a foto na posição certa. O SVG abre como código, para poder editar, com o desenho ao lado acompanhando a digitação. A prévia nunca busca nada fora do arquivo
+- **Emmet e atalhos:** como no VS Code, tudo aparece na lista de sugestões com a prévia do que vai entrar, e <kbd>Enter</kbd>, <kbd>Tab</kbd> ou um clique aceitam. Em HTML e PHP, `div.cartao>h2+p` vira o HTML pronto, `!` cria a página inicial, e as abreviações oficiais, como `!!!`, `a:link` e `input:email`, também valem. Em CSS, SCSS, Sass, Less, dentro de `<style>` e no `style="..."` de uma tag, `m10` vira `margin: 10px;` e `poa` vira `position: absolute;`. PHP, JavaScript, TypeScript, C#, C e C++ têm os atalhos de fábrica do VS Code, como `foreach` e `log`, e o Markdown também, pelo <kbd>Ctrl</kbd> <kbd>Espaço</kbd>. Depois de entrar, o <kbd>Tab</kbd> pula de campo em campo. Funciona sem instalar nada, e "Expandir Emmet" no botão direito também expande
+- **Imagens:** PNG, JPG, JFIF, GIF, WebP, BMP e ICO abrem em uma aba, com zoom, arrastar, xadrez atrás da transparência e a foto na posição certa. GIF e WebP animados se mexem, com um botão para pausar. O SVG abre como código, para poder editar, com o desenho ao lado acompanhando a digitação. A prévia nunca busca nada fora do arquivo
 - **Abrir de fora:** arraste arquivos ou pastas do Explorer para a janela, ou clique com o botão direito neles e use "Abrir com Sirius". Isso vale para código, texto, imagens e pastas. Com a Sirius já aberta, o arquivo vira uma aba da mesma janela, mesmo vários de uma vez, e a pasta abre uma janela nova
 - **Barra de comando:** <kbd>Ctrl</kbd> + <kbd>K</kbd> encontra arquivos e executa ações sem tirar a mão do teclado
 - **Projeto:** árvore de arquivos para criar, renomear e excluir, com busca e substituição em todo o projeto. Um arquivo aberto que for renomeado ou movido no Explorer continua na aba, com o nome novo, e o Git o mostra como renomeado. Cada arquivo tem o ícone da sua linguagem, como no VS Code, na árvore, nas abas, na busca, no Git e na barra de comando, e as pastas conhecidas, como `css`, `js`, `img` e `includes`, têm o seu, aberto ou fechado
 - **Terminal integrado:** a cápsula flutuante se abre em um terminal completo. O botão Executar detecta o comando do projeto, e os erros da saída são clicáveis. Em PHP, ele sobe o servidor e oferece abrir o site no navegador, ou o arquivo em uso em pastas sem `index.php`. Se o computador não tiver PHP, oferece a instalação
 - **Depuração de PHP:** clique na margem para marcar uma linha, execute e abra a página. A Sirius para ali e mostra o valor de cada variável, inclusive `$_POST` e `$_GET`, também ao parar o mouse sobre ela, além do que a página já escreveu. Você avança linha por linha, entra nas funções e vê a pilha de chamadas: clicar em quem chamou leva àquela linha e mostra as variáveis de lá. Um ponto pode parar só quando uma condição for verdadeira, como `$i == 5` (botão direito no ponto), e "Vigiar expressão" acompanha valores como `$total * 2` a cada parada. Páginas abertas pelo Apache também param, por "Depurar páginas do servidor" na barra de comando: a cápsula mostra "Ouvindo o servidor", e a escuta continua ligada, mesmo depois de fechar e abrir a Sirius, até você pedir para parar. O Xdebug é baixado na primeira vez, se você aceitar
 - **Inteligência de código:** autocompletar, erros no código, ir para a definição, encontrar todos os usos, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação
-- **Git:** mudanças na árvore e na margem, e um clique na faixa colorida da margem mostra como o trecho era antes, com um botão para desfazer só ele. Comparação lado a lado, conflitos resolvidos com um clique em cada trecho ("Ficar com o meu", "Ficar com o recebido" ou "Juntar os dois"), commit por arquivo, descartar, enviar, receber, branches e histórico de commits, com o que mudou em cada um. Se o computador não tiver Git, oferece a instalação
+- **Git:** mudanças na árvore e na margem, e um clique na faixa colorida da margem mostra como o trecho era antes, com um botão para desfazer só ele. Pelo botão direito, dá para desfazer as mudanças de um trecho selecionado. Comparação lado a lado, conflitos resolvidos com um clique em cada trecho ("Ficar com o meu", "Ficar com o recebido" ou "Juntar os dois"), commit por arquivo, descartar, enviar, receber, branches e histórico de commits, com o que mudou em cada um. Se o computador não tiver Git, oferece a instalação
 - **Sessão:** cada pasta reabre as suas abas, e a IDE acompanha o que outros programas mudam no disco. As pastas recentes ficam na tela inicial e no nome da pasta, no topo da janela
 - **Preferências:** tema, tamanho da letra, recuo (2 ou 4 espaços, ou Tab), fechar aspas e tags, quebra de linha e aviso de versão nova, pelo botão de ajustes ao lado de minimizar, no topo da janela. Cada escolha vale na hora
 - **Atualizar pela própria IDE:** um aviso discreto na cápsula anuncia a versão nova. Em "Atualizar agora", a Sirius baixa o instalador da página de Releases, confere que ele é exatamente o arquivo que o GitHub registrou, fecha, instala por cima e abre de novo. Nada é baixado sem o seu clique, e o aviso pode ser desligado nas preferências
@@ -84,7 +84,7 @@ Ele edita o arquivo, e a mudança aparece na hora no editor e nas marcas do Git:
 
 A interface é desenhada pelo [Avalonia](https://avaloniaui.net), sem navegador embutido, e o editor usa o [AvaloniaEdit](https://github.com/AvaloniaUI/AvaloniaEdit) com gramáticas TextMate para a sintaxe.
 
-O terminal roda no ConPTY, o mesmo mecanismo de terminal do próprio Windows. A inteligência de código conversa com servidores de linguagem pelo protocolo LSP: quando falta o servidor de um arquivo aberto, a cápsula oferece a instalação para C#, PHP, HTML, CSS, JavaScript, TypeScript e Python. Go, Rust e C++ funcionam se `gopls`, `rust-analyzer` ou `clangd` estiverem instalados. O Git é o seu próprio `git`, sem biblioteca no meio.
+O terminal roda no ConPTY, o mesmo mecanismo de terminal do próprio Windows. A inteligência de código conversa com servidores de linguagem pelo protocolo LSP: quando falta o servidor de um arquivo aberto, a cápsula oferece a instalação. Os de PHP, HTML, CSS, JavaScript, TypeScript e Python vêm pelo `npm`, e a Sirius instala o Node.js antes, se faltar. O de C# vem pelo `dotnet tool` e precisa do SDK do .NET. Go, Rust e C++ funcionam se `gopls`, `rust-analyzer` ou `clangd` estiverem instalados. O Git é o seu próprio `git`, sem biblioteca no meio.
 
 A depuração de PHP usa o [Xdebug](https://xdebug.org): a Sirius baixa o arquivo certo para o seu PHP, confere o código dele com uma lista fixa no programa e o liga só durante a execução, sem alterar o `php.ini`. Só para páginas de outro servidor, como o Apache, ele precisa ir no `php.ini`: a Sirius pede licença, guarda uma cópia do original e desfaz por "Desligar o Xdebug do php.ini". A conversa com o Xdebug fica dentro do computador.
 
@@ -127,9 +127,11 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 | <kbd>F5</kbd> | Executar ou parar o projeto. Parado em uma linha marcada, continuar |
 | <kbd>F10</kbd> | Parado em uma linha marcada, ir para a próxima |
 | <kbd>F11</kbd> e <kbd>Shift</kbd> <kbd>F11</kbd> | Parado em uma linha marcada, entrar na função e sair dela |
-| Clique à esquerda do número da linha | Em PHP, marcar onde a depuração para |
+| Clique à esquerda do número da linha | Em PHP, marcar onde a depuração para. Botão direito no ponto: parar só quando uma condição for verdadeira |
+| Clique na faixa colorida da margem | Ver como o trecho era no último commit e desfazer só ele |
 | <kbd>Ctrl</kbd> <kbd>J</kbd> | Abrir ou fechar o terminal |
 | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>G</kbd> | Painel de Git: mudanças, histórico, comparação, commit, enviar e receber |
+| <kbd>Ctrl</kbd> <kbd>Enter</kbd> | Na mensagem do commit, fazer o commit |
 | <kbd>Ctrl</kbd> <kbd>+</kbd> e <kbd>Ctrl</kbd> <kbd>-</kbd> | Aumentar ou diminuir a fonte do editor (<kbd>Ctrl</kbd> <kbd>0</kbd> volta ao padrão). Em uma imagem, aproximar e afastar |
 | <kbd>Ctrl</kbd> + roda do mouse | Mudar a fonte do editor ou o zoom da imagem |
 | Dois cliques na imagem | Alternar entre o tamanho real e caber na área |
@@ -140,7 +142,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 | <kbd>Ctrl</kbd> <kbd>Espaço</kbd> | Mostrar sugestões |
 | <kbd>Ctrl</kbd> <kbd>/</kbd> | Comentar ou descomentar as linhas. No ABNT2, também <kbd>Ctrl</kbd> <kbd>;</kbd> |
 | <kbd>Alt</kbd> <kbd>↑</kbd> e <kbd>Alt</kbd> <kbd>↓</kbd> | Mover as linhas para cima ou para baixo |
-| <kbd>Shift</kbd> <kbd>Alt</kbd> <kbd>↓</kbd> | Duplicar as linhas |
+| <kbd>Shift</kbd> <kbd>Alt</kbd> <kbd>↓</kbd> e <kbd>Shift</kbd> <kbd>Alt</kbd> <kbd>↑</kbd> | Duplicar as linhas, com o cursor na cópia de baixo ou na de cima |
 | <kbd>Shift</kbd> <kbd>Alt</kbd> <kbd>F</kbd> | Formatar o arquivo |
 | <kbd>Ctrl</kbd> <kbd>G</kbd> ou clique em "Ln" na cápsula | Ir para uma linha |
 | <kbd>Alt</kbd> <kbd>Z</kbd> | Ligar ou desligar a quebra de linha |
@@ -153,21 +155,45 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 
 ## Limitações
 
+**Geral**
 - Só funciona no Windows: o terminal, o instalador e a integração com o Explorer são específicos dele.
-- A depuração é só de PHP. Para páginas do Apache, ele precisa ser reiniciado depois de ligar o Xdebug.
-- O Xdebug só para em linhas com código PHP. Um ponto numa linha só de HTML vai para a próxima linha com PHP, e uma linha com dois comandos, como `$a = 1; $b = 2;`, para uma vez em cada um.
-- Num conflito de Git, a escolha vale para o trecho inteiro. Para misturar linhas dos dois lados dentro do mesmo trecho, edite à mão depois de escolher.
-- Entre os programas de tela cheia no terminal, o Claude Code foi testado, mas o `vim` não. O terminal repassa a roda do mouse a eles, mas não os cliques.
-- Na prévia do SVG, imagens e fontes de outros endereços não aparecem, de propósito.
+- A interface é só em português do Brasil.
+- Abrir a Sirius pelo menu Iniciar, sem um arquivo, sempre abre uma janela nova.
 - O instalador ainda não tem assinatura digital. A atualização confere o arquivo com o registro do GitHub, mas isso confia na conta do GitHub do projeto, como o download manual.
+
+**Editor**
+- Não dá para ver dois arquivos lado a lado, e não há vários cursores ao mesmo tempo, como o <kbd>Alt</kbd> + clique do VS Code.
+- Os atalhos de teclado não podem ser trocados, e não há extensões.
+
+**Inteligência de código**
+- O suporte a C# precisa do SDK do .NET instalado, e o de Go, Rust e C++, do servidor da linguagem instalado à parte.
+- Dentro de `<script>` em arquivos HTML, as sugestões de JavaScript trazem só palavras-chave e os atalhos.
+- Encontrar os usos e formatar dependem do servidor de linguagem: em texto puro, a Sirius avisa que não estão disponíveis.
+
+**Depuração**
+- A depuração é só de PHP. Para páginas do Apache, ele precisa ser reiniciado depois de ligar o Xdebug, e a sua conta precisa poder alterar o `php.ini`.
+- O Xdebug só para em linhas com código PHP. Um ponto numa linha só de HTML vai para a próxima linha com PHP, e uma linha com dois comandos, como `$a = 1; $b = 2;`, para uma vez em cada um.
+- As expressões vigiadas são calculadas onde o programa parou, mesmo com outro nível da pilha de chamadas escolhido.
+
+**Git**
+- O painel cobre o dia a dia. Stash, juntar dois branches, rebase e tags ficam para o terminal, e o histórico só mostra os commits, sem voltar o projeto para um deles.
+- Num conflito, a escolha vale para o trecho inteiro. Para misturar linhas dos dois lados dentro do mesmo trecho, edite à mão depois de escolher.
+- O quadro "Como era antes" fica por cima das linhas logo abaixo do trecho. Feche pelo **×** ou com <kbd>Esc</kbd>.
+- Um arquivo renomeado por fora só aparece como renomeado quando pelo menos metade das linhas continua igual, e só entre arquivos do mesmo tipo, como `.php` com `.php`.
+
+**Terminal e imagens**
+- Entre os programas de tela cheia no terminal, o Claude Code foi testado, mas o `vim` não. O terminal repassa a roda do mouse a eles, mas não os cliques.
+- AVIF, TIFF e HEIC não abrem como imagem. Uma animação com mais de 256 MB de quadros mostra só o primeiro.
+- Na prévia do SVG, imagens e fontes de outros endereços não aparecem, de propósito.
+- No tema claro, os ícones amarelos, como o do JavaScript e o do JSON, ficam mais fracos, como no VS Code claro.
 
 ## Estrutura
 
 ```
 Sirius/
 ├── src/Sirius/
-│   ├── MainWindow.*        # janela, abas, árvore, busca, terminal, linguagem e Git
-│   ├── Core/               # lógica sem interface: arquivos, busca, Git e preferências
+│   ├── MainWindow.*        # janela, abas, árvore, busca, terminal, linguagem, Git, depuração e imagens
+│   ├── Core/               # lógica sem interface: arquivos, busca, Git, Emmet, Xdebug e preferências
 │   ├── Editing/            # documento aberto, sintaxe, margem com o fio e aba de imagem
 │   ├── Lsp/                # conexão com os servidores de linguagem
 │   ├── Terminal/           # ConPTY, interpretador de sequências e tela do terminal
