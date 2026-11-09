@@ -15,9 +15,13 @@ public sealed class SyntaxHighlighter
 
     private readonly record struct LineResult(SyntaxToken[] Tokens, IStateStack? EndState);
 
+    // Um trecho tirado do meio de outro texto: o que já estava aberto antes dele, como o <?php.
+    private const int MaxExcerptContextLines = 20_000;
+
     private readonly IGrammar _grammar;
     private readonly TextDocument _document;
     private readonly List<LineResult> _lines = new();
+    private IStateStack? _initialState;
 
     private SyntaxHighlighter(IGrammar grammar, TextDocument document)
     {
@@ -34,12 +38,28 @@ public sealed class SyntaxHighlighter
         return grammar is null ? null : new SyntaxHighlighter(grammar, document);
     }
 
+    // Linhas tiradas de fullText a partir de firstLine, coloridas como lá: as linhas antigas de um .php
+    // continuam dentro do <?php, e não viram texto de HTML.
+    public static SyntaxHighlighter? ForExcerpt(string path, TextDocument excerpt, string fullText, int firstLine)
+    {
+        var highlighter = ForDocument(path, excerpt);
+        if (highlighter is null || firstLine <= 1 || firstLine > MaxExcerptContextLines || fullText.Length > MaxDocumentChars)
+            return highlighter;
+
+        var whole = new SyntaxHighlighter(highlighter._grammar, new TextDocument(fullText));
+        var before = Math.Min(firstLine - 1, whole._document.LineCount);
+        whole.TokensFor(before);
+        whole.Detach();
+        highlighter._initialState = whole._lines[before - 1].EndState;
+        return highlighter;
+    }
+
     public void Detach() => _document.Changed -= OnDocumentChanged;
 
     public IReadOnlyList<SyntaxToken> TokensFor(int lineNumber)
     {
         for (var n = _lines.Count + 1; n <= lineNumber; n++)
-            _lines.Add(Tokenize(n, n > 1 ? _lines[n - 2].EndState : null));
+            _lines.Add(Tokenize(n, n > 1 ? _lines[n - 2].EndState : _initialState));
         return _lines[lineNumber - 1].Tokens;
     }
 

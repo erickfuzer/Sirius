@@ -12,6 +12,10 @@ namespace Sirius;
 public partial class MainWindow
 {
     private const int MaxReloadRetries = 10;
+    private const int MaxDiskMoves = 500;
+
+    private readonly List<(string Old, string New)> _diskRenames = new();
+    private readonly List<string> _diskCreated = new();
 
     private FileSystemWatcher? _watcher;
     private DispatcherTimer? _diskDelay;
@@ -53,9 +57,9 @@ public partial class MainWindow
                 InternalBufferSize = 64 * 1024,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size,
             };
-            watcher.Created += (_, e) => OnDiskEvent(root, e.FullPath, true);
+            watcher.Created += (_, e) => OnDiskEvent(root, e.FullPath, true, created: true);
             watcher.Deleted += (_, e) => OnDiskEvent(root, e.FullPath, true);
-            watcher.Renamed += (_, e) => OnDiskEvent(root, e.FullPath, true);
+            watcher.Renamed += (_, e) => OnDiskEvent(root, e.FullPath, true, renamedFrom: e.OldFullPath);
             watcher.Changed += (_, e) => OnDiskEvent(root, e.FullPath, false);
             // Quando muita coisa muda de uma vez, o Windows descarta avisos: relemos tudo.
             watcher.Error += (_, _) => OnDiskEvent(root, root, true);
@@ -76,16 +80,22 @@ public partial class MainWindow
     }
 
     // Chega numa thread de fundo.
-    private void OnDiskEvent(string root, string path, bool structural)
+    private void OnDiskEvent(string root, string path, bool structural, bool created = false, string? renamedFrom = null)
     {
+        var ignored = ProjectTree.IsIgnored(root, path);
         // O interior do .git só importa quando muda o histórico ou o que está preparado.
-        if (ProjectTree.IsIgnored(root, path) && !IsGitStateFile(root, path))
+        if (ignored && !IsGitStateFile(root, path) && renamedFrom is null)
             return;
 
         _uiDispatcher.Post(() =>
         {
             if (RootFolder != root)
                 return;
+            // Guardados para as abas seguirem o nome novo. Uma enxurrada, como um npm install, só relê tudo.
+            if (renamedFrom is not null && _diskRenames.Count < MaxDiskMoves)
+                _diskRenames.Add((renamedFrom, path));
+            else if (created && !ignored && _diskCreated.Count < MaxDiskMoves)
+                _diskCreated.Add(path);
             _treeChangedOnDisk |= structural;
             if (_diskDelay is { IsEnabled: false })
                 _diskDelay.Start();
@@ -107,6 +117,7 @@ public partial class MainWindow
     private void OnDiskDelayElapsed()
     {
         _diskDelay!.Stop();
+        FollowMovesOnDisk();
         if (_treeChangedOnDisk)
         {
             _treeChangedOnDisk = false;
@@ -117,11 +128,59 @@ public partial class MainWindow
         _ = RefreshGitAsync();
     }
 
+    // Outro programa, como o Explorer, renomeou ou moveu arquivos abertos: as abas seguem o nome novo, como
+    // quando se renomeia pela árvore.
+    private void FollowMovesOnDisk()
+    {
+        if (_diskRenames.Count == 0 && _diskCreated.Count == 0)
+            return;
+        var renames = _diskRenames.ToList();
+        var created = _diskCreated.ToList();
+        _diskRenames.Clear();
+        _diskCreated.Clear();
+
+        var moved = new List<(string OldPath, string NewPath)>();
+        foreach (var document in _documents.Where(d => !d.IsUntitled))
+        {
+            if (DiskMoves.Follow(document.FullPath, document.LastWriteUtc, renames, created) is not { } target)
+                continue;
+            var oldPath = document.FullPath;
+            document.MoveTo(target);
+            document.MissingReported = false;
+            _language.DocumentMoved(document, oldPath);
+            moved.Add((oldPath, target));
+        }
+
+        foreach (var folder in _expanded.ToList())
+        {
+            var target = DiskMoves.Apply(folder, renames);
+            if (target != folder && Directory.Exists(target) && (!Directory.Exists(folder) || string.Equals(target, folder, StringComparison.OrdinalIgnoreCase)))
+            {
+                _expanded.Remove(folder);
+                _expanded.Add(target);
+            }
+        }
+        if (_lastFolderClicked is not null && !Directory.Exists(_lastFolderClicked) && DiskMoves.Apply(_lastFolderClicked, renames) is var clicked && Directory.Exists(clicked))
+            _lastFolderClicked = clicked;
+
+        if (moved.Count == 0)
+            return;
+        AfterPathsMoved();
+        SaveSession();
+        var (first, firstTarget) = moved[0];
+        ShowStatus(moved.Count > 1
+            ? $"{moved.Count} arquivos abertos mudaram de nome ou de pasta, e as abas acompanharam."
+            : string.Equals(Path.GetDirectoryName(first), Path.GetDirectoryName(firstTarget), StringComparison.OrdinalIgnoreCase)
+                ? $"{Path.GetFileName(first)} foi renomeado para {Path.GetFileName(firstTarget)}."
+                : $"{Path.GetFileName(first)} foi movido e agora está {DescribeFolder(Path.GetDirectoryName(firstTarget)!)}.");
+    }
+
     public async Task CheckOpenDocumentsAsync()
     {
         if (_checkingDisk || IsDialogOpen)
             return;
 
+        FollowMovesOnDisk();
         _checkingDisk = true;
         try
         {

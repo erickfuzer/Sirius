@@ -218,6 +218,9 @@ public partial class MainWindow
         var watch = Item("Vigiar seleção", () => _ = AddWatchAsync(CodeEditor.TextArea.Selection.GetText()));
         // Só em HTML e PHP. O mesmo do Tab, para quem não alcança a tecla.
         var emmet = Item("Expandir Emmet", ExpandEmmet, "Tab");
+        // Só num trecho que mudou desde o último commit. O mesmo da faixa colorida na margem.
+        var changeBefore = Item("Ver como era antes", ShowChangeNearCaret);
+        var changeRevert = Item("Desfazer as mudanças da seleção", RevertSelectedChanges);
 
         var menu = new ContextMenu();
         menu.Items.Add(cut);
@@ -234,6 +237,10 @@ public partial class MainWindow
         menu.Items.Add(goToLine);
         menu.Items.Add(condition);
         menu.Items.Add(watch);
+        var changeSeparator = new Separator();
+        menu.Items.Add(changeSeparator);
+        menu.Items.Add(changeBefore);
+        menu.Items.Add(changeRevert);
 
         menu.Opening += (_, e) =>
         {
@@ -252,6 +259,12 @@ public partial class MainWindow
             emmet.IsEnabled = CanEditText;
             condition.IsVisible = CanSetBreakpointHere;
             watch.IsVisible = IsDebugging && hasSelection;
+            var changes = ChangesInSelection();
+            changeSeparator.IsVisible = changes.Count > 0;
+            changeBefore.IsVisible = changes.Count > 0 && !hasSelection;
+            changeRevert.IsVisible = changes.Count > 0;
+            changeRevert.IsEnabled = CanEditText;
+            changeRevert.Header = hasSelection ? "Desfazer as mudanças da seleção" : "Desfazer este trecho";
         };
         return menu;
     }

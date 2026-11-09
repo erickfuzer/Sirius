@@ -1,5 +1,7 @@
+using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Media;
+using Avalonia.Platform;
 using Sirius.Core;
 using Sirius.Editing;
 
@@ -12,6 +14,7 @@ public partial class MainWindow
 
     private OpenDocument? _shownImage;
     private DateTime _shownImageWrite;
+    private int _animationRequest;
     private bool _restoringTabs;
 
     public bool IsImageShown => ImageHost.IsVisible;
@@ -73,6 +76,7 @@ public partial class MainWindow
         if (ActiveDocument is not { IsImage: true } document)
         {
             _shownImage = null;
+            _animationRequest++;
             ImageView.Clear();
             ImageMessage.IsVisible = false;
             return;
@@ -85,6 +89,7 @@ public partial class MainWindow
         var sameTab = _shownImage == document;
         _shownImage = document;
         _shownImageWrite = document.LastWriteUtc;
+        _animationRequest++;
         try
         {
             var loaded = ImageFile.Load(document.FullPath);
@@ -95,6 +100,9 @@ public partial class MainWindow
             else
                 ImageView.Show(new Bitmap(stream), loaded.Info, sameTab);
             ImageMessage.IsVisible = false;
+            // O primeiro quadro aparece na hora, e os outros chegam quando terminam de ser montados.
+            if (ImageFile.CanAnimate(document.FullPath))
+                _ = AnimateAsync(document, loaded.Data);
         }
         catch (Exception e) when (e is ImageFileException or IOException or UnauthorizedAccessException or ArgumentException or OutOfMemoryException)
         {
@@ -102,6 +110,56 @@ public partial class MainWindow
             ImageMessage.Text = e is ImageFileException ? e.Message : "Não foi possível abrir esta imagem.";
             ImageMessage.IsVisible = true;
         }
+    }
+
+    // Monta os quadros fora da thread da interface. Se a pessoa trocou de aba no meio, nada muda.
+    private async Task AnimateAsync(OpenDocument document, byte[] data)
+    {
+        var request = _animationRequest;
+        (List<Bitmap> Frames, IReadOnlyList<int> Durations, int Repetitions)? animation;
+        try
+        {
+            animation = await Task.Run(() =>
+            {
+                using var frames = ImageFile.DecodeFrames(data);
+                if (frames is null)
+                    return ((List<Bitmap>, IReadOnlyList<int>, int)?)null;
+                var bitmaps = new List<Bitmap>(frames.Frames.Count);
+                try
+                {
+                    foreach (var frame in frames.Frames)
+                        bitmaps.Add(new Bitmap(PixelFormat.Bgra8888, AlphaFormat.Premul, frame.GetPixels(),
+                            new PixelSize(frame.Width, frame.Height), new Vector(96, 96), frame.RowBytes));
+                }
+                catch
+                {
+                    bitmaps.ForEach(bitmap => bitmap.Dispose());
+                    throw;
+                }
+                return (bitmaps, frames.Durations, frames.Repetitions);
+            });
+        }
+        catch (ImageFileException e)
+        {
+            if (request == _animationRequest)
+                ShowStatus(e.Message);
+            return;
+        }
+        catch (Exception e) when (e is OutOfMemoryException or ArgumentException or InvalidOperationException)
+        {
+            if (request == _animationRequest)
+                ShowStatus("Não foi possível animar esta imagem. Aparece só o primeiro quadro.");
+            return;
+        }
+
+        if (animation is not { } result)
+            return;
+        if (request != _animationRequest || _shownImage != document || ActiveDocument != document)
+        {
+            result.Frames.ForEach(bitmap => bitmap.Dispose());
+            return;
+        }
+        ImageView.Animate(result.Frames, result.Durations, result.Repetitions);
     }
 
     private void ZoomImage(int direction)

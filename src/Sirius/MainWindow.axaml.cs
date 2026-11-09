@@ -109,6 +109,7 @@ public partial class MainWindow : Window
         InitializeLanguage();
         InitializeWorkspace();
         InitializeGit();
+        InitializeChangePeek();
         InitializeColors();
         InitializeImages();
         InitializeDrop();
@@ -365,8 +366,14 @@ public partial class MainWindow : Window
         }
         if (_lastFolderClicked is not null && FileOperations.IsInside(_lastFolderClicked, path))
             _lastFolderClicked = target + _lastFolderClicked[path.Length..];
-        ClearSearchResults();
+        AfterPathsMoved();
+        ShowStatus("Renomeado");
+    }
 
+    // Abas e resultados de busca apontavam para o nome antigo, e uma extensão nova pode trazer outra linguagem.
+    private void AfterPathsMoved()
+    {
+        ClearSearchResults();
         if (ActiveDocument is { } active)
         {
             _colorizer.Highlighter = active.Highlighter;
@@ -377,7 +384,6 @@ public partial class MainWindow : Window
         ReindexProject();
         RefreshTabs();
         RefreshTree();
-        ShowStatus("Renomeado");
     }
 
     private TreeRow? FocusedTreeRow() =>
@@ -573,7 +579,11 @@ public partial class MainWindow : Window
         {
             _language.DocumentChanged(document);
             if (ActiveDocument == document)
+            {
+                // Os trechos mudaram de lugar: o quadro de "como era antes" mostraria o trecho errado.
+                CloseChangePeek();
                 ScheduleGitMarks();
+            }
             if (ActiveDocument == document && document.Highlighter is not null && !_redrawDelay.IsEnabled)
                 _redrawDelay.Start();
         };
@@ -586,6 +596,7 @@ public partial class MainWindow : Window
     {
         CloseCompletion();
         CloseColorPicker();
+        CloseChangePeek();
         DiffHost.IsVisible = false;
         if (ActiveDocument is not null)
         {
@@ -618,6 +629,7 @@ public partial class MainWindow : Window
         UpdateServerHint();
         SaveSession();
         _gutter.SetLineMarks(null);
+        SetChangeBlocks(null);
         _ = UpdateGitMarksAsync();
     }
 
@@ -769,6 +781,14 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             CloseSettings();
+            return;
+        }
+
+        if (e.Key == Key.Escape && IsChangePeekOpen && !IsPaletteOpen && !TerminalHost.IsFocused)
+        {
+            e.Handled = true;
+            CloseChangePeek();
+            FocusActiveDocument();
             return;
         }
 
@@ -1094,6 +1114,13 @@ public partial class MainWindow : Window
             actions.Add(("Mover linha para cima", "Alt ↑", () => MoveLines(up: true)));
             actions.Add(("Mover linha para baixo", "Alt ↓", () => MoveLines(up: false)));
             actions.Add(("Formatar arquivo", "Shift Alt F", () => _ = FormatDocumentAsync()));
+            if (_changeBlocks.Count > 0)
+            {
+                actions.Add(("Ver como era este trecho", "faixa colorida na margem", ShowChangeNearCaret));
+                actions.Add(("Próximo trecho alterado", "Git", () => MoveToChange(1)));
+                actions.Add(("Trecho alterado anterior", "Git", () => MoveToChange(-1)));
+                actions.Add(("Desfazer as mudanças da seleção", "volta ao último commit", RevertSelectedChanges));
+            }
             if (CanUseEmmet)
                 actions.Insert(1, ("Expandir Emmet", "Tab, como ! ou ul>li", ExpandEmmet));
             if (SvgRender.Supports(active.FullPath))
@@ -1419,6 +1446,7 @@ public partial class MainWindow : Window
 
         SheetBorder.BoxShadow = palette.SheetShadow;
         Capsule.BoxShadow = palette.PopShadow;
+        ChangePeek.BoxShadow = palette.PopShadow;
         PaletteCard.BoxShadow = palette.PopShadow;
         DialogCard.BoxShadow = palette.PopShadow;
         SettingsCard.BoxShadow = palette.PopShadow;

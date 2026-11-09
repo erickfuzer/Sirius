@@ -398,6 +398,34 @@
                                 </Panel>
                             </Grid>
 
+                            <!-- Clique na faixa colorida da margem: como o trecho era no último commit. -->
+                            <Border x:Name="ChangePeek" IsVisible="False" HorizontalAlignment="Stretch" VerticalAlignment="Top"
+                                    CornerRadius="10" ClipToBounds="True" Background="{DynamicResource Pop}" BorderBrush="{DynamicResource Tint}" BorderThickness="1">
+                                <Grid RowDefinitions="Auto,Auto">
+                                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Height="32" Margin="12,0,6,0">
+                                        <TextBlock x:Name="ChangePeekTitle" Grid.Column="0" FontSize="12" Foreground="{DynamicResource Muted}"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <StackPanel x:Name="ChangePeekNavigation" Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center" Margin="0,0,6,0">
+                                            <Button Classes="flat option" Click="OnChangePeekPrevious" AutomationProperties.Name="Trecho alterado anterior" ToolTip.Tip="Trecho alterado anterior">
+                                                <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.3" Data="M0 4L4 0L8 4" />
+                                            </Button>
+                                            <Button Classes="flat option" Click="OnChangePeekNext" AutomationProperties.Name="Próximo trecho alterado" ToolTip.Tip="Próximo trecho alterado">
+                                                <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.3" Data="M0 0L4 4L8 0" />
+                                            </Button>
+                                        </StackPanel>
+                                        <Button x:Name="ChangePeekRevert" Grid.Column="2" Classes="secondary conflict" Content="Desfazer este trecho" Click="OnChangePeekRevert"
+                                                ToolTip.Tip="Volta este trecho a como estava no último commit. Ctrl Z traz de volta." />
+                                        <Button Grid.Column="3" Classes="flat option" Margin="4,0,0,0" Click="OnChangePeekClose" AutomationProperties.Name="Fechar" ToolTip.Tip="Fechar (Esc)">
+                                            <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M0 0L8 8M8 0L0 8" />
+                                        </Button>
+                                    </Grid>
+                                    <ae:TextEditor x:Name="ChangePeekEditor" Grid.Row="1" IsReadOnly="True" Background="Transparent" BorderThickness="0"
+                                                   Foreground="{DynamicResource Ink}" FontFamily="{DynamicResource CodeFont}" FontSize="13.5" Padding="0,0,0,6"
+                                                   HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+                                    <TextBlock x:Name="ChangePeekNote" Grid.Row="1" IsVisible="False" Margin="12,0,12,10" FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                </Grid>
+                            </Border>
+
                             <!-- Aba de imagem -->
                             <Panel x:Name="ImageHost" IsVisible="False">
                                 <e:ImagePreview x:Name="ImageView" Focusable="True" ClipToBounds="True" AutomationProperties.Name="Imagem" />

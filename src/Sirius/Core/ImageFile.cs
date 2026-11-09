@@ -17,6 +17,22 @@ public sealed record ImageInfo(int PixelWidth, int PixelHeight, long Bytes, bool
 
 public sealed record LoadedImage(byte[] Data, ImageInfo Info);
 
+// Os quadros de um GIF ou WebP animado, já montados como aparecem na tela, cada um com quanto tempo fica.
+public sealed class ImageFrames(IReadOnlyList<SKBitmap> frames, IReadOnlyList<int> durations, int repetitions) : IDisposable
+{
+    public IReadOnlyList<SKBitmap> Frames => frames;
+    public IReadOnlyList<int> Durations => durations;
+
+    // Quantas vezes recomeça depois da primeira. Negativo é sem fim.
+    public int Repetitions => repetitions;
+
+    public void Dispose()
+    {
+        foreach (var frame in frames)
+            frame.Dispose();
+    }
+}
+
 // Decide o que abre como imagem e lê o cabeçalho. SVG fica de fora de propósito: é código, e continua editável.
 public static class ImageFile
 {
@@ -63,6 +79,75 @@ public static class ImageFile
         return codec is null
             ? null
             : new ImageInfo(codec.Info.Width, codec.Info.Height, data.Length, codec.Info.AlphaType != SKAlphaType.Opaque, codec.EncodedOrigin);
+    }
+
+    // Todos os quadros ficam na memória, sem compressão: acima disso a aba mostra só o primeiro.
+    public const long MaxAnimationBytes = 256L * 1024 * 1024;
+
+    public static bool CanAnimate(string path) =>
+        Path.GetExtension(path).Equals(".gif", StringComparison.OrdinalIgnoreCase)
+        || Path.GetExtension(path).Equals(".webp", StringComparison.OrdinalIgnoreCase);
+
+    // Como os navegadores: um quadro de 10 ms ou menos dura 100 ms, senão alguns GIFs viram um borrão.
+    public static int FrameDuration(int milliseconds) => milliseconds <= 10 ? 100 : milliseconds;
+
+    // Null quando a imagem tem um quadro só.
+    public static ImageFrames? DecodeFrames(byte[] data, long maxBytes = MaxAnimationBytes)
+    {
+        using var skData = SKData.CreateCopy(data);
+        using var codec = SKCodec.Create(skData);
+        if (codec is null || codec.FrameCount <= 1)
+            return null;
+
+        var info = new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
+        var count = codec.FrameCount;
+        if ((long)info.BytesSize * count > maxBytes)
+            throw new ImageFileException($"Esta animação tem {count} quadros, grande demais para animar aqui. Aparece só o primeiro.");
+
+        var frameInfo = codec.FrameInfo;
+        var frames = new List<SKBitmap>(count);
+        var durations = new List<int>(count);
+        try
+        {
+            for (var i = 0; i < count; i++)
+            {
+                // Um quadro costuma pintar só o que muda: começa do quadro de que ele depende.
+                var required = frameInfo[i].RequiredFrame;
+                SKBitmap bitmap;
+                if (required >= 0 && required < frames.Count)
+                    bitmap = frames[required].Copy();
+                else
+                {
+                    required = -1;
+                    bitmap = new SKBitmap(info);
+                    bitmap.Erase(SKColors.Transparent);
+                }
+
+                var result = codec.GetPixels(info, bitmap.GetPixels(), new SKCodecOptions(i, required));
+                if (result is not (SKCodecResult.Success or SKCodecResult.IncompleteInput))
+                {
+                    // Arquivo cortado no meio: anima o que deu para ler.
+                    bitmap.Dispose();
+                    break;
+                }
+                frames.Add(bitmap);
+                durations.Add(FrameDuration(frameInfo[i].Duration));
+            }
+        }
+        catch
+        {
+            foreach (var frame in frames)
+                frame.Dispose();
+            throw;
+        }
+
+        if (frames.Count <= 1)
+        {
+            foreach (var frame in frames)
+                frame.Dispose();
+            return null;
+        }
+        return new ImageFrames(frames, durations, codec.RepetitionCount);
     }
 
     // Largura para decodificar uma versão que cabe na tela. Null quando a imagem já cabe.

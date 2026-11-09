@@ -133,6 +133,7 @@ public partial class MainWindow
             UpdateGitEmptyPanel();
             RefreshTree();
             _gutter.SetLineMarks(null);
+            SetChangeBlocks(null);
             return;
         }
 
@@ -702,12 +703,14 @@ public partial class MainWindow
     public async Task UpdateGitMarksAsync()
     {
         var request = ++_gitMarksRequest;
-        var marks = await ComputeGitMarksAsync();
-        if (request == _gitMarksRequest)
-            _gutter.SetLineMarks(marks);
+        var result = await ComputeGitMarksAsync();
+        if (request != _gitMarksRequest)
+            return;
+        _gutter.SetLineMarks(result?.Marks);
+        SetChangeBlocks(result?.Blocks);
     }
 
-    private async Task<IReadOnlyDictionary<int, GitLineKind>?> ComputeGitMarksAsync()
+    private async Task<(IReadOnlyDictionary<int, GitLineKind> Marks, List<ChangeBlock> Blocks)?> ComputeGitMarksAsync()
     {
         if (GitState is not { Status.HeadOid: not null } snapshot || ActiveDocument is not { IsUntitled: false, IsImage: false } document)
             return null;
@@ -732,7 +735,8 @@ public partial class MainWindow
         {
             var a = LineDiff.SplitLines(baseText);
             var b = LineDiff.SplitLines(current);
-            return (IReadOnlyDictionary<int, GitLineKind>)LineDiff.LineMarks(LineDiff.Compare(a, b), b.Length);
+            var ops = LineDiff.Compare(a, b);
+            return ((IReadOnlyDictionary<int, GitLineKind>)LineDiff.LineMarks(ops, b.Length), ChangeBlocks.FromOps(a, b, ops));
         });
     }
 

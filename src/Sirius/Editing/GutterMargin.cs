@@ -48,8 +48,20 @@ public sealed class GutterMargin : AbstractMargin
 
     public void RedrawBreakpoints() => InvalidateVisual();
 
+    // Clique na faixa colorida do Git: mostrar como o trecho era antes.
+    public event Action<int>? ChangeMarkClicked;
+
+    private static readonly Cursor HandCursor = new(StandardCursorType.Hand);
+
     // À esquerda dos números e sobre eles: uma faixa fácil de acertar.
     private bool IsBreakpointZone(Point point) => Breakpoints is not null && point.X <= NumberRight + 2;
+
+    // A faixa é fina: a área do clique vai um pouco além dela, dos dois lados.
+    private bool IsChangeMarkZone(Point point, int line)
+    {
+        var x = BaseGutterWidth * _scale - MarkInset;
+        return point.X >= x - 5 && point.X <= x + MarkWidth + 5 && _lineMarks?.ContainsKey(line) == true;
+    }
 
     // As linhas que mudaram desde o último commit.
     public void SetLineMarks(IReadOnlyDictionary<int, GitLineKind>? marks)
@@ -146,6 +158,12 @@ public sealed class GutterMargin : AbstractMargin
             e.Handled = true;
             return;
         }
+        if (ChangeMarkClicked is not null && IsChangeMarkZone(e.GetPosition(this), line.FirstDocumentLine.LineNumber))
+        {
+            ChangeMarkClicked.Invoke(line.FirstDocumentLine.LineNumber);
+            e.Handled = true;
+            return;
+        }
         _area.Caret.Location = new TextLocation(line.FirstDocumentLine.LineNumber, 1);
         _area.ClearSelection();
         _area.Focus();
@@ -160,6 +178,8 @@ public sealed class GutterMargin : AbstractMargin
         int? hover = view is not null && IsBreakpointZone(point)
             ? view.GetVisualLineFromVisualTop(point.Y + view.VerticalOffset)?.FirstDocumentLine.LineNumber
             : null;
+        var lineUnder = view?.GetVisualLineFromVisualTop(point.Y + view.VerticalOffset)?.FirstDocumentLine.LineNumber;
+        Cursor = ChangeMarkClicked is not null && lineUnder is { } under && IsChangeMarkZone(point, under) ? HandCursor : null;
         if (hover != _hoverLine)
         {
             _hoverLine = hover;

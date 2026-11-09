@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using SkiaSharp;
 using Sirius.Core;
 using Sirius.Theming;
@@ -82,6 +83,17 @@ public sealed class ImagePreview : Control
     private Palette? _checkerPalette;
     private double _loadedScale = 1;
 
+    // Animação: os quadros já montados e quanto cada um fica na tela.
+    private Bitmap[]? _frames;
+    private int[]? _durations;
+    private int _frame;
+    private int _restartsLeft;
+    private DispatcherTimer? _frameTimer;
+
+    public int FrameCount => _frames?.Length ?? (_bitmap is null ? 0 : 1);
+    public int FrameIndex => _frame;
+    public bool IsPlaying => _frameTimer?.IsEnabled == true;
+
     public event Action? ViewChanged;
 
     // O zoom passou do que a versão reduzida consegue mostrar com nitidez.
@@ -121,6 +133,7 @@ public sealed class ImagePreview : Control
     // loadedScale diz quanto do tamanho original o bitmap tem, quando ele veio reduzido.
     public void Show(Bitmap bitmap, ImageInfo info, bool keepView = false, double loadedScale = 1)
     {
+        StopAnimation();
         var old = _bitmap;
         _bitmap = bitmap;
         Info = info;
@@ -134,10 +147,75 @@ public sealed class ImagePreview : Control
         AfterViewChange();
     }
 
+    // Assume os quadros e troca a imagem parada por eles, no mesmo zoom e lugar. Os quadros vêm no tamanho real.
+    public void Animate(IReadOnlyList<Bitmap> frames, IReadOnlyList<int> durations, int repetitions)
+    {
+        StopAnimation();
+        _bitmap?.Dispose();
+        _bitmap = null;
+        _loadedScale = 1;
+        _frames = frames.ToArray();
+        _durations = durations.ToArray();
+        _frame = 0;
+        _restartsLeft = repetitions;
+        _frameTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(_durations[0]), DispatcherPriority.Render, (_, _) => NextFrame());
+        _frameTimer.Start();
+        InvalidateVisual();
+    }
+
+    private void NextFrame()
+    {
+        if (_frames is null || _durations is null || _frameTimer is null)
+            return;
+        var next = _frame + 1;
+        if (next >= _frames.Length)
+        {
+            // Sem repetição pedida, para no último quadro, como no navegador.
+            if (_restartsLeft == 0)
+            {
+                _frameTimer.Stop();
+                return;
+            }
+            if (_restartsLeft > 0)
+                _restartsLeft--;
+            next = 0;
+        }
+        _frame = next;
+        _frameTimer.Interval = TimeSpan.FromMilliseconds(_durations[_frame]);
+        InvalidateVisual();
+    }
+
+    private void StopAnimation()
+    {
+        _frameTimer?.Stop();
+        _frameTimer = null;
+        if (_frames is not null)
+        {
+            foreach (var frame in _frames)
+                frame.Dispose();
+        }
+        _frames = null;
+        _durations = null;
+        _frame = 0;
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        _frameTimer?.Stop();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _frameTimer?.Start();
+    }
+
     public void Clear()
     {
-        if (Info is null && _bitmap is null)
+        if (Info is null && _bitmap is null && _frames is null)
             return;
+        StopAnimation();
         _bitmap?.Dispose();
         _bitmap = null;
         Info = null;
@@ -286,7 +364,8 @@ public sealed class ImagePreview : Control
     {
         // Sem fundo, o mouse não seria percebido fora da imagem.
         context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
-        if (_bitmap is null || Info is not { } info)
+        var bitmap = _frames?[_frame] ?? _bitmap;
+        if (bitmap is null || Info is not { } info)
             return;
 
         var rect = ImageRect;
@@ -302,8 +381,8 @@ public sealed class ImagePreview : Control
         using (context.PushTransform(Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation(rect.X, rect.Y)))
         using (context.PushTransform(ImageZoom.OrientationOf(info.Origin, info.PixelWidth, info.PixelHeight)))
         {
-            var loaded = new Rect(0, 0, _bitmap.PixelSize.Width, _bitmap.PixelSize.Height);
-            context.DrawImage(_bitmap, loaded, new Rect(0, 0, info.PixelWidth, info.PixelHeight));
+            var loaded = new Rect(0, 0, bitmap.PixelSize.Width, bitmap.PixelSize.Height);
+            context.DrawImage(bitmap, loaded, new Rect(0, 0, info.PixelWidth, info.PixelHeight));
         }
     }
 
