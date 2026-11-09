@@ -206,14 +206,23 @@ public partial class MainWindow
         // Conflitos primeiro, porque impedem o resto.
         _gitRows.ReplaceAll(snapshot.Status.Changes
             .OrderBy(c => c.Kind != GitChangeKind.Conflict).ThenBy(c => c.Path, StringComparer.OrdinalIgnoreCase)
-            .Select(change => new GitRow(Path.GetFileName(change.Path),
-                Path.GetDirectoryName(change.Path)?.Replace(Path.DirectorySeparatorChar, '/') ?? "",
+            .Select(change => new GitRow(Path.GetFileName(change.Path), FolderText(change),
                 LetterOf(change.Kind), BrushOf(change.Kind), !_gitExcluded.Contains(change.Path), change, FileIcons.For(Path.GetFileName(change.Path))))
             .ToList());
         // O Git só deixa de chamar de conflito depois do commit. Para a pessoa, sem marcas já está resolvido,
         // e o aviso vermelho ao lado de "faça o commit" confundia.
         GitConflictNotice.IsVisible = snapshot.Status.Changes.Any(c => c.Kind == GitChangeKind.Conflict && HasConflictMarkers(FullPathOf(snapshot, c.Path)));
         GitNothing.IsVisible = _gitRows.Count == 0;
+    }
+
+    // A pasta, ou de onde veio o arquivo renomeado: só o nome antigo, se ficou na mesma pasta.
+    private static string FolderText(GitChange change)
+    {
+        var folder = Path.GetDirectoryName(change.Path)?.Replace(Path.DirectorySeparatorChar, '/') ?? "";
+        if (change is not { Kind: GitChangeKind.Renamed, OriginalPath: { } original })
+            return folder;
+        var originalFolder = Path.GetDirectoryName(original)?.Replace(Path.DirectorySeparatorChar, '/') ?? "";
+        return originalFolder == folder ? $"era {Path.GetFileName(original)}" : $"era {original}";
     }
 
     // Painel
@@ -423,7 +432,9 @@ public partial class MainWindow
         var isNew = change.Kind is GitChangeKind.Untracked or GitChangeKind.Added;
         var body = isNew
             ? "O arquivo ainda não está em nenhum commit e vai para a Lixeira do Windows."
-            : "O arquivo volta à versão do último commit. Isso não pode ser desfeito.";
+            : change is { Kind: GitChangeKind.Renamed, OriginalPath: { } original }
+                ? $"{Path.GetFileName(original)} volta como estava no último commit, e {name} vai para a Lixeira do Windows."
+                : "O arquivo volta à versão do último commit. Isso não pode ser desfeito.";
         var choice = await AskAsync($"Descartar as mudanças em {name}?", body, "Descartar", null);
         if (choice != DialogChoice.Primary)
             return;
@@ -707,21 +718,23 @@ public partial class MainWindow
         if (request != _gitMarksRequest)
             return;
         _gutter.SetLineMarks(result?.Marks);
-        SetChangeBlocks(result?.Blocks);
+        SetChangeBlocks(result?.Blocks, result?.BaseText);
     }
 
-    private async Task<(IReadOnlyDictionary<int, GitLineKind> Marks, List<ChangeBlock> Blocks)?> ComputeGitMarksAsync()
+    private async Task<(IReadOnlyDictionary<int, GitLineKind> Marks, List<ChangeBlock> Blocks, string BaseText)?> ComputeGitMarksAsync()
     {
         if (GitState is not { Status.HeadOid: not null } snapshot || ActiveDocument is not { IsUntitled: false, IsImage: false } document)
             return null;
         if (document.Document.TextLength > MaxMarkedChars || !FileOperations.IsInside(document.FullPath, snapshot.TopLevel))
             return null;
 
-        var key = document.FullPath;
+        // Renomeado depois do último commit: compara com o nome antigo, senão a margem ficaria vazia até o commit.
+        var relative = Path.GetRelativePath(snapshot.TopLevel, document.FullPath).Replace(Path.DirectorySeparatorChar, '/');
+        var source = snapshot.Status.Changes.FirstOrDefault(change => change.Kind == GitChangeKind.Renamed && change.Path == relative)?.OriginalPath ?? relative;
+        var key = document.FullPath + "\n" + source;
         if (!_gitBaseTexts.TryGetValue(key, out var baseText))
         {
-            var relative = Path.GetRelativePath(snapshot.TopLevel, key).Replace(Path.DirectorySeparatorChar, '/');
-            var bytes = await Git().ShowHeadAsync(relative);
+            var bytes = await Git().ShowHeadAsync(source);
             baseText = bytes is null ? null : TextFile.Decode(bytes)?.Text;
             _gitBaseTexts[key] = baseText;
         }
@@ -736,7 +749,7 @@ public partial class MainWindow
             var a = LineDiff.SplitLines(baseText);
             var b = LineDiff.SplitLines(current);
             var ops = LineDiff.Compare(a, b);
-            return ((IReadOnlyDictionary<int, GitLineKind>)LineDiff.LineMarks(ops, b.Length), ChangeBlocks.FromOps(a, b, ops));
+            return ((IReadOnlyDictionary<int, GitLineKind>)LineDiff.LineMarks(ops, b.Length), ChangeBlocks.FromOps(a, b, ops), baseText);
         });
     }
 

@@ -87,12 +87,23 @@ public sealed class ImagePreview : Control
     private Bitmap[]? _frames;
     private int[]? _durations;
     private int _frame;
+    private int _repetitions;
     private int _restartsLeft;
+    private bool _paused;
+    private bool _finished;
     private DispatcherTimer? _frameTimer;
 
     public int FrameCount => _frames?.Length ?? (_bitmap is null ? 0 : 1);
     public int FrameIndex => _frame;
     public bool IsPlaying => _frameTimer?.IsEnabled == true;
+    public bool IsAnimated => _frames is not null;
+    public bool IsPaused => _paused;
+
+    // Tocou as vezes que o arquivo pede e parou no último quadro.
+    public bool IsFinished => _finished;
+
+    // Começou, pausou, continuou ou terminou: o botão de pausar troca o texto.
+    public event Action? PlaybackChanged;
 
     public event Action? ViewChanged;
 
@@ -157,10 +168,39 @@ public sealed class ImagePreview : Control
         _frames = frames.ToArray();
         _durations = durations.ToArray();
         _frame = 0;
+        _repetitions = repetitions;
         _restartsLeft = repetitions;
         _frameTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(_durations[0]), DispatcherPriority.Render, (_, _) => NextFrame());
         _frameTimer.Start();
         InvalidateVisual();
+        PlaybackChanged?.Invoke();
+    }
+
+    // Pausa, continua de onde parou ou, depois do fim, toca de novo do começo.
+    public void TogglePlayback()
+    {
+        if (_frames is null || _durations is null || _frameTimer is null)
+            return;
+        if (_finished)
+        {
+            _finished = false;
+            _frame = 0;
+            _restartsLeft = _repetitions;
+            _frameTimer.Interval = TimeSpan.FromMilliseconds(_durations[0]);
+            _frameTimer.Start();
+            InvalidateVisual();
+        }
+        else if (_paused)
+        {
+            _paused = false;
+            _frameTimer.Start();
+        }
+        else
+        {
+            _paused = true;
+            _frameTimer.Stop();
+        }
+        PlaybackChanged?.Invoke();
     }
 
     private void NextFrame()
@@ -174,6 +214,8 @@ public sealed class ImagePreview : Control
             if (_restartsLeft == 0)
             {
                 _frameTimer.Stop();
+                _finished = true;
+                PlaybackChanged?.Invoke();
                 return;
             }
             if (_restartsLeft > 0)
@@ -189,6 +231,7 @@ public sealed class ImagePreview : Control
     {
         _frameTimer?.Stop();
         _frameTimer = null;
+        var had = _frames is not null;
         if (_frames is not null)
         {
             foreach (var frame in _frames)
@@ -197,6 +240,10 @@ public sealed class ImagePreview : Control
         _frames = null;
         _durations = null;
         _frame = 0;
+        _paused = false;
+        _finished = false;
+        if (had)
+            PlaybackChanged?.Invoke();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -208,7 +255,8 @@ public sealed class ImagePreview : Control
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        _frameTimer?.Start();
+        if (!_paused && !_finished)
+            _frameTimer?.Start();
     }
 
     public void Clear()

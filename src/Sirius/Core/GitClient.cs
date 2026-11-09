@@ -6,8 +6,10 @@ namespace Sirius.Core;
 
 public enum GitChangeKind { Modified, Added, Deleted, Renamed, Untracked, Conflict }
 
-// Path é relativo à raiz do repositório e usa a barra normal, como o Git escreve.
-public sealed record GitChange(string Path, string? OriginalPath, GitChangeKind Kind, bool DeletedInWorktree);
+// Path é relativo à raiz do repositório e usa a barra normal, como o Git escreve. IndexOid é o conteúdo preparado,
+// e Unstaged marca a renomeação que só a Sirius percebeu: para o Git, ainda um arquivo apagado e outro novo.
+public sealed record GitChange(string Path, string? OriginalPath, GitChangeKind Kind, bool DeletedInWorktree,
+    string? IndexOid = null, bool Unstaged = false);
 
 public sealed record GitStatus(
     string? Branch, string? HeadOid, string? Upstream, int Ahead, int Behind, IReadOnlyList<GitChange> Changes);
@@ -68,7 +70,7 @@ public static class GitStatusParser
                 case '1':
                     var ordinary = record.Split(' ', 9);
                     if (ordinary.Length == 9)
-                        changes.Add(new GitChange(ordinary[8], null, KindOf(ordinary[1]), ordinary[1][1] == 'D'));
+                        changes.Add(new GitChange(ordinary[8], null, KindOf(ordinary[1]), ordinary[1][1] == 'D', ordinary[7]));
                     break;
                 case '2':
                     var renamed = record.Split(' ', 10);
@@ -194,11 +196,79 @@ public sealed class GitClient(string folder, IReadOnlyDictionary<string, string>
             return null;
 
         var remotes = await RunAsync(["remote"]);
+        var topLevel = Path.GetFullPath(lines[0]);
         return new GitSnapshot(
-            Path.GetFullPath(lines[0]),
+            topLevel,
             File.Exists(Path.Combine(lines[1], "MERGE_HEAD")),
-            GitStatusParser.Parse(status.Output),
+            await WithRenamesAsync(GitStatusParser.Parse(status.Output), topLevel),
             remotes.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+
+    // Junta o apagado e o novo que são o mesmo arquivo renomeado por fora. O conteúdo apagado vem do que está
+    // preparado, por "cat-file", que não executa nada da configuração do repositório.
+    private async Task<GitStatus> WithRenamesAsync(GitStatus status, string topLevel)
+    {
+        var deleted = status.Changes.Where(change => change is { Kind: GitChangeKind.Deleted, DeletedInWorktree: true, IndexOid: not null }).ToList();
+        var added = status.Changes.Where(change => change.Kind == GitChangeKind.Untracked).ToList();
+        if (deleted.Count == 0 || added.Count == 0 || deleted.Count > GitRenames.MaxDeleted || added.Count > GitRenames.MaxAdded)
+            return status;
+
+        var blobs = await RunAsync(["cat-file", "--batch"], string.Concat(deleted.Select(change => change.IndexOid + "\n")));
+        if (!blobs.Ok)
+            return status;
+        var contents = ParseBatch(blobs.OutputBytes);
+        var deletedFiles = deleted
+            .Where(change => contents.TryGetValue(change.IndexOid!, out var bytes) && bytes.Length <= GitRenames.MaxBytes)
+            .Select(change => (change.Path, contents[change.IndexOid!]))
+            .ToList();
+
+        var addedFiles = new List<(string, byte[])>();
+        foreach (var change in added)
+        {
+            var full = Path.Combine(topLevel, change.Path.Replace('/', Path.DirectorySeparatorChar));
+            try
+            {
+                if (new FileInfo(full).Length <= GitRenames.MaxBytes)
+                    addedFiles.Add((change.Path, await File.ReadAllBytesAsync(full)));
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // Sumiu ou está preso por outro programa: fica como novo.
+            }
+        }
+
+        var pairs = await Task.Run(() => GitRenames.Pair(deletedFiles, addedFiles));
+        if (pairs.Count == 0)
+            return status;
+        var from = pairs.ToDictionary(pair => pair.Added, pair => pair.Deleted, StringComparer.Ordinal);
+        var gone = pairs.Select(pair => pair.Deleted).ToHashSet(StringComparer.Ordinal);
+        var changes = status.Changes
+            .Where(change => !(change.Kind == GitChangeKind.Deleted && gone.Contains(change.Path)))
+            .Select(change => change.Kind == GitChangeKind.Untracked && from.TryGetValue(change.Path, out var original)
+                ? new GitChange(change.Path, original, GitChangeKind.Renamed, false, Unstaged: true)
+                : change)
+            .ToList();
+        return status with { Changes = changes };
+    }
+
+    // "<oid> blob <tamanho>", quebra, o conteúdo e outra quebra para cada um, ou "<oid> missing".
+    public static Dictionary<string, byte[]> ParseBatch(byte[] output)
+    {
+        var contents = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        var position = 0;
+        while (position < output.Length)
+        {
+            var end = Array.IndexOf(output, (byte)'\n', position);
+            if (end < 0)
+                break;
+            var header = Encoding.ASCII.GetString(output, position, end - position).Split(' ');
+            position = end + 1;
+            if (header.Length != 3 || !int.TryParse(header[2], out var size) || position + size > output.Length)
+                continue;
+            contents[header[0]] = output[position..(position + size)];
+            position += size + 1;
+        }
+        return contents;
     }
 
     // O conteúdo do arquivo no último commit. Null quando ele ainda não existe lá.
@@ -230,10 +300,11 @@ public sealed class GitClient(string folder, IReadOnlyDictionary<string, string>
 
     public async Task<GitResult> CommitAsync(string message, IReadOnlyList<GitChange> changes, bool isMerging)
     {
-        // Um apagamento que já está preparado não existe mais para o "git add" encontrar.
+        // Um apagamento que já está preparado não existe mais para o "git add" encontrar. Na renomeação feita por
+        // fora, o nome antigo ainda está preparado e precisa sair junto.
         var toAdd = changes
             .Where(change => change.Kind != GitChangeKind.Deleted || change.DeletedInWorktree)
-            .Select(change => change.Path)
+            .SelectMany(change => change is { Unstaged: true, OriginalPath: { } original } ? [change.Path, original] : new[] { change.Path })
             .ToList();
         if (toAdd.Count > 0)
         {

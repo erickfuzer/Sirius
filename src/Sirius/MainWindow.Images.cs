@@ -23,10 +23,29 @@ public partial class MainWindow
     public string CaretPositionText => CaretPosition.Text ?? "";
     public bool EditorVisible => CodeEditor.IsVisible;
 
+    public bool IsAnimationToggleVisible => AnimationToggle.IsVisible;
+    public string AnimationToggleText => AnimationToggle.Content as string ?? "";
+
     private void InitializeImages()
     {
         ImageView.ViewChanged += UpdateCaretPosition;
         ImageView.NeedsFullImage += LoadFullImage;
+        ImageView.PlaybackChanged += UpdateAnimationToggle;
+    }
+
+    // O botão ao lado das abas só aparece em imagem animada, e diz o que o clique vai fazer.
+    private void UpdateAnimationToggle()
+    {
+        AnimationToggle.IsVisible = ImageView.IsAnimated && ActiveDocument is { IsImage: true } && !IsDiffOpen;
+        AnimationToggle.Content = ImageView.IsFinished ? "Repetir" : ImageView.IsPaused ? "Continuar" : "Pausar";
+    }
+
+    private void OnAnimationToggle(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ToggleAnimation();
+
+    public void ToggleAnimation()
+    {
+        ImageView.TogglePlayback();
+        ImageView.Focus();
     }
 
     // Cobre a maior tela ligada, mesmo que a janela mude para ela depois.
@@ -60,6 +79,7 @@ public partial class MainWindow
         CodeEditor.IsReadOnly = image;
         ImageHost.IsVisible = image && !IsDiffOpen;
         UpdateSvgPane();
+        UpdateAnimationToggle();
     }
 
     private void FocusActiveDocument()

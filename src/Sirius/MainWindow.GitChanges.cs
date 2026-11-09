@@ -35,9 +35,13 @@ public partial class MainWindow
         CodeEditor.TextArea.TextView.VisualLinesChanged += (_, _) => PlaceChangePeek();
     }
 
-    private void SetChangeBlocks(List<ChangeBlock>? blocks)
+    // O texto do último commit de onde os trechos saíram, para colorir as linhas antigas como lá.
+    private string? _changeBaseText;
+
+    private void SetChangeBlocks(List<ChangeBlock>? blocks, string? baseText = null)
     {
         _changeBlocks = blocks ?? new List<ChangeBlock>();
+        _changeBaseText = blocks is null ? null : baseText;
         if (_changePeekIndex is { } index && index >= _changeBlocks.Count)
             CloseChangePeek();
     }
@@ -115,7 +119,7 @@ public partial class MainWindow
         {
             var peekDocument = new TextDocument(string.Join('\n', block.OldLines));
             _changePeekColors.Highlighter?.Detach();
-            _changePeekColors.Highlighter = _gitBaseTexts.GetValueOrDefault(document.FullPath) is { } baseText
+            _changePeekColors.Highlighter = _changeBaseText is { } baseText
                 ? SyntaxHighlighter.ForExcerpt(document.FullPath, peekDocument, baseText, block.OldFirst)
                 : SyntaxHighlighter.ForDocument(document.FullPath, peekDocument);
             _changePeekKinds.Clear();

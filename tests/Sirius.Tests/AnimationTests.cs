@@ -179,6 +179,79 @@ public class AnimationTests
     }
 
     [AvaloniaFact]
+    public async Task Botao_pausa_continua_e_some_fora_da_imagem()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var gif = temp.File("gato.gif");
+        File.WriteAllBytes(gif, Gif(8, 8, [0, 1, 2], [3, 3, 3]));
+        var text = temp.File("a.txt", "x");
+        var window = Open(temp, settings);
+
+        window.OpenFile(gif);
+        var preview = window.ImagePreviewControl;
+        await Until(() => preview.FrameCount == 3);
+        Assert.True(window.IsAnimationToggleVisible);
+        Assert.Equal("Pausar", window.AnimationToggleText);
+
+        window.ToggleAnimation();
+        Assert.False(preview.IsPlaying);
+        Assert.Equal("Continuar", window.AnimationToggleText);
+        var frame = preview.FrameIndex;
+        await Task.Delay(150);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(frame, preview.FrameIndex);
+
+        window.ToggleAnimation();
+        Assert.True(preview.IsPlaying);
+        Assert.Equal("Pausar", window.AnimationToggleText);
+        // Continua de onde parou e volta a andar.
+        await Until(() => preview.FrameIndex != frame);
+
+        window.OpenFile(text);
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(window.IsAnimationToggleVisible);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Depois_do_fim_o_botao_repete()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var gif = temp.File("uma-vez.gif");
+        File.WriteAllBytes(gif, Gif(8, 8, [0, 1, 2], [2, 2, 2], loop: null));
+        var window = Open(temp, settings);
+
+        window.OpenFile(gif);
+        var preview = window.ImagePreviewControl;
+        await Until(() => preview.IsFinished);
+        Assert.Equal("Repetir", window.AnimationToggleText);
+
+        window.ToggleAnimation();
+        Assert.Equal(0, preview.FrameIndex);
+        Assert.True(preview.IsPlaying);
+        await Until(() => preview.IsFinished);
+        Assert.Equal(2, preview.FrameIndex);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Imagem_parada_nao_mostra_o_botao()
+    {
+        using var temp = new TempFolder();
+        using var settings = new TempFolder();
+        var gif = temp.File("parado.gif");
+        File.WriteAllBytes(gif, Gif(8, 8, [0], [3]));
+        var window = Open(temp, settings);
+
+        window.OpenFile(gif);
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(window.IsAnimationToggleVisible);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Gif_sem_repeticao_para_no_ultimo_quadro()
     {
         using var temp = new TempFolder();

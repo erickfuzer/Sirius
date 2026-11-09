@@ -146,6 +146,7 @@ public partial class MainWindow : Window
     public IReadOnlyList<TabRow> TabRows => _tabRows;
     public bool IsPaletteOpen => PaletteOverlay.IsVisible;
     public bool IsDialogOpen => DialogOverlay.IsVisible;
+    public string DialogMessageText => DialogBody.Text ?? "";
     public bool IsFocusMode => !Sidebar.IsVisible;
     public double CurrentSidebarWidth => Sidebar.Width;
     public double EditorFontSize => CodeEditor.FontSize;
@@ -1102,6 +1103,9 @@ public partial class MainWindow : Window
             actions.Add(("Afastar imagem", "Ctrl -", () => ZoomImage(-1)));
             actions.Add(("Ajustar imagem à área", "Ctrl 0", () => ZoomImage(0)));
             actions.Add(("Imagem no tamanho real", "Dois cliques", ImageView.ShowActualSize));
+            if (ImageView.IsAnimated)
+                actions.Insert(0, (ImageView.IsFinished ? "Repetir a animação" : ImageView.IsPaused ? "Continuar a animação" : "Pausar a animação",
+                    "botão ao lado das abas", ToggleAnimation));
             actions.Add(("Fechar aba", "Ctrl W", () => _ = CloseDocumentAsync(image)));
         }
         else if (ActiveDocument is { } active)
