@@ -6,7 +6,6 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using AvaloniaEdit.Search;
 using Sirius.Core;
 using Sirius.Editing;
 using Sirius.Theming;
@@ -40,7 +39,6 @@ public partial class MainWindow : Window
     private readonly TypographicColorizer _colorizer = new();
     private readonly GutterMargin _gutter;
     private readonly DispatcherTimer _statusTimer;
-    private readonly SearchPanel _search;
     private readonly ObservableCollection<SearchRow> _searchRows = new();
     private readonly DispatcherTimer _searchDelay;
     private readonly DispatcherTimer _redrawDelay;
@@ -79,7 +77,6 @@ public partial class MainWindow : Window
         area.LeftMargins.Insert(0, _gutter);
         area.TextView.LineTransformers.Add(_colorizer);
         area.Caret.PositionChanged += (_, _) => UpdateCaretPosition();
-        _search = SearchPanel.Install(CodeEditor);
 
         var options = CodeEditor.Options;
         options.AllowScrollBelowDocument = true;
@@ -116,6 +113,7 @@ public partial class MainWindow : Window
         InitializeDebug();
         InitializeEditing();
         InitializeSvg();
+        InitializeFind();
 
         CodeEditor.AddHandler(PointerWheelChangedEvent, OnEditorWheel, RoutingStrategies.Tunnel);
         ApplyEditorFontSize(_settings.EditorFontSize);
@@ -633,6 +631,7 @@ public partial class MainWindow : Window
         SaveSession();
         _gutter.SetLineMarks(null);
         SetChangeBlocks(null);
+        RefreshFindForDocument();
         _ = UpdateGitMarksAsync();
     }
 
@@ -799,6 +798,12 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             ClosePalette();
+            return;
+        }
+
+        if (HandleFindKey(e))
+        {
+            e.Handled = true;
             return;
         }
 
@@ -1148,7 +1153,10 @@ public partial class MainWindow : Window
             actions.Add(("Aumentar fonte do editor", "Ctrl +", () => SetEditorFontSize(EditorFontSize + 1)));
             actions.Add(("Diminuir fonte do editor", "Ctrl -", () => SetEditorFontSize(EditorFontSize - 1)));
             actions.Add(("Tamanho padrão da fonte", "Ctrl 0", () => SetEditorFontSize(EditorDefaultFontSize)));
-            actions.Add(("Procurar no arquivo", "Ctrl F", () => _search.Open()));
+            actions.Add(("Procurar no arquivo", "Ctrl F", () => OpenFind()));
+            actions.Add(("Substituir no arquivo", "Ctrl H", () => OpenFind(replace: true)));
+            actions.Add(("Próximo resultado", "F3", () => FindStep(1)));
+            actions.Add(("Resultado anterior", "Shift F3", () => FindStep(-1)));
             actions.Add(("Fechar aba", "Ctrl W", () => _ = CloseDocumentAsync(active)));
         }
         commands.AddRange(actions.Where(a => a.Name.Contains(query, StringComparison.OrdinalIgnoreCase)));
@@ -1459,6 +1467,8 @@ public partial class MainWindow : Window
         DialogCard.BoxShadow = palette.PopShadow;
         SettingsCard.BoxShadow = palette.PopShadow;
         ColorCard.BoxShadow = palette.PopShadow;
+        FindBar.BoxShadow = palette.PopShadow;
+        UpdateFindStatus();
         CodeEditor.TextArea.SelectionBrush = palette.Selection;
         CodeEditor.TextArea.SelectionBorder = null;
         CodeEditor.TextArea.Caret.CaretBrush = palette.Accent;

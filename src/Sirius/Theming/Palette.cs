@@ -23,6 +23,9 @@ public sealed record Palette(
     public required IBrush TerminalWarning { get; init; }
     public required IBrush CheckerLight { get; init; }
     public required IBrush CheckerDark { get; init; }
+    // Os resultados da busca no arquivo: fundo leve e contorno no tom do destaque, sem laranja.
+    public required IBrush FindMatch { get; init; }
+    public required IBrush FindMatchBorder { get; init; }
 
     public static readonly Palette Claro = new(
         "claro", ThemeVariant.Light,
@@ -43,6 +46,8 @@ public sealed record Palette(
         TerminalWarning = B("#F5C65B"),
         CheckerLight = B("#FFFFFF"),
         CheckerDark = B("#DFE1E5"),
+        FindMatch = B("#1A3F5F8F"),
+        FindMatchBorder = B("#993F5F8F"),
     };
 
     public static readonly Palette Grafite = new(
@@ -65,6 +70,8 @@ public sealed record Palette(
         TerminalWarning = B("#5F4300"),
         CheckerLight = B("#3A3D44"),
         CheckerDark = B("#2C2F35"),
+        FindMatch = B("#1F9DB8E0"),
+        FindMatchBorder = B("#999DB8E0"),
     };
 
     public static Palette Current { get; private set; } = Claro;

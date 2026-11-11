@@ -429,6 +429,55 @@
                                 </Grid>
                             </Border>
 
+                            <!-- Procurar e substituir no arquivo (Ctrl F, Ctrl H, F3), como a caixa do VS Code. -->
+                            <Border x:Name="FindBar" IsVisible="False" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,22,0" Width="500"
+                                    CornerRadius="12" Background="{DynamicResource Pop}" BorderBrush="{DynamicResource Tint}" BorderThickness="1">
+                                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" Margin="4,6,8,6">
+                                    <Button x:Name="FindExpand" Classes="flat" Width="18" Height="28" MinHeight="0" Margin="0,0,4,0" CornerRadius="6" VerticalAlignment="Top"
+                                            HorizontalContentAlignment="Center" VerticalContentAlignment="Top" Click="OnFindExpand"
+                                            AutomationProperties.Name="Mostrar ou esconder o substituir" ToolTip.Tip="Substituir (Ctrl H)">
+                                        <Path x:Name="FindExpandIcon" Margin="0,10,0,0" Stroke="{DynamicResource Muted}" StrokeThickness="1.3" Data="M0 0L4 4L0 8" />
+                                    </Button>
+                                    <Grid Grid.Column="1" ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+                                        <Border Height="28" CornerRadius="14" Background="{DynamicResource Tint}">
+                                            <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="11,0,3,0">
+                                                <TextBox x:Name="FindInput" Classes="bare" PlaceholderText="Procurar" FontSize="13"
+                                                         Foreground="{DynamicResource Ink}" AutomationProperties.Name="Procurar no arquivo" />
+                                                <Button x:Name="FindCaseButton" Grid.Column="1" Classes="flat option" Content="Aa" Click="OnFindToggleCase"
+                                                        AutomationProperties.Name="Diferenciar maiúsculas" ToolTip.Tip="Diferenciar maiúsculas (Alt C)" />
+                                                <Button x:Name="FindWordButton" Grid.Column="2" Classes="flat option" Click="OnFindToggleWord"
+                                                        AutomationProperties.Name="Só a palavra inteira" ToolTip.Tip="Só a palavra inteira (Alt W)">
+                                                    <TextBlock Text="ab" TextDecorations="Underline" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Button>
+                                                <Button x:Name="FindRegexButton" Grid.Column="3" Classes="flat option" Content=".*" Click="OnFindToggleRegex"
+                                                        AutomationProperties.Name="Usar expressão regular" ToolTip.Tip="Usar expressão regular (Alt R)" />
+                                            </Grid>
+                                        </Border>
+                                        <TextBlock x:Name="FindCount" Grid.Column="1" MinWidth="96" Margin="10,0,6,0" FontSize="12" Foreground="{DynamicResource Muted}"
+                                                   VerticalAlignment="Center" />
+                                        <Button Grid.Column="2" Classes="flat option" Click="OnFindPrevious" AutomationProperties.Name="Resultado anterior" ToolTip.Tip="Resultado anterior (Shift F3)">
+                                            <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.3" Data="M0 4L4 0L8 4" />
+                                        </Button>
+                                        <Button Grid.Column="3" Classes="flat option" Click="OnFindNext" AutomationProperties.Name="Próximo resultado" ToolTip.Tip="Próximo resultado (F3 ou Enter)">
+                                            <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.3" Data="M0 0L4 4L8 0" />
+                                        </Button>
+                                        <Button Grid.Column="4" Classes="flat option" Margin="2,0,0,0" Click="OnFindClose" AutomationProperties.Name="Fechar busca no arquivo" ToolTip.Tip="Fechar (Esc)">
+                                            <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M0 0L8 8M8 0L0 8" />
+                                        </Button>
+                                    </Grid>
+                                    <Grid x:Name="FindReplaceRow" Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto,Auto" Margin="0,6,0,0" IsVisible="False">
+                                        <Border Height="28" CornerRadius="14" Background="{DynamicResource Tint}">
+                                            <TextBox x:Name="FindReplaceInput" Classes="bare" Margin="11,0" PlaceholderText="Substituir por" FontSize="13"
+                                                     Foreground="{DynamicResource Ink}" AutomationProperties.Name="Substituir por" />
+                                        </Border>
+                                        <Button x:Name="FindReplaceOneButton" Grid.Column="1" Classes="secondary conflict" Margin="8,0,0,0" Content="Substituir" Click="OnFindReplaceOne"
+                                                ToolTip.Tip="Troca o resultado atual e vai para o próximo (Enter)" />
+                                        <Button x:Name="FindReplaceAllButton" Grid.Column="2" Classes="secondary conflict" Margin="6,0,0,0" Content="Substituir tudo" Click="OnFindReplaceAll"
+                                                ToolTip.Tip="Troca todos de uma vez (Ctrl Alt Enter). Um Ctrl Z desfaz tudo." />
+                                    </Grid>
+                                </Grid>
+                            </Border>
+
                             <!-- Aba de imagem -->
                             <Panel x:Name="ImageHost" IsVisible="False">
                                 <e:ImagePreview x:Name="ImageView" Focusable="True" ClipToBounds="True" AutomationProperties.Name="Imagem" />
