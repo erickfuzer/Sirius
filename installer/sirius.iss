@@ -43,6 +43,8 @@ ChangesAssociations=no
 ; Com "yes", o instalador silencioso desistia sozinho e a atualização não terminava.
 CloseApplications=force
 RestartApplications=no
+; Um "Setup Log" na pasta temporária, para entender uma atualização que não termina.
+SetupLogging=yes
 
 [Languages]
 Name: "ptbr"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
@@ -88,6 +90,31 @@ var
 function ShouldRelaunch: Boolean;
 begin
   Result := WizardSilent and (ExpandConstant('{param:relaunch|0}') = '1');
+end;
+
+// As pontes do Claude Code (Sirius.exe --mcp) abertas pelo app do Claude: o Restart Manager atribui as dlls
+// delas ao "System", conclui que precisaria reiniciar o Windows e não fecha nada, nem com force. Por isso o
+// instalador as encerra antes, pelo caminho e pelo --mcp, sem tocar em nenhuma janela da Sirius.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Exe, Command: String;
+  Code: Integer;
+begin
+  Result := '';
+  try
+    Exe := ExpandConstant('{app}\Sirius.exe');
+  except
+    exit;
+  end;
+  if not FileExists(Exe) then
+    exit;
+  StringChangeEx(Exe, '''', '''''', True);
+  Command := '-NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq ''' + Exe +
+    ''' -and $_.CommandLine -like ''*--mcp*'' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force; Write-Output $_.ProcessId }; Start-Sleep -Milliseconds 500"';
+  if Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Command, '', SW_HIDE, ewWaitUntilTerminated, Code) then
+    Log(Format('Pontes do Claude Code encerradas (código %d)', [Code]))
+  else
+    Log(Format('Não deu para encerrar as pontes: %d', [Code]));
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
