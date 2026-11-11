@@ -39,7 +39,9 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 ChangesAssociations=no
-CloseApplications=yes
+; force: o Claude Code conectado deixa um Sirius.exe --mcp aberto, sem janela para fechar com educação.
+; Com "yes", o instalador silencioso desistia sozinho e a atualização não terminava.
+CloseApplications=force
 RestartApplications=no
 
 [Languages]
@@ -80,7 +82,42 @@ Filename: "{app}\Sirius.exe"; Description: "{cm:LaunchProgram,Sirius}"; Flags: n
 Filename: "{app}\Sirius.exe"; Flags: nowait; Check: ShouldRelaunch
 
 [Code]
+var
+  Finished: Boolean;
+
 function ShouldRelaunch: Boolean;
 begin
   Result := WizardSilent and (ExpandConstant('{param:relaunch|0}') = '1');
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssDone then
+    Finished := True;
+end;
+
+// A atualização que não termina não pode deixar a pessoa sem a Sirius: abre de novo a que já estava instalada.
+procedure DeinitializeSetup();
+var
+  App: String;
+  Code: Integer;
+begin
+  Log(Format('Reabrir a Sirius? terminou=%d, reabrir=%d', [Ord(Finished), Ord(ShouldRelaunch)]));
+  if Finished or not ShouldRelaunch then
+    exit;
+  try
+    App := ExpandConstant('{app}\Sirius.exe');
+  except
+    Log('Sem a pasta da instalação: ' + GetExceptionMessage);
+    exit;
+  end;
+  if FileExists(App) then
+  begin
+    if ShellExec('', App, '', '', SW_SHOWNORMAL, ewNoWait, Code) then
+      Log('Reaberta: ' + App)
+    else
+      Log(Format('Não reabriu %s: %d', [App, Code]));
+  end
+  else
+    Log('Não existe: ' + App);
 end;
