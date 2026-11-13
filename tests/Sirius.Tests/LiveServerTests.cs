@@ -173,6 +173,15 @@ public class LiveServerTests
                         c.Response.ContentType = "text/css";
                         body = "a{}";
                     }
+                    else if (path == "/guardado.css")
+                    {
+                        // Como um servidor que manda o navegador guardar o arquivo por uma hora.
+                        c.Response.ContentType = "text/css";
+                        c.Response.Headers["Cache-Control"] = "max-age=3600";
+                        c.Response.Headers["Expires"] = DateTime.UtcNow.AddHours(1).ToString("R");
+                        c.Response.Headers["ETag"] = "\"v1\"";
+                        body = "b{}";
+                    }
                     else if (path == "/envio")
                     {
                         c.Response.ContentType = "text/html; charset=utf-8";
@@ -250,6 +259,23 @@ public class LiveServerTests
         var (_, body, _) = await Get(server.Origin + "/estilo.css");
 
         Assert.Equal("a{}", body);
+    }
+
+    // O caso do dono: o Apache manda o CSS sem Cache-Control, o navegador o guarda e um F5 mostrava o velho.
+    [Fact]
+    public async Task Pela_Sirius_o_navegador_sempre_confere_o_css_de_novo()
+    {
+        using var site = new FakeSite();
+        using var server = new LiveServer { Upstream = site.Origin };
+        server.Start(5600);
+
+        var (_, _, guardado) = await Get(server.Origin + "/guardado.css");
+        var (_, _, pagina) = await Get(server.Origin + "/pagina");
+
+        Assert.Equal("no-cache", guardado.Headers.CacheControl?.ToString());
+        Assert.Null(guardado.Content.Headers.Expires);
+        Assert.Equal("\"v1\"", guardado.Headers.ETag?.Tag);
+        Assert.Equal("no-cache", pagina.Headers.CacheControl?.ToString());
     }
 
     [Fact]
@@ -496,6 +522,24 @@ public class LiveServerTests
 
         Assert.Equal([window.BrowserServer!.Origin + "/trabalho/"], opened);
         Assert.Equal("http://localhost:8099", window.BrowserServer.Upstream);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public void Sem_o_servidor_da_Sirius_o_Apache_abre_mas_avisa_que_nao_recarrega()
+    {
+        using var temp = new TempFolder();
+        var opened = new List<string>();
+        var window = Open(temp, "htdocs/trabalho/index.php", "<?php", opened);
+        window.FindApache = () => new ApacheSite("http://localhost:8099", Path.Combine(temp.Path, "htdocs"));
+        // Uma porta impossível: o servidor da Sirius não sobe.
+        window.BrowserServerFirstPort = 70000;
+
+        window.OpenInBrowser();
+
+        Assert.Equal(["http://localhost:8099/trabalho/"], opened);
+        Assert.Null(window.BrowserServer);
+        Assert.Contains("não conseguiu ligar a recarga", window.StatusText);
         window.Close();
     }
 

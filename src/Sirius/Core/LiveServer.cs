@@ -24,6 +24,12 @@ public sealed class LiveServer : IDisposable
         "TE", "Trailer", "Transfer-Encoding", "Upgrade", "Content-Length", "Host", "Accept-Encoding", "Expect",
     };
 
+    // O Apache manda o CSS sem dizer por quanto tempo vale, e o navegador o guarda: um F5 comum mostrava o CSS
+    // velho, e só o Ctrl F5 buscava de novo (visto no access.log do dono). Pela Sirius, tudo é conferido de novo
+    // a cada recarga; o ETag e o Last-Modified ficam, então o que não mudou volta com um 304 rápido.
+    private static readonly HashSet<string> CacheHeaders = new(StringComparer.OrdinalIgnoreCase)
+        { "Cache-Control", "Expires", "Pragma" };
+
     private const string Script = """
         (function () {
           if (window.__siriusRecarga) return;
@@ -110,13 +116,13 @@ public sealed class LiveServer : IDisposable
         for (var port = firstPort; port < firstPort + 100; port++)
         {
             var listener = new HttpListener();
-            listener.Prefixes.Add($"http://localhost:{port}/");
-            listener.Prefixes.Add($"http://127.0.0.1:{port}/");
             try
             {
+                listener.Prefixes.Add($"http://localhost:{port}/");
+                listener.Prefixes.Add($"http://127.0.0.1:{port}/");
                 listener.Start();
             }
-            catch (HttpListenerException)
+            catch (Exception e) when (e is HttpListenerException or ArgumentException)
             {
                 listener.Close();
                 continue;
@@ -207,9 +213,10 @@ public sealed class LiveServer : IDisposable
         {
             var outgoing = context.Response;
             outgoing.StatusCode = (int)response.StatusCode;
+            outgoing.Headers["Cache-Control"] = "no-cache";
             foreach (var header in response.Headers.Concat(response.Content.Headers))
             {
-                if (HopHeaders.Contains(header.Key))
+                if (HopHeaders.Contains(header.Key) || CacheHeaders.Contains(header.Key))
                     continue;
                 foreach (var value in header.Value)
                 {

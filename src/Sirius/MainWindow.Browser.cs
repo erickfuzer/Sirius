@@ -73,35 +73,49 @@ public partial class MainWindow
         }
 
         bool opened;
+        var live = false;
         if (!_settings.LiveReload)
             opened = OpenUrl(target.Upstream is { } upstream ? upstream + target.Path : new Uri(document.FullPath).AbsoluteUri);
         else
-            opened = OpenThroughBrowserServer(target.Upstream, target.StaticRoot, target.Path, RootFolder ?? Path.GetDirectoryName(document.FullPath));
+            opened = OpenThroughBrowserServer(target.Upstream, target.StaticRoot, target.Path, RootFolder ?? Path.GetDirectoryName(document.FullPath), out live);
 
         if (!opened)
-            ShowStatus("Não foi possível abrir o navegador.");
+            ShowStatus(_settings.LiveReload && !live ? BrowserServerFailed : "Não foi possível abrir o navegador.");
+        else if (_settings.LiveReload && !live)
+            ShowStatus(BrowserServerFailed);
         else if (document.IsDirty)
             ShowStatus("O navegador mostra o que está salvo. Salve com Ctrl S para ver as mudanças.");
         else if (_settings.LiveReload)
             ShowStatus("Aberto no navegador. A página recarrega quando você salvar.");
     }
 
-    private bool OpenThroughBrowserServer(string? upstream, string? staticRoot, string path, string? watch)
+    private const string BrowserServerFailed = "A Sirius não conseguiu ligar a recarga: a página abriu sem recarregar sozinha.";
+
+    // Trocado nos testes, para simular uma porta que não abre.
+    public int BrowserServerFirstPort { get; set; } = LiveServer.FirstPort;
+
+    private bool OpenThroughBrowserServer(string? upstream, string? staticRoot, string path, string? watch) =>
+        OpenThroughBrowserServer(upstream, staticRoot, path, watch, out _);
+
+    // live diz se a página abriu pela Sirius, com recarga. Sem o servidor, só dá para abrir o servidor de verdade.
+    private bool OpenThroughBrowserServer(string? upstream, string? staticRoot, string path, string? watch, out bool live)
     {
+        live = false;
         if (_browserServer is null)
         {
             var server = new LiveServer();
             try
             {
-                server.Start();
+                server.Start(BrowserServerFirstPort);
             }
-            catch (InvalidOperationException)
+            catch (Exception e) when (e is InvalidOperationException or System.Net.HttpListenerException or PlatformNotSupportedException)
             {
                 server.Dispose();
                 return upstream is not null && OpenUrl(upstream + path);
             }
             _browserServer = server;
         }
+        live = true;
         _browserServer.Upstream = upstream;
         _browserServer.StaticRoot = staticRoot;
         _browserServer.Watch(watch);
