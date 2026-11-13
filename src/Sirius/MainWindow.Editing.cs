@@ -221,6 +221,8 @@ public partial class MainWindow
         // Só num trecho que mudou desde o último commit. O mesmo da faixa colorida na margem.
         var changeBefore = Item("Ver como era antes", ShowChangeNearCaret);
         var changeRevert = Item("Desfazer as mudanças da seleção", RevertSelectedChanges);
+        // Só em .html e .php. O mesmo do botão Navegador, ao lado das abas.
+        var browser = Item("Abrir no navegador", OpenInBrowser);
 
         var menu = new ContextMenu();
         menu.Items.Add(cut);
@@ -235,6 +237,7 @@ public partial class MainWindow
         menu.Items.Add(uses);
         menu.Items.Add(rename);
         menu.Items.Add(goToLine);
+        menu.Items.Add(browser);
         menu.Items.Add(condition);
         menu.Items.Add(watch);
         var changeSeparator = new Separator();
@@ -258,6 +261,7 @@ public partial class MainWindow
             emmet.IsVisible = CanUseEmmet;
             emmet.IsEnabled = CanEditText;
             condition.IsVisible = CanSetBreakpointHere;
+            browser.IsVisible = CanOpenInBrowser;
             watch.IsVisible = IsDebugging && hasSelection;
             var changes = ChangesInSelection();
             changeSeparator.IsVisible = changes.Count > 0;

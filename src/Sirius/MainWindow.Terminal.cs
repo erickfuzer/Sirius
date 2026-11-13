@@ -265,6 +265,7 @@ public partial class MainWindow
         session.Begin();
         UpdateRunButton();
         ShowSession(session);
+        BrowserServerMayHaveChanged();
     }
 
     private void OnTaskExited(TerminalSession session, int code)
@@ -332,9 +333,15 @@ public partial class MainWindow
 
     private void OnOpenSite(object? sender, RoutedEventArgs e) => OpenSite();
 
+    // Com a recarga ligada, o site abre pelo servidor da Sirius, que repassa ao do Executar.
     public void OpenSite()
     {
-        if (RunningSiteUrl is { } url && !OpenUrl(url))
+        if (RunningSiteUrl is not { } url)
+            return;
+        var opened = _settings.LiveReload && RunDetector.SiteUrl(_taskCommand) is { } site
+            ? OpenThroughBrowserServer(site, null, new Uri(url).PathAndQuery, WorkingFolder())
+            : OpenUrl(url);
+        if (!opened)
             ShowStatus("Não foi possível abrir o navegador.");
     }
 
@@ -389,6 +396,7 @@ public partial class MainWindow
     {
         base.OnClosed(e);
         StopMcpHost();
+        StopBrowserServer();
         SaveSession();
         StopWatching();
         StopAllSessions();

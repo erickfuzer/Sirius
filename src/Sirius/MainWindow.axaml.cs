@@ -1070,7 +1070,10 @@ public partial class MainWindow : Window
             ("Conectar o Claude Code à Sirius", "Configurações", () => OpenSettings("claude")),
             ("Quebrar linhas longas", (_settings.WordWrap ? "Ligado" : "Desligado") + " · Alt Z", ToggleWordWrap),
             ("Salvar sozinho", _settings.AutoSave ? "Ligado" : "Desligado", () => ChangeSetting(_settings.AutoSave ? "autosalvar:nao" : "autosalvar:sim")),
+            ("Recarregar o navegador ao salvar", _settings.LiveReload ? "Ligado" : "Desligado", () => ChangeSetting(_settings.LiveReload ? "recarga:nao" : "recarga:sim")),
         };
+        if (CanOpenInBrowser)
+            actions.Insert(0, ("Abrir no navegador", _settings.LiveReload ? "recarrega ao salvar" : "", OpenInBrowser));
         if (OtherRecentFolders().Count > 0)
             actions.Insert(1, ("Abrir pasta recente", "", OpenRecentFolders));
         if (RootFolder is not null)

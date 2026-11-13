@@ -80,6 +80,7 @@ public partial class MainWindow
         ImageHost.IsVisible = image && !IsDiffOpen;
         UpdateSvgPane();
         UpdateAnimationToggle();
+        UpdateBrowserButton();
     }
 
     private void FocusActiveDocument()

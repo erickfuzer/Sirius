@@ -351,7 +351,7 @@
                 <!-- Folha do editor -->
                 <Border x:Name="SheetBorder" Grid.Column="2" Background="{DynamicResource Sheet}" CornerRadius="12" ClipToBounds="True">
                     <Grid RowDefinitions="Auto,*">
-                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" MinHeight="34" Margin="6,2,14,0">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto" MinHeight="34" Margin="6,2,14,0">
                             <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                                 <ItemsControl x:Name="TabList">
                                     <ItemsControl.ItemsPanel>
@@ -383,6 +383,10 @@
                             <!-- Num GIF ou WebP animado: parar num quadro para olhar com calma. -->
                             <Button x:Name="AnimationToggle" Grid.Column="3" Classes="flat segment" Height="24" Padding="9,0" Margin="10,0,0,0" FontSize="12"
                                     Content="Pausar" IsVisible="False" Click="OnAnimationToggle" ToolTip.Tip="Pausar ou continuar a animação" />
+                            <!-- Num .html ou .php: a página no navegador, que recarrega ao salvar, como o Live Server. -->
+                            <Button x:Name="BrowserButton" Grid.Column="4" Classes="flat segment" Height="24" Padding="9,0" Margin="10,0,0,0" FontSize="12"
+                                    Content="Navegador" IsVisible="False" Click="OnBrowserButton"
+                                    ToolTip.Tip="Abrir no navegador. A página recarrega quando você salvar um arquivo do projeto." />
                         </Grid>
 
                         <Panel x:Name="SheetHost" Grid.Row="1">
@@ -886,6 +890,17 @@
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
                                             <Button x:Name="SettingAutoSaveOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Ligado" Tag="autosalvar:sim" Click="OnSettingClick" />
                                             <Button x:Name="SettingAutoSaveOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desligado" Tag="autosalvar:nao" Click="OnSettingClick" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <Border Height="1" Background="{DynamicResource Tint}" />
+                                    <Grid ColumnDefinitions="*,Auto" MinHeight="40" Margin="0,7,6,7">
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                                            <TextBlock Text="Recarregar o navegador ao salvar" FontWeight="Medium" />
+                                            <TextBlock Text="A página aberta pelo botão Navegador se atualiza quando um arquivo do projeto muda, como o Live Server do VS Code." FontSize="12" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                            <Button x:Name="SettingLiveReloadOn" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Ligado" Tag="recarga:sim" Click="OnSettingClick" />
+                                            <Button x:Name="SettingLiveReloadOff" Classes="flat segment" Height="26" Padding="10,0" FontSize="12" Content="Desligado" Tag="recarga:nao" Click="OnSettingClick" />
                                         </StackPanel>
                                     </Grid>
                                     <Border Height="1" Background="{DynamicResource Tint}" />

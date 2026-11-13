@@ -31,6 +31,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 - **Abrir de fora:** arraste arquivos ou pastas do Explorer para a janela, ou clique com o botão direito neles e use "Abrir com Sirius". Isso vale para código, texto, imagens e pastas. Com a Sirius já aberta, o arquivo vira uma aba da mesma janela, mesmo vários de uma vez, e a pasta abre uma janela nova
 - **Barra de comando:** <kbd>Ctrl</kbd> + <kbd>K</kbd> encontra arquivos e executa ações sem tirar a mão do teclado
 - **Projeto:** árvore de arquivos para criar, renomear e excluir, com busca e substituição em todo o projeto. Um arquivo aberto que for renomeado ou movido no Explorer continua na aba, com o nome novo, e o Git o mostra como renomeado. Cada arquivo tem o ícone da sua linguagem, como no VS Code, na árvore, nas abas, na busca, no Git e na barra de comando, e as pastas conhecidas, como `css`, `js`, `img` e `includes`, têm o seu, aberto ou fechado
+- **Navegador que recarrega sozinho:** como o Live Server do VS Code, o botão Navegador, ao lado das abas de `.html` e `.php`, abre a página no navegador, e ela se atualiza quando você salva um arquivo do projeto, pela Sirius ou pelo Claude Code. Mudou só o CSS? O estilo troca sem recarregar, e a rolagem e o que foi digitado ficam. A página vem do servidor do Executar, do Apache, quando a pasta está dentro dele, ou da própria Sirius, num projeto só de HTML, sem precisar de PHP
 - **Terminal integrado:** a cápsula flutuante se abre em um terminal completo. O botão Executar detecta o comando do projeto, e os erros da saída são clicáveis. Em PHP, ele sobe o servidor e oferece abrir o site no navegador, ou o arquivo em uso em pastas sem `index.php`. Se o computador não tiver PHP, oferece a instalação
 - **Depuração de PHP:** clique na margem para marcar uma linha, execute e abra a página. A Sirius para ali e mostra o valor de cada variável, inclusive `$_POST` e `$_GET`, também ao parar o mouse sobre ela, além do que a página já escreveu. Você avança linha por linha, entra nas funções e vê a pilha de chamadas: clicar em quem chamou leva àquela linha e mostra as variáveis de lá. Um ponto pode parar só quando uma condição for verdadeira, como `$i == 5` (botão direito no ponto), e "Vigiar expressão" acompanha valores como `$total * 2` a cada parada. Páginas abertas pelo Apache também param, por "Depurar páginas do servidor" na barra de comando: a cápsula mostra "Ouvindo o servidor", e a escuta continua ligada, mesmo depois de fechar e abrir a Sirius, até você pedir para parar. O Xdebug é baixado na primeira vez, se você aceitar
 - **Inteligência de código:** autocompletar, erros no código, ir para a definição, encontrar todos os usos, dicas e renomear símbolo. Se faltar o suporte a uma linguagem, a própria IDE oferece a instalação
@@ -90,6 +91,8 @@ A interface é desenhada pelo [Avalonia](https://avaloniaui.net), sem navegador 
 O terminal roda no ConPTY, o mesmo mecanismo de terminal do próprio Windows. A inteligência de código conversa com servidores de linguagem pelo protocolo LSP: quando falta o servidor de um arquivo aberto, a cápsula oferece a instalação. Os de PHP, HTML, CSS, JavaScript, TypeScript e Python vêm pelo `npm`, e a Sirius instala o Node.js antes, se faltar. O de C# vem pelo `dotnet tool` e precisa do SDK do .NET. Go, Rust e C++ funcionam se `gopls`, `rust-analyzer` ou `clangd` estiverem instalados. O Git é o seu próprio `git`, sem biblioteca no meio.
 
 A depuração de PHP usa o [Xdebug](https://xdebug.org): a Sirius baixa o arquivo certo para o seu PHP, confere o código dele com uma lista fixa no programa e o liga só durante a execução, sem alterar o `php.ini`. Só para páginas de outro servidor, como o Apache, ele precisa ir no `php.ini`: a Sirius pede licença, guarda uma cópia do original e desfaz por "Desligar o Xdebug do php.ini". A conversa com o Xdebug fica dentro do computador.
+
+O botão Navegador abre a página por um pequeno servidor da Sirius em `localhost:5500`, que só aceita o próprio computador. Ele repassa cada pedido ao servidor de verdade (o do Executar ou o Apache, pela porta e pela pasta do `httpd.conf`), ou serve a pasta do projeto, e acrescenta no fim de cada página um script que escuta a Sirius. Seus arquivos não mudam.
 
 A única consulta que a Sirius faz por conta própria é perguntar à API pública do GitHub qual é a última versão, ao abrir e ao voltar para a janela, no máximo uma vez por hora. Ela não envia nada do seu projeto e pode ser desligada em "Aviso de versão nova", nas Configurações. O instalador só é baixado quando você clica em "Atualizar agora".
 
@@ -177,6 +180,11 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 - O suporte a C# precisa do SDK do .NET instalado, e o de Go, Rust e C++, do servidor da linguagem instalado à parte.
 - Dentro de `<script>` em arquivos HTML, as sugestões de JavaScript trazem só palavras-chave e os atalhos.
 - Encontrar os usos e formatar dependem do servidor de linguagem: em texto puro, a Sirius avisa que não estão disponíveis.
+
+**Navegador**
+- O Apache é encontrado só quando está ligado, e pela pasta principal do `httpd.conf`: projetos em um `VirtualHost` ou `Alias` não abrem por ele.
+- A recarga vale para a página aberta pelo botão Navegador ou pelo Abrir site. Um link que leva a outro endereço, como `localhost/pasta` digitado à mão, abre sem recarga.
+- Arquivos de dados e imagens, como `.json` ou uma foto enviada pelo formulário, não recarregam a página, para não recarregar sem parar.
 
 **Claude Code**
 - A conexão só lê: o Claude não marca pontos de parada nem avança a depuração pela Sirius.

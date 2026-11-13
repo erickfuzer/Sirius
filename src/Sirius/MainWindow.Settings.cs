@@ -93,6 +93,13 @@ public partial class MainWindow
                 // Ligar já salva o que estava pendente, para tela e disco ficarem iguais desde agora.
                 AutoSaveNow();
                 break;
+            case "recarga":
+                _settings.LiveReload = value == "sim";
+                _settings.Save(_settingsPath);
+                // Desligado, as páginas param de ouvir a Sirius, e o Navegador passa a abrir o endereço direto.
+                if (!_settings.LiveReload)
+                    StopBrowserServer();
+                break;
             case "svg":
                 if ((value == "sim") != _settings.SvgPreview)
                     ToggleSvgPreview();
@@ -203,6 +210,8 @@ public partial class MainWindow
         On(SettingWrapOff, !_settings.WordWrap);
         On(SettingAutoSaveOn, _settings.AutoSave);
         On(SettingAutoSaveOff, !_settings.AutoSave);
+        On(SettingLiveReloadOn, _settings.LiveReload);
+        On(SettingLiveReloadOff, !_settings.LiveReload);
         On(SettingSvgOn, _settings.SvgPreview);
         On(SettingSvgOff, !_settings.SvgPreview);
 

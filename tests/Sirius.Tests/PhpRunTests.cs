@@ -201,6 +201,13 @@ public class PhpRunTests
         await Until(() => window.IsOpenSiteVisible);
         Assert.Contains("Abrir site no navegador", window.PaletteCommandNames("site"));
 
+        // Com a recarga ligada, de fábrica, o site abre pela Sirius, que repassa ao servidor do Executar.
+        window.OpenSite();
+        Assert.Equal([window.BrowserServer!.Origin + "/"], opened);
+        Assert.Equal("http://localhost:8123", window.BrowserServer.Upstream);
+
+        await window.ChangeSettingAsync("recarga:nao");
+        opened.Clear();
         window.OpenSite();
         Assert.Equal(["http://localhost:8123"], opened);
 

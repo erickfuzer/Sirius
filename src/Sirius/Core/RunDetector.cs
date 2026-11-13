@@ -150,6 +150,20 @@ public static partial class RunDetector
         return $"{site}/{string.Join('/', parts)}";
     }
 
+    // A pasta que o servidor do PHP mostra: a do projeto, ou a do -t, como em php -S localhost:8000 -t public.
+    public static string ServedRoot(string command, string folder)
+    {
+        if (DocumentFolder().Match(command) is { Success: true } match)
+        {
+            var value = match.Groups["quoted"].Success ? match.Groups["quoted"].Value : match.Groups["plain"].Value;
+            return Path.GetFullPath(Path.Combine(folder, value));
+        }
+        return folder;
+    }
+
+    [GeneratedRegex(@"\s-t\s+(?:""(?<quoted>[^""]+)""|(?<plain>\S+))", RegexOptions.IgnoreCase)]
+    private static partial Regex DocumentFolder();
+
     public static bool IsPhp(string file) => string.Equals(Path.GetExtension(file), ".php", StringComparison.OrdinalIgnoreCase);
 
     private static string? RelativeInside(string root, string file)
