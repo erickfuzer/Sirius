@@ -34,6 +34,10 @@ public sealed record LspLocation(string Path, int Line, int Character);
 // Um uso de um nome, com linha e caractere a partir de zero, como o servidor manda.
 public sealed record LspReference(string Path, int Line, int Character, int EndLine, int EndCharacter);
 
+// Um nome do arquivo para a lista "Ir para…": função, classe, seletor do CSS ou tag do HTML. Depth é o quanto
+// está dentro de outro (um método dentro da classe), e Container, o nome de quem o contém.
+public sealed record LspSymbol(string Name, string? Detail, int Kind, int Line, int Character, int Depth, string? Container);
+
 public sealed record LspTextEdit(int StartLine, int StartCharacter, int EndLine, int EndCharacter, string NewText);
 
 // Lê as respostas do servidor, que aceitam vários formatos pela especificação.
@@ -167,6 +171,48 @@ public static partial class LspParsers
             }
         }
         return references;
+    }
+
+    // A resposta de "documentSymbol" vem em árvore (DocumentSymbol, com children) ou em lista (SymbolInformation,
+    // com location e containerName), conforme o servidor. Sai sempre uma lista na ordem do arquivo.
+    public static List<LspSymbol> DocumentSymbols(JsonElement result)
+    {
+        var symbols = new List<LspSymbol>();
+        if (result.ValueKind != JsonValueKind.Array)
+            return symbols;
+
+        void Walk(JsonElement items, int depth, string? container)
+        {
+            foreach (var item in items.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("name", out var nameElement)
+                    || nameElement.GetString() is not { Length: > 0 } name)
+                    continue;
+                var kind = item.TryGetProperty("kind", out var kindElement) && kindElement.TryGetInt32(out var k) ? k : 0;
+                var detail = item.TryGetProperty("detail", out var detailElement) && detailElement.ValueKind == JsonValueKind.String
+                    ? detailElement.GetString() : null;
+
+                if (item.TryGetProperty("location", out var location) && location.ValueKind == JsonValueKind.Object)
+                {
+                    if (!TryRange(location, "range", out var place))
+                        continue;
+                    var parent = item.TryGetProperty("containerName", out var containerElement) && containerElement.ValueKind == JsonValueKind.String
+                        ? containerElement.GetString() : null;
+                    symbols.Add(new LspSymbol(name, detail, kind, place.StartLine, place.StartCharacter, string.IsNullOrEmpty(parent) ? 0 : 1, parent));
+                    continue;
+                }
+
+                // O selectionRange é o próprio nome; o range pega o corpo inteiro.
+                if (!TryRange(item, "selectionRange", out var range) && !TryRange(item, "range", out range))
+                    continue;
+                symbols.Add(new LspSymbol(name, detail, kind, range.StartLine, range.StartCharacter, depth, container));
+                if (item.TryGetProperty("children", out var children) && children.ValueKind == JsonValueKind.Array)
+                    Walk(children, depth + 1, name);
+            }
+        }
+
+        Walk(result, 0, null);
+        return symbols.OrderBy(s => s.Line).ThenBy(s => s.Character).ToList();
     }
 
     public static string? Hover(JsonElement result)

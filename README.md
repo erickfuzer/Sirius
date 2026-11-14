@@ -24,6 +24,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 
 - **Editor:** abas, sintaxe colorida para dezenas de linguagens, zoom, temas claro e grafite, modo foco e quebra de linha. Aspas, parênteses, chaves e tags de HTML se fecham enquanto você digita
 - **Procurar e substituir no arquivo:** como no VS Code, <kbd>Ctrl</kbd> <kbd>F</kbd> abre uma barra com a palavra sob o cursor, conta os resultados ("2 de 5") e marca todos no código, e <kbd>F3</kbd> e <kbd>Shift</kbd> <kbd>F3</kbd> andam por eles. Dá para diferenciar maiúsculas, procurar só a palavra inteira ou usar expressão regular. <kbd>Ctrl</kbd> <kbd>H</kbd> mostra o substituir, um por um ou tudo de uma vez, e um <kbd>Ctrl</kbd> <kbd>Z</kbd> desfaz a troca inteira
+- **Ir para uma função ou seletor:** como o <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>O</kbd> do VS Code, a lista das funções, classes e variáveis de um PHP, dos seletores de um CSS e das tags de um HTML, com o tipo e a linha. Digite um pedaço do nome para filtrar e <kbd>Enter</kbd> leva até ele. Também pelo botão direito ou com `@` na barra de comando
 - **Edição do dia a dia:** comentar linhas, duplicar e mover linhas, ir para uma linha e formatar o arquivo inteiro, pelo teclado, pela barra de comando ou pelo botão direito do mouse no editor
 - **Cores do CSS:** um quadradinho mostra cada cor no código, e clicar nele abre um seletor que altera o texto na hora. Funciona em CSS, SCSS, Sass e Less, e dentro de `<style>` e `style="..."` em HTML e PHP
 - **Emmet e atalhos:** como no VS Code, tudo aparece na lista de sugestões com a prévia do que vai entrar, e <kbd>Enter</kbd>, <kbd>Tab</kbd> ou um clique aceitam. Em HTML e PHP, `div.cartao>h2+p` vira o HTML pronto, `!` cria a página inicial, e as abreviações oficiais, como `!!!`, `a:link` e `input:email`, também valem. Em CSS, SCSS, Sass, Less, dentro de `<style>` e no `style="..."` de uma tag, `m10` vira `margin: 10px;` e `poa` vira `position: absolute;`. PHP, JavaScript, TypeScript, C#, C e C++ têm os atalhos de fábrica do VS Code, como `foreach` e `log`, e o Markdown também, pelo <kbd>Ctrl</kbd> <kbd>Espaço</kbd>. Depois de entrar, o <kbd>Tab</kbd> pula de campo em campo. Funciona sem instalar nada, e "Expandir Emmet" no botão direito também expande
@@ -156,6 +157,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 | <kbd>Shift</kbd> <kbd>Alt</kbd> <kbd>↓</kbd> e <kbd>Shift</kbd> <kbd>Alt</kbd> <kbd>↑</kbd> | Duplicar as linhas, com o cursor na cópia de baixo ou na de cima |
 | <kbd>Shift</kbd> <kbd>Alt</kbd> <kbd>F</kbd> | Formatar o arquivo |
 | <kbd>Ctrl</kbd> <kbd>G</kbd> ou clique em "Ln" na cápsula | Ir para uma linha |
+| <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>O</kbd> | Ir para uma função, classe, seletor ou tag do arquivo (ou `@` na barra de comando) |
 | <kbd>Alt</kbd> <kbd>Z</kbd> | Ligar ou desligar a quebra de linha |
 | <kbd>Tab</kbd> | Com a lista de sugestões aberta, aceitar a sugestão, como uma abreviação do Emmet. Depois, pular entre os campos, e <kbd>Shift</kbd> <kbd>Tab</kbd> volta. Sem a tecla, use "Expandir Emmet" no botão direito |
 
@@ -179,7 +181,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 **Inteligência de código**
 - O suporte a C# precisa do SDK do .NET instalado, e o de Go, Rust e C++, do servidor da linguagem instalado à parte.
 - Dentro de `<script>` em arquivos HTML, as sugestões de JavaScript trazem só palavras-chave e os atalhos.
-- Encontrar os usos e formatar dependem do servidor de linguagem: em texto puro, a Sirius avisa que não estão disponíveis.
+- Encontrar os usos, formatar e a lista de funções do arquivo dependem do servidor de linguagem: em texto puro, a Sirius avisa que não estão disponíveis.
 
 **Navegador**
 - O Apache é encontrado só quando está ligado, e pela pasta principal do `httpd.conf`: projetos em um `VirtualHost` ou `Alias` não abrem por ele.

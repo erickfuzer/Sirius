@@ -993,6 +993,10 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 await SaveAsync(ActiveDocument);
                 break;
+            case Key.O when e.KeyModifiers.HasFlag(KeyModifiers.Shift):
+                e.Handled = true;
+                OpenSymbols();
+                break;
             case Key.O:
                 e.Handled = true;
                 await PickFolderAsync();
@@ -1048,6 +1052,8 @@ public partial class MainWindow : Window
             return overrides.Where(item => item.Name.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
         if (LineCommands(query) is { } lineCommands)
             return lineCommands;
+        if (SymbolCommands(query) is { } symbolCommands)
+            return symbolCommands;
 
         var commands = new List<(string Name, string Hint, Action Run)>();
         _paletteFileCount = 0;
@@ -1158,6 +1164,7 @@ public partial class MainWindow : Window
             actions.Add(("Tamanho padrão da fonte", "Ctrl 0", () => SetEditorFontSize(EditorDefaultFontSize)));
             actions.Add(("Procurar no arquivo", "Ctrl F", () => OpenFind()));
             actions.Add(("Substituir no arquivo", "Ctrl H", () => OpenFind(replace: true)));
+            actions.Add(("Ir para função, classe ou seletor", "Ctrl Shift O, ou @ aqui", OpenSymbols));
             actions.Add(("Próximo resultado", "F3", () => FindStep(1)));
             actions.Add(("Resultado anterior", "Shift F3", () => FindStep(-1)));
             actions.Add(("Fechar aba", "Ctrl W", () => _ = CloseDocumentAsync(active)));

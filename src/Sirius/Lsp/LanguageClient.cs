@@ -25,6 +25,7 @@ public sealed class LanguageClient : IDisposable
     public bool SupportsRename { get; private set; }
     public bool SupportsFormatting { get; private set; }
     public bool SupportsReferences { get; private set; }
+    public bool SupportsDocumentSymbols { get; private set; }
 
     // Chegam na thread de leitura da conexão.
     public event Action<string, List<LspDiagnostic>>? DiagnosticsPublished;
@@ -53,6 +54,7 @@ public sealed class LanguageClient : IDisposable
                     rename = new { prepareSupport = false },
                     formatting = new { dynamicRegistration = false },
                     references = new { dynamicRegistration = false },
+                    documentSymbol = new { hierarchicalDocumentSymbolSupport = true },
                 },
                 workspace = new { workspaceFolders = true, configuration = true },
             },
@@ -75,6 +77,7 @@ public sealed class LanguageClient : IDisposable
         SupportsCompletion = IsEnabled(capabilities, "completionProvider");
         SupportsFormatting = IsEnabled(capabilities, "documentFormattingProvider");
         SupportsReferences = IsEnabled(capabilities, "referencesProvider");
+        SupportsDocumentSymbols = IsEnabled(capabilities, "documentSymbolProvider");
         if (capabilities.TryGetProperty("completionProvider", out var completion)
             && completion.ValueKind == JsonValueKind.Object
             && completion.TryGetProperty("triggerCharacters", out var triggers)
@@ -149,6 +152,13 @@ public sealed class LanguageClient : IDisposable
         };
         var result = await _connection.RequestAsync("textDocument/references", parameters, cancellation);
         return LspParsers.References(result);
+    }
+
+    // As funções, classes, seletores e tags do arquivo, para a lista "Ir para…".
+    public async Task<List<LspSymbol>> DocumentSymbolsAsync(string path, CancellationToken cancellation)
+    {
+        var result = await _connection.RequestAsync("textDocument/documentSymbol", new { textDocument = new { uri = LspParsers.ToUri(path) } }, cancellation);
+        return LspParsers.DocumentSymbols(result);
     }
 
     // As trocas que deixam o arquivo inteiro formatado, com o recuo que o editor usa.

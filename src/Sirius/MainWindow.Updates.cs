@@ -25,6 +25,7 @@ public partial class MainWindow
     public bool IsUpdateNoticeVisible => UpdateButton.IsVisible;
     public string StatusText => CapsuleStatus.Text ?? "";
     public IEnumerable<string> PaletteCommandNames(string query) => AllCommands(query).Select(command => command.Name);
+    public IEnumerable<(string Name, string Hint)> PaletteCommands(string query) => AllCommands(query).Select(command => (command.Name, command.Hint));
 
     // Chamado só pelo App, nunca pelo construtor: abrir uma janela nos testes não pode consultar a internet.
     public void StartUpdateChecks()

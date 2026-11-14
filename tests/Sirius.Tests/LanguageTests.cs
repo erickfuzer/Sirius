@@ -38,6 +38,7 @@ public sealed class FakeLanguageServer : IDisposable
     public Func<JsonElement, object?> Hover { get; set; } = _ => null;
     public Func<JsonElement, object?> Formatting { get; set; } = _ => null;
     public Func<JsonElement, object?> References { get; set; } = _ => null;
+    public Func<JsonElement, object?> DocumentSymbols { get; set; } = _ => Array.Empty<object>();
 
     public List<(string Method, JsonElement Parameters)> Notifications
     {
@@ -83,6 +84,7 @@ public sealed class FakeLanguageServer : IDisposable
         "textDocument/hover" => Hover(parameters),
         "textDocument/formatting" => Formatting(parameters),
         "textDocument/references" => References(parameters),
+        "textDocument/documentSymbol" => DocumentSymbols(parameters),
         _ => null,
     };
 
@@ -100,6 +102,7 @@ public sealed class FakeLanguageServer : IDisposable
                 renameProvider = true,
                 documentFormattingProvider = true,
                 referencesProvider = true,
+                documentSymbolProvider = true,
             },
         };
     }

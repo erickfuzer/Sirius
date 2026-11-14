@@ -212,6 +212,7 @@ public partial class MainWindow
         var uses = Item("Encontrar todos os usos", () => _ = FindUsesAsync(), "Shift+F12");
         var rename = Item("Renomear símbolo", () => _ = RenameSymbolAsync(), "F2");
         var goToLine = Item("Ir para a linha", OpenGoToLine, "Ctrl+G");
+        var goToSymbol = Item("Ir para função ou seletor", OpenSymbols, "Ctrl+Shift+O");
         // Só em PHP, onde há depuração. Também pelo botão direito no ponto vermelho.
         var condition = Item("Parar aqui só quando…", () => _ = EditBreakpointConditionAsync());
         // Durante a depuração: o texto selecionado, como $preco * $qtd, entra na lista das vigiadas.
@@ -237,6 +238,7 @@ public partial class MainWindow
         menu.Items.Add(uses);
         menu.Items.Add(rename);
         menu.Items.Add(goToLine);
+        menu.Items.Add(goToSymbol);
         menu.Items.Add(browser);
         menu.Items.Add(condition);
         menu.Items.Add(watch);
