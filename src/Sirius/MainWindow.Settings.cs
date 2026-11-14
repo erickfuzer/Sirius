@@ -16,7 +16,7 @@ public partial class MainWindow
 
     public bool IsSettingsOpen => SettingsOverlay.IsVisible;
     public bool AutoClosePairs => _settings.AutoClosePairs;
-    public string IndentationText => CodeEditor.Options.IndentationString;
+    public string IndentationText => CurrentEditor.Options.IndentationString;
     public string SettingsSection => _settingsSection;
 
     private void OnOpenSettings(object? sender, RoutedEventArgs e) => OpenSettings();
@@ -131,7 +131,7 @@ public partial class MainWindow
     // Recuo com espaços ou com Tab. O Tab ocupa 4 colunas na tela.
     private void ApplyIndentation()
     {
-        var options = CodeEditor.Options;
+        var options = CurrentEditor.Options;
         options.IndentationSize = _settings.IndentWithTabs ? 4 : Math.Clamp(_settings.IndentSize, 1, 8);
         options.ConvertTabsToSpaces = !_settings.IndentWithTabs;
     }

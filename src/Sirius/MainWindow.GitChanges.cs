@@ -27,12 +27,23 @@ public partial class MainWindow
 
     private void InitializeChangePeek()
     {
-        _gutter.ChangeMarkClicked += line => ShowChangeAt(line);
         ChangePeekEditor.TextArea.TextView.LineTransformers.Add(_changePeekColors);
         ChangePeekEditor.TextArea.TextView.BackgroundRenderers.Add(new DiffLineBackground(() => _changePeekKinds, false));
         ChangePeekEditor.Options.EnableHyperlinks = false;
-        CodeEditor.TextArea.TextView.ScrollOffsetChanged += (_, _) => PlaceChangePeek();
-        CodeEditor.TextArea.TextView.VisualLinesChanged += (_, _) => PlaceChangePeek();
+        foreach (var pane in _panes)
+        {
+            pane.Gutter.ChangeMarkClicked += line => ShowChangeAt(line);
+            pane.Editor.TextArea.TextView.ScrollOffsetChanged += (_, _) =>
+            {
+                if (pane == _pane)
+                    PlaceChangePeek();
+            };
+            pane.Editor.TextArea.TextView.VisualLinesChanged += (_, _) =>
+            {
+                if (pane == _pane)
+                    PlaceChangePeek();
+            };
+        }
     }
 
     // O texto do último commit de onde os trechos saíram, para colorir as linhas antigas como lá.
@@ -64,7 +75,7 @@ public partial class MainWindow
             ShowStatus("Nada mudou neste arquivo desde o último commit.");
             return;
         }
-        var line = CodeEditor.TextArea.Caret.Line;
+        var line = CurrentEditor.TextArea.Caret.Line;
         if (!ShowChangeAt(line))
             ShowChange(NextChangeIndex(line, 1));
     }
@@ -79,7 +90,7 @@ public partial class MainWindow
         if (_changePeekIndex is { } index)
             ShowChange((index + direction + _changeBlocks.Count) % _changeBlocks.Count);
         else
-            ShowChange(NextChangeIndex(CodeEditor.TextArea.Caret.Line, direction));
+            ShowChange(NextChangeIndex(CurrentEditor.TextArea.Caret.Line, direction));
     }
 
     // O primeiro trecho depois da linha, ou antes dela, dando a volta no arquivo como no VS Code.
@@ -125,25 +136,25 @@ public partial class MainWindow
             _changePeekKinds.Clear();
             _changePeekKinds.AddRange(Enumerable.Repeat(DiffRowKind.Changed, block.OldLines.Count));
             ChangePeekEditor.Document = peekDocument;
-            ChangePeekEditor.FontSize = CodeEditor.FontSize;
-            var lineHeight = CodeEditor.TextArea.TextView.DefaultLineHeight;
+            ChangePeekEditor.FontSize = CurrentEditor.FontSize;
+            var lineHeight = CurrentEditor.TextArea.TextView.DefaultLineHeight;
             ChangePeekEditor.MaxHeight = lineHeight * ChangePeekMaxLines + 8;
             ChangePeekEditor.IsVisible = true;
             ChangePeekNote.IsVisible = false;
         }
 
         // O trecho e o quadro abaixo dele precisam caber na tela.
-        var view = CodeEditor.TextArea.TextView;
+        var view = CurrentEditor.TextArea.TextView;
         var height = view.DefaultLineHeight;
         var peekHeight = 32 + (block.IsAdded ? 30 : Math.Min(block.OldLines.Count, ChangePeekMaxLines) * height + 10);
         var top = view.GetVisualTopByDocumentLine(Math.Max(1, block.IsDeleted ? block.MarkLine : block.First));
-        var bottom = view.GetVisualTopByDocumentLine(Math.Min(block.Last, CodeEditor.Document.LineCount)) + height + peekHeight;
+        var bottom = view.GetVisualTopByDocumentLine(Math.Min(block.Last, CurrentEditor.Document.LineCount)) + height + peekHeight;
         // A cápsula cobre o pé do editor.
         var visible = view.Bounds.Height - 60;
-        if (top < CodeEditor.VerticalOffset || bottom > CodeEditor.VerticalOffset + visible)
-            CodeEditor.ScrollToVerticalOffset(Math.Max(0, top - height * 2));
+        if (top < CurrentEditor.VerticalOffset || bottom > CurrentEditor.VerticalOffset + visible)
+            CurrentEditor.ScrollToVerticalOffset(Math.Max(0, top - height * 2));
 
-        CodeEditor.TextArea.Caret.Location = new TextLocation(Math.Max(1, block.IsDeleted ? block.MarkLine : block.First), 1);
+        CurrentEditor.TextArea.Caret.Location = new TextLocation(Math.Max(1, block.IsDeleted ? block.MarkLine : block.First), 1);
         ChangePeek.BoxShadow = Theming.Palette.Current.PopShadow;
         ChangePeek.IsVisible = true;
         PlaceChangePeek();
@@ -155,11 +166,11 @@ public partial class MainWindow
     {
         if (!ChangePeek.IsVisible || _changePeekIndex is not { } index || index >= _changeBlocks.Count)
             return;
-        var view = CodeEditor.TextArea.TextView;
+        var view = CurrentEditor.TextArea.TextView;
         if (!view.VisualLinesValid)
             return;
         var block = _changeBlocks[index];
-        var lineCount = CodeEditor.Document.LineCount;
+        var lineCount = CurrentEditor.Document.LineCount;
         double y;
         if (block.IsDeleted)
             y = view.GetVisualTopByDocumentLine(Math.Clamp(block.MarkLine, 1, lineCount));
@@ -168,7 +179,9 @@ public partial class MainWindow
         else
             y = view.GetVisualTopByDocumentLine(lineCount) + view.DefaultLineHeight;
         var point = view.TranslatePoint(new Point(0, y - view.VerticalOffset), SheetHost) ?? default;
-        ChangePeek.Margin = new Thickness(point.X, point.Y + 2, 18, 0);
+        // Com o editor dividido, o quadro fica dentro do lado dele, sem passar por cima do outro.
+        var edge = CurrentEditor.TranslatePoint(new Point(CurrentEditor.Bounds.Width, 0), SheetHost)?.X ?? SheetHost.Bounds.Width;
+        ChangePeek.Margin = new Thickness(point.X, point.Y + 2, Math.Max(18, SheetHost.Bounds.Width - edge + 18), 0);
     }
 
     public void CloseChangePeek()
@@ -201,7 +214,7 @@ public partial class MainWindow
     // Os trechos que a seleção pega, ou o da linha do cursor.
     public List<ChangeBlock> ChangesInSelection()
     {
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         int from, to;
         if (area.Selection.IsEmpty)
             from = to = area.Caret.Line;

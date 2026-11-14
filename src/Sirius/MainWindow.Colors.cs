@@ -16,7 +16,6 @@ public partial class MainWindow
     private const double ColorCardGap = 6;
     private const double ColorCardEdge = 8;
 
-    private CssColorGenerator _colorSwatches = null!;
     private TextDocument? _pickingIn;
     private int _pickStart;
     private int _pickLength;
@@ -30,34 +29,43 @@ public partial class MainWindow
 
     public bool IsColorPickerOpen => ColorCard.IsVisible;
     public string PickedColorText => ColorText.Text ?? "";
-    public int CaretOffset => CodeEditor.TextArea.Caret.Offset;
+    public int CaretOffset => CurrentEditor.TextArea.Caret.Offset;
 
     public double EditorLineHeight(int lineNumber)
     {
-        var view = CodeEditor.TextArea.TextView;
+        var view = CurrentEditor.TextArea.TextView;
         view.EnsureVisualLines();
-        return view.GetOrConstructVisualLine(CodeEditor.Document.GetLineByNumber(lineNumber)).Height;
+        return view.GetOrConstructVisualLine(CurrentEditor.Document.GetLineByNumber(lineNumber)).Height;
     }
 
     // Onde o quadradinho de uma cor está na janela. Usado para clicar nele nos testes.
     public Point? SwatchPointInWindow(int offset)
     {
-        var view = CodeEditor.TextArea.TextView;
+        var view = CurrentEditor.TextArea.TextView;
         view.EnsureVisualLines();
-        var position = new TextViewPosition(CodeEditor.Document.GetLocation(offset));
+        var position = new TextViewPosition(CurrentEditor.Document.GetLocation(offset));
         var middle = view.GetVisualPosition(position, VisualYPosition.LineMiddle) - view.ScrollOffset;
         return view.TranslatePoint(new Point(middle.X + 5, middle.Y), this);
     }
     public IReadOnlyList<CssColorMatch> ActiveColorMatches =>
-        ActiveDocument is { } document ? _colorSwatches.MatchesFor(document.Document) : [];
+        ActiveDocument is { } document ? Swatches.MatchesFor(document.Document) : [];
 
     private void InitializeColors()
     {
-        _colorSwatches = new CssColorGenerator(() => ActiveDocument?.FullPath);
-        _colorSwatches.SwatchPressed += match => OpenColorPicker(match.Start);
-        var view = CodeEditor.TextArea.TextView;
-        view.ElementGenerators.Add(_colorSwatches);
-        view.ScrollOffsetChanged += (_, _) => CloseColorPicker();
+        // Cada lado tem os quadradinhos do arquivo dele. Clicar num, do outro lado, já passa o foco para lá.
+        foreach (var pane in _panes)
+        {
+            pane.Swatches = new CssColorGenerator(() => pane.Document?.FullPath);
+            pane.Swatches.SwatchPressed += match => OpenColorPicker(match.Start);
+            var view = pane.Editor.TextArea.TextView;
+            view.ElementGenerators.Add(pane.Swatches);
+            view.ScrollOffsetChanged += (_, _) =>
+            {
+                if (pane == _pane)
+                    CloseColorPicker();
+            };
+            pane.Editor.TextArea.AddHandler(KeyDownEvent, OnKeyDownAtSwatch, RoutingStrategies.Tunnel);
+        }
 
         ColorSquareView.Changed += () =>
         {
@@ -77,7 +85,6 @@ public partial class MainWindow
 
         // Túnel: um clique fora fecha o seletor mesmo que o controle clicado trate o evento.
         AddHandler(PointerPressedEvent, OnPressedAroundColorCard, RoutingStrategies.Tunnel);
-        CodeEditor.TextArea.AddHandler(KeyDownEvent, OnKeyDownAtSwatch, RoutingStrategies.Tunnel);
     }
 
     // O quadradinho ocupa uma coluna, mas nenhum caractere. Sem isto, a seta parava duas vezes
@@ -87,7 +94,7 @@ public partial class MainWindow
         if (e.Key is not (Key.Left or Key.Right or Key.Back or Key.Delete))
             return;
 
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         var offset = area.Caret.Offset;
         if (ActiveColorMatches.All(match => match.Start != offset))
             return;
@@ -216,7 +223,7 @@ public partial class MainWindow
 
     private void PlaceColorCard()
     {
-        var view = CodeEditor.TextArea.TextView;
+        var view = CurrentEditor.TextArea.TextView;
         view.EnsureVisualLines();
         var position = new TextViewPosition(_pickingIn!.GetLocation(_pickStart));
         var bottom = view.GetVisualPosition(position, VisualYPosition.LineBottom) - view.ScrollOffset;

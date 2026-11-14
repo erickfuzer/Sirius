@@ -50,7 +50,7 @@ public partial class MainWindow
     public string DiffRightText => DiffRight.Document?.Text ?? "";
     public IReadOnlyList<DiffRowKind> DiffLeftKinds => _diffLeftKinds;
     public IReadOnlyList<DiffRowKind> DiffRightKinds => _diffRightKinds;
-    public IReadOnlyDictionary<int, GitLineKind> GitLineMarks => _gutter.LineMarks;
+    public IReadOnlyDictionary<int, GitLineKind> GitLineMarks => Gutter.LineMarks;
     public string TreeMarkFor(string path) => _gitMarks.TryGetValue(path, out var mark) ? mark.Letter : "";
 
     private bool IsWidePanelOpen => IsSearchOpen || IsGitOpen;
@@ -132,7 +132,7 @@ public partial class MainWindow
             GitRepoPanel.IsVisible = false;
             UpdateGitEmptyPanel();
             RefreshTree();
-            _gutter.SetLineMarks(null);
+            Gutter.SetLineMarks(null);
             SetChangeBlocks(null);
             return;
         }
@@ -653,8 +653,8 @@ public partial class MainWindow
         _diffRightColors.Highlighter = SyntaxHighlighter.ForDocument(path, rightDocument);
         DiffLeft.Document = leftDocument;
         DiffRight.Document = rightDocument;
-        DiffLeft.FontSize = CodeEditor.FontSize;
-        DiffRight.FontSize = CodeEditor.FontSize;
+        DiffLeft.FontSize = CurrentEditor.FontSize;
+        DiffRight.FontSize = CurrentEditor.FontSize;
 
         DiffTitle.Text = title ?? (GitState is { } snapshot ? Path.GetRelativePath(snapshot.TopLevel, path).Replace(Path.DirectorySeparatorChar, '/') : Path.GetFileName(path));
         DiffPath = path;
@@ -717,7 +717,7 @@ public partial class MainWindow
         var result = await ComputeGitMarksAsync();
         if (request != _gitMarksRequest)
             return;
-        _gutter.SetLineMarks(result?.Marks);
+        Gutter.SetLineMarks(result?.Marks);
         SetChangeBlocks(result?.Blocks, result?.BaseText);
     }
 

@@ -309,8 +309,8 @@ public partial class MainWindow
 
         if (ActiveDocument is { } active)
         {
-            active.CaretOffset = CodeEditor.TextArea.Caret.Offset;
-            active.VerticalOffset = CodeEditor.VerticalOffset;
+            active.CaretOffset = CurrentEditor.TextArea.Caret.Offset;
+            active.VerticalOffset = CurrentEditor.VerticalOffset;
         }
 
         var key = SessionKey(RootFolder);
@@ -373,6 +373,7 @@ public partial class MainWindow
             var target = _documents.Find(document => string.Equals(document.FullPath, session.ActivePath, StringComparison.OrdinalIgnoreCase))
                 ?? _documents.LastOrDefault();
             ActiveDocument = null;
+            _pane.Document = null;
             if (target is not null)
             {
                 Activate(target);
@@ -380,7 +381,7 @@ public partial class MainWindow
                 Dispatcher.UIThread.Post(() =>
                 {
                     if (ActiveDocument == target)
-                        CodeEditor.ScrollToVerticalOffset(vertical);
+                        CurrentEditor.ScrollToVerticalOffset(vertical);
                 }, DispatcherPriority.Loaded);
             }
         }
@@ -442,11 +443,8 @@ public partial class MainWindow
 
         _language.DocumentMoved(document, oldPath);
         if (ActiveDocument == document)
-        {
-            _colorizer.Highlighter = document.Highlighter;
             Breadcrumb.Text = RootFolder is null ? "" : BreadcrumbFor(full);
-            CodeEditor.TextArea.TextView.Redraw();
-        }
+        RefreshPaneHighlighters();
         UpdateServerHint();
         ReindexProject();
         RefreshTabs();

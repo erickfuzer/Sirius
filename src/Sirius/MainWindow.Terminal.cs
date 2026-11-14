@@ -51,7 +51,7 @@ public partial class MainWindow
         Capsule.Height = height;
 
         // O editor encolhe para o terminal não esconder o código.
-        CodeEditor.Margin = _terminalOpen ? new Thickness(0, 0, 0, height + CapsuleGap) : default;
+        CurrentEditor.Margin = _terminalOpen ? new Thickness(0, 0, 0, height + CapsuleGap) : default;
         DiffHost.Margin = _terminalOpen ? new Thickness(0, 0, 0, height + CapsuleGap) : new Thickness(0, 0, 0, CapsuleClosedHeight + CapsuleGap);
 
         // O terminal já nasce no tamanho final, e a animação só o revela. Assim os
@@ -372,10 +372,10 @@ public partial class MainWindow
 
         var document = ActiveDocument!.Document;
         var target = document.GetLineByNumber(Math.Clamp(line, 1, document.LineCount));
-        CodeEditor.TextArea.ClearSelection();
-        CodeEditor.TextArea.Caret.Offset = target.Offset + Math.Min(column - 1, target.Length);
+        CurrentEditor.TextArea.ClearSelection();
+        CurrentEditor.TextArea.Caret.Offset = target.Offset + Math.Min(column - 1, target.Length);
         var lineNumber = target.LineNumber;
-        Dispatcher.UIThread.Post(() => CodeEditor.ScrollToLine(lineNumber), DispatcherPriority.Loaded);
+        Dispatcher.UIThread.Post(() => CurrentEditor.ScrollToLine(lineNumber), DispatcherPriority.Loaded);
     }
 
     private void StopAllSessions()

@@ -40,16 +40,29 @@ public partial class MainWindow
 
     private void InitializeLanguage()
     {
-        var area = CodeEditor.TextArea;
         ProblemsList.ItemsSource = _problemRows;
-        area.TextEntering += OnPairTextEntering;
-        area.TextEntered += OnTextEntered;
-        area.TextEntered += OnTagTextEntered;
-        area.Caret.PositionChanged += (_, _) => ForgetPairsOnOtherLine();
-        area.TextView.BackgroundRenderers.Add(new DiagnosticRenderer(area.TextView, ActiveDiagnostics));
-        area.TextView.PointerHover += OnEditorHover;
-        area.TextView.PointerHoverStopped += OnEditorHoverStopped;
-        area.AddHandler(PointerPressedEvent, OnEditorPointerPressed, RoutingStrategies.Tunnel);
+        foreach (var pane in _panes)
+        {
+            var area = pane.Editor.TextArea;
+            area.TextEntering += OnPairTextEntering;
+            area.TextEntered += OnTextEntered;
+            area.TextEntered += OnTagTextEntered;
+            area.Caret.PositionChanged += (_, _) =>
+            {
+                if (pane == _pane)
+                    ForgetPairsOnOtherLine();
+            };
+            // Cada lado sublinha os erros do arquivo dele.
+            area.TextView.BackgroundRenderers.Add(new DiagnosticRenderer(area.TextView,
+                () => pane.Document is { } document ? _language.DiagnosticsFor(document.FullPath) : []));
+            area.TextView.PointerHover += (sender, e) =>
+            {
+                if (pane == _pane)
+                    OnEditorHover(sender, e);
+            };
+            area.TextView.PointerHoverStopped += OnEditorHoverStopped;
+            area.AddHandler(PointerPressedEvent, OnEditorPointerPressed, RoutingStrategies.Tunnel);
+        }
         _language.DiagnosticsChanged += RefreshProblems;
         _language.ServerFailed += server => ShowStatus($"O servidor de {server.DisplayName} não está respondendo.");
     }
@@ -95,7 +108,7 @@ public partial class MainWindow
         ProblemsButton.IsVisible = parts.Count > 0;
         RefreshUpdateNotice();
 
-        CodeEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
+        CurrentEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
     }
 
     private static string FirstLine(string text)
@@ -218,7 +231,7 @@ public partial class MainWindow
         if (ActiveDocument is not { } document)
             return;
 
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         var requestedAt = area.Caret.Offset;
         var (line, character) = LspPositions.FromOffset(document.Document, requestedAt);
 
@@ -270,7 +283,7 @@ public partial class MainWindow
         local ??= [];
         var localOnly = entries.Count == 0 && local.Count > 0;
         var start = localOnly ? caret : entries.Select(EditStart).FirstOrDefault(offset => offset is not null) ?? WordStart(text, caret);
-        var window = new CompletionWindow(CodeEditor.TextArea)
+        var window = new CompletionWindow(CurrentEditor.TextArea)
         {
             StartOffset = start,
             EndOffset = caret,
@@ -317,7 +330,7 @@ public partial class MainWindow
     // Depois que a lista atual fechar: só cabe uma aberta por vez.
     private void SuggestAgainSoon() => Dispatcher.UIThread.Post(() => _ = RequestCompletionAsync());
 
-    public void SetCaretOffset(int offset) => CodeEditor.TextArea.Caret.Offset = offset;
+    public void SetCaretOffset(int offset) => CurrentEditor.TextArea.Caret.Offset = offset;
 
     // Usado pelos testes, para escolher como quem aperta Enter na lista.
     public bool AcceptCompletion(string label)
@@ -352,7 +365,7 @@ public partial class MainWindow
             return;
         }
 
-        var (line, character) = LspPositions.FromOffset(document.Document, offset ?? CodeEditor.TextArea.Caret.Offset);
+        var (line, character) = LspPositions.FromOffset(document.Document, offset ?? CurrentEditor.TextArea.Caret.Offset);
         using var cancel = new CancellationTokenSource(RequestTimeout);
         try
         {
@@ -378,13 +391,13 @@ public partial class MainWindow
         }
     }
 
-    private int? OffsetAt(PointerEventArgs e) => OffsetAt(e.GetPosition(CodeEditor.TextArea.TextView));
+    private int? OffsetAt(PointerEventArgs e) => OffsetAt(e.GetPosition(CurrentEditor.TextArea.TextView));
 
     // O caractere sob o mouse. GetPosition arredonda para a emenda mais próxima, e assim a metade
     // direita da última letra contava como fora da palavra: em $n, é um bom pedaço do alvo.
     public int? OffsetAt(Point point)
     {
-        var view = CodeEditor.TextArea.TextView;
+        var view = CurrentEditor.TextArea.TextView;
         if (ActiveDocument is not { } document || view.GetPositionFloor(point + view.ScrollOffset) is not { } position)
             return null;
         return document.Document.GetOffset(position.Location);
@@ -438,19 +451,19 @@ public partial class MainWindow
 
     private void ShowEditorTip(string tip)
     {
-        ToolTip.SetTip(CodeEditor, new TextBlock
+        ToolTip.SetTip(CurrentEditor, new TextBlock
         {
             Text = tip.Length > MaxHoverChars ? tip[..MaxHoverChars] + "…" : tip,
             TextWrapping = TextWrapping.Wrap,
             MaxWidth = 560,
         });
-        ToolTip.SetIsOpen(CodeEditor, true);
+        ToolTip.SetIsOpen(CurrentEditor, true);
     }
 
     private void OnEditorHoverStopped(object? sender, PointerEventArgs e)
     {
         _hoverCancel?.Cancel();
-        ToolTip.SetIsOpen(CodeEditor, false);
+        ToolTip.SetIsOpen(CurrentEditor, false);
     }
 
     // Renomear símbolo
@@ -466,7 +479,7 @@ public partial class MainWindow
         }
 
         var text = document.Document;
-        var caret = CodeEditor.TextArea.Caret.Offset;
+        var caret = CurrentEditor.TextArea.Caret.Offset;
         var start = WordStart(text, caret);
         var end = caret;
         while (end < text.TextLength && IsWordChar(text.GetCharAt(end)))
@@ -508,7 +521,7 @@ public partial class MainWindow
         }
 
         var text = document.Document;
-        var caret = CodeEditor.TextArea.Caret.Offset;
+        var caret = CurrentEditor.TextArea.Caret.Offset;
         var start = WordStart(text, caret);
         var end = caret;
         while (end < text.TextLength && IsWordChar(text.GetCharAt(end)))

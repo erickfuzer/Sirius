@@ -21,7 +21,7 @@ public partial class MainWindow
     public string ImageMessageText => ImageMessage.IsVisible ? ImageMessage.Text ?? "" : "";
     public ImagePreview ImagePreviewControl => ImageView;
     public string CaretPositionText => CaretPosition.Text ?? "";
-    public bool EditorVisible => CodeEditor.IsVisible;
+    public bool EditorVisible => CurrentEditor.IsVisible;
 
     public bool IsAnimationToggleVisible => AnimationToggle.IsVisible;
     public string AnimationToggleText => AnimationToggle.Content as string ?? "";
@@ -75,8 +75,13 @@ public partial class MainWindow
     private void ShowDocumentSurface()
     {
         var image = ActiveDocument is { IsImage: true };
-        CodeEditor.IsVisible = ActiveDocument is not null && !image && !IsDiffOpen;
-        CodeEditor.IsReadOnly = image;
+        // Cada lado mostra o seu arquivo; uma imagem ou a comparação do Git cobrem os dois.
+        foreach (var pane in _panes)
+        {
+            pane.Editor.IsVisible = pane.Document is not null && !(pane == _pane && image) && !IsDiffOpen;
+            pane.Editor.IsReadOnly = pane.Document is { IsImage: true };
+        }
+        SplitGrid.IsVisible = !image;
         ImageHost.IsVisible = image && !IsDiffOpen;
         UpdateSvgPane();
         UpdateAnimationToggle();
@@ -88,7 +93,7 @@ public partial class MainWindow
         if (ActiveDocument is { IsImage: true })
             ImageView.Focus();
         else if (ActiveDocument is not null)
-            CodeEditor.TextArea.Focus();
+            CurrentEditor.TextArea.Focus();
     }
 
     // Só a imagem da aba em uso fica na memória. Decodificar de novo ao voltar custa pouco.

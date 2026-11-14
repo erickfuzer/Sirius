@@ -17,9 +17,9 @@ public partial class MainWindow
 
     private void OnPairTextEntering(object? sender, TextInputEventArgs e)
     {
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         if (e.Text is not { Length: 1 } typed || ActiveDocument is not { IsImage: false } document
-            || CodeEditor.IsReadOnly || !_settings.AutoClosePairs || !AutoPairs.Supports(document.FullPath))
+            || CurrentEditor.IsReadOnly || !_settings.AutoClosePairs || !AutoPairs.Supports(document.FullPath))
             return;
 
         var c = typed[0];
@@ -59,7 +59,7 @@ public partial class MainWindow
 
     private void WrapSelection(TextDocument text, char opener, char closer)
     {
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         var segment = area.Selection.SurroundingSegment;
         var (start, end) = (segment.Offset, segment.EndOffset);
         using (text.RunUpdate())
@@ -78,7 +78,7 @@ public partial class MainWindow
         anchor.MovementType = AnchorMovementType.AfterInsertion;
         _pairClosers.Add(anchor);
         _pairDocument = text;
-        _pairLine = CodeEditor.TextArea.Caret.Line;
+        _pairLine = CurrentEditor.TextArea.Caret.Line;
     }
 
     private bool HasAddedCloser(TextDocument text, int offset, char c) =>
@@ -95,14 +95,14 @@ public partial class MainWindow
 
     private void ForgetPairsOnOtherLine()
     {
-        if (_pairClosers.Count > 0 && (CodeEditor.TextArea.Document != _pairDocument || CodeEditor.TextArea.Caret.Line != _pairLine))
+        if (_pairClosers.Count > 0 && (CurrentEditor.TextArea.Document != _pairDocument || CurrentEditor.TextArea.Caret.Line != _pairLine))
             _pairClosers.Clear();
     }
 
     private bool TryDeleteEmptyPair()
     {
-        var area = CodeEditor.TextArea;
-        if (!area.IsKeyboardFocusWithin || !area.Selection.IsEmpty || CodeEditor.IsReadOnly || ActiveDocument is not { } document)
+        var area = CurrentEditor.TextArea;
+        if (!area.IsKeyboardFocusWithin || !area.Selection.IsEmpty || CurrentEditor.IsReadOnly || ActiveDocument is not { } document)
             return false;
 
         var text = document.Document;
@@ -116,8 +116,8 @@ public partial class MainWindow
 
     private bool TryOpenPairOnEnter()
     {
-        var area = CodeEditor.TextArea;
-        if (!area.IsKeyboardFocusWithin || !area.Selection.IsEmpty || _completion is not null || CodeEditor.IsReadOnly
+        var area = CurrentEditor.TextArea;
+        if (!area.IsKeyboardFocusWithin || !area.Selection.IsEmpty || _completion is not null || CurrentEditor.IsReadOnly
             || ActiveDocument is not { IsImage: false } document || !AutoPairs.Supports(document.FullPath))
             return false;
 
@@ -130,7 +130,7 @@ public partial class MainWindow
         var indent = TextUtilities.GetLeadingWhitespace(text, line);
         var leading = text.GetText(indent);
         var newline = TextUtilities.GetNewLineFromDocument(text, line.LineNumber);
-        var middle = newline + leading + CodeEditor.Options.IndentationString;
+        var middle = newline + leading + CurrentEditor.Options.IndentationString;
 
         text.Insert(caret, middle + newline + leading);
         area.Caret.Offset = caret + middle.Length;
@@ -140,8 +140,8 @@ public partial class MainWindow
     // Depois da digitação de sempre, porque o ">" precisa estar no texto e seguir abrindo a lista de sugestões.
     private void OnTagTextEntered(object? sender, TextInputEventArgs e)
     {
-        var area = CodeEditor.TextArea;
-        if (e.Text != ">" || ActiveDocument is not { IsImage: false } document || CodeEditor.IsReadOnly || !_settings.AutoClosePairs
+        var area = CurrentEditor.TextArea;
+        if (e.Text != ">" || ActiveDocument is not { IsImage: false } document || CurrentEditor.IsReadOnly || !_settings.AutoClosePairs
             || !Emmet.Supports(document.FullPath))
             return;
 

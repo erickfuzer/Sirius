@@ -120,6 +120,7 @@
                                             Foreground="{Binding Foreground}" Click="OnTreeRowClick">
                                         <Button.ContextMenu>
                                             <ContextMenu>
+                                                <MenuItem Header="Abrir ao lado" Click="OnTreeOpenToSide" IsVisible="{Binding !IsFolder}" />
                                                 <MenuItem Header="Novo arquivo" Click="OnTreeNewFile" />
                                                 <MenuItem Header="Nova pasta" Click="OnTreeNewFolder" />
                                                 <Separator />
@@ -351,7 +352,7 @@
                 <!-- Folha do editor -->
                 <Border x:Name="SheetBorder" Grid.Column="2" Background="{DynamicResource Sheet}" CornerRadius="12" ClipToBounds="True">
                     <Grid RowDefinitions="Auto,*">
-                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto" MinHeight="34" Margin="6,2,14,0">
+                        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" MinHeight="34" Margin="6,2,14,0">
                             <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                                 <ItemsControl x:Name="TabList">
                                     <ItemsControl.ItemsPanel>
@@ -387,14 +388,51 @@
                             <Button x:Name="BrowserButton" Grid.Column="4" Classes="flat segment" Height="24" Padding="9,0" Margin="10,0,0,0" FontSize="12"
                                     Content="Navegador" IsVisible="False" Click="OnBrowserButton"
                                     ToolTip.Tip="Abrir no navegador. A página recarrega quando você salvar um arquivo do projeto." />
+                            <!-- Dois arquivos lado a lado: o mesmo de agora abre também à direita, e a aba clicada vai para o lado com o foco. -->
+                            <Button x:Name="SplitButton" Grid.Column="5" Classes="flat segment" Width="28" Height="24" Margin="6,0,0,0" IsVisible="False"
+                                    HorizontalContentAlignment="Center" Click="OnSplitButton"
+                                    AutomationProperties.Name="Dividir o editor" ToolTip.Tip="Dois arquivos lado a lado (Ctrl \)">
+                                <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.2" Data="M0.5 0.5H13.5V11.5H0.5Z M7 0.5V11.5" />
+                            </Button>
                         </Grid>
 
                         <Panel x:Name="SheetHost" Grid.Row="1">
                             <!-- Num .svg, o desenho aparece à direita do código e acompanha a digitação. -->
                             <Grid x:Name="EditorGrid" ColumnDefinitions="*,Auto,0">
-                                <ae:TextEditor x:Name="CodeEditor" Grid.Column="0" IsVisible="False" Background="Transparent" BorderThickness="0"
-                                               Foreground="{DynamicResource Ink}" FontFamily="{DynamicResource CodeFont}" FontSize="13.5"
-                                               Padding="0,8,0,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+                                <!-- Os dois lados do editor. O da direita só aparece com o editor dividido. -->
+                                <Grid x:Name="SplitGrid" Grid.Column="0" ColumnDefinitions="*,0,0">
+                                    <Grid x:Name="PrimaryPane" Grid.Column="0" RowDefinitions="Auto,*">
+                                        <Border x:Name="PrimaryHeader" Grid.Row="0" Height="28" Padding="14,0,8,0" IsVisible="False" Background="Transparent"
+                                                PointerPressed="OnPaneHeaderPressed" Tag="0">
+                                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                <Image x:Name="PrimaryHeaderIcon" Width="14" Height="14" />
+                                                <TextBlock x:Name="PrimaryHeaderName" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Border>
+                                        <ae:TextEditor x:Name="CodeEditor" Grid.Row="1" IsVisible="False" Background="Transparent" BorderThickness="0"
+                                                       Foreground="{DynamicResource Ink}" FontFamily="{DynamicResource CodeFont}" FontSize="13.5"
+                                                       Padding="0,8,0,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+                                    </Grid>
+                                    <Border x:Name="SplitDivider" Grid.Column="1" Width="1" Background="{DynamicResource Tint}" IsVisible="False" />
+                                    <Grid x:Name="SecondaryPane" Grid.Column="2" RowDefinitions="Auto,*" IsVisible="False">
+                                        <Border x:Name="SecondaryHeader" Grid.Row="0" Height="28" Padding="14,0,6,0" Background="Transparent"
+                                                PointerPressed="OnPaneHeaderPressed" Tag="1">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                    <Image x:Name="SecondaryHeaderIcon" Width="14" Height="14" />
+                                                    <TextBlock x:Name="SecondaryHeaderName" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1" Classes="flat option" Click="OnCloseSplit" AutomationProperties.Name="Fechar o lado direito"
+                                                        ToolTip.Tip="Fechar este lado (Ctrl \)">
+                                                    <Path Stroke="{DynamicResource Muted}" StrokeThickness="1.1" Data="M0 0L8 8M8 0L0 8" />
+                                                </Button>
+                                            </Grid>
+                                        </Border>
+                                        <ae:TextEditor x:Name="SecondaryEditor" Grid.Row="1" Background="Transparent" BorderThickness="0"
+                                                       Foreground="{DynamicResource Ink}" FontFamily="{DynamicResource CodeFont}" FontSize="13.5"
+                                                       Padding="0,8,0,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+                                    </Grid>
+                                </Grid>
                                 <Border x:Name="SvgDivider" Grid.Column="1" Width="1" Background="{DynamicResource Tint}" IsVisible="False" />
                                 <Panel x:Name="SvgPane" Grid.Column="2" IsVisible="False">
                                     <e:ImagePreview x:Name="SvgView" ClipToBounds="True" AutomationProperties.Name="Prévia do SVG" />

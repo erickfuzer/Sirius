@@ -224,11 +224,11 @@ public partial class MainWindow
         }
         else
         {
-            var caret = CodeEditor.TextArea.Caret;
+            var caret = CurrentEditor.TextArea.Caret;
             var name = document.IsUntitled ? $"{document.Name} (aba sem nome, nunca salva)" : Relative(document.FullPath);
             text.AppendLine($"Arquivo aberto: {name}, cursor na linha {caret.Line}, coluna {caret.Column}{(document.IsDirty ? ", com alterações ainda não salvas" : "")}.");
             var lines = document.Document;
-            if (CodeEditor.TextArea.Selection.IsEmpty)
+            if (CurrentEditor.TextArea.Selection.IsEmpty)
             {
                 text.AppendLine("Nada selecionado. A linha do cursor:");
                 text.AppendLine($"{caret.Line}: {lines.GetText(lines.GetLineByNumber(caret.Line))}");
@@ -236,7 +236,7 @@ public partial class MainWindow
             else
             {
                 var (first, last) = SelectedLines();
-                text.AppendLine($"Selecionado: \"{Shorten(CodeEditor.SelectedText, 2000)}\"");
+                text.AppendLine($"Selecionado: \"{Shorten(CurrentEditor.SelectedText, 2000)}\"");
                 text.AppendLine($"Nas linhas {first} a {last}:");
                 for (var number = first; number <= last && number < first + 80; number++)
                     text.AppendLine($"{number}: {lines.GetText(lines.GetLineByNumber(number))}");

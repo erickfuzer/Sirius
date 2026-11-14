@@ -48,9 +48,22 @@ public partial class MainWindow
 
     private void InitializeFind()
     {
-        CodeEditor.TextArea.TextView.BackgroundRenderers.Add(new FindMatchRenderer(() => IsFindOpen ? FindMatches : []));
-        CodeEditor.TextArea.DocumentChanged += (_, _) => WatchFindDocument();
-        CodeEditor.TextArea.SelectionChanged += (_, _) => UpdateFindStatus();
+        // A busca vale para o lado com o foco: o outro não marca nada.
+        foreach (var pane in _panes)
+        {
+            var area = pane.Editor.TextArea;
+            area.TextView.BackgroundRenderers.Add(new FindMatchRenderer(() => pane == _pane && IsFindOpen ? FindMatches : []));
+            area.DocumentChanged += (_, _) =>
+            {
+                if (pane == _pane)
+                    WatchFindDocument();
+            };
+            area.SelectionChanged += (_, _) =>
+            {
+                if (pane == _pane)
+                    UpdateFindStatus();
+            };
+        }
         FindInput.TextChanged += (_, _) => OnFindQueryChanged();
         FindInput.GotFocus += (_, _) => _findAnchor = SelectionStartOrCaret();
         WatchFindDocument();
@@ -60,7 +73,7 @@ public partial class MainWindow
     {
         if (_findDocument is not null)
             _findDocument.TextChanged -= OnFindDocumentChanged;
-        _findDocument = CodeEditor.Document;
+        _findDocument = CurrentEditor.Document;
         if (_findDocument is not null)
             _findDocument.TextChanged += OnFindDocumentChanged;
         InvalidateFind();
@@ -75,14 +88,14 @@ public partial class MainWindow
             return;
         // A contagem espera a edição terminar; o desenho pede os resultados por conta própria.
         Dispatcher.UIThread.Post(UpdateFindStatus, DispatcherPriority.Background);
-        CodeEditor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
+        CurrentEditor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
     }
 
     private FindResult EnsureFind()
     {
         if (_findResult is not null)
             return _findResult;
-        if (!IsFindOpen || ActiveDocument is not { IsImage: false } || CodeEditor.Document is not { } document)
+        if (!IsFindOpen || ActiveDocument is not { IsImage: false } || CurrentEditor.Document is not { } document)
             return FindResult.Empty;
         return _findResult = FindInText.FindAll(document.Text, CurrentFindOptions);
     }
@@ -117,7 +130,7 @@ public partial class MainWindow
         var hadFocus = FindBar.IsKeyboardFocusWithin;
         FindBar.IsVisible = false;
         _findResult = null;
-        CodeEditor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
+        CurrentEditor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
         if (hadFocus)
             FocusActiveDocument();
     }
@@ -150,7 +163,7 @@ public partial class MainWindow
     // Como o VS Code: a seleção de uma linha vira a busca; sem seleção, a palavra sob o cursor.
     private (string? Seed, int Anchor) FindSeed()
     {
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         var document = area.Document;
         if (!area.Selection.IsEmpty)
         {
@@ -170,7 +183,7 @@ public partial class MainWindow
 
     private int SelectionStartOrCaret()
     {
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         return area.Selection.IsEmpty ? area.Caret.Offset : area.Selection.SurroundingSegment.Offset;
     }
 
@@ -184,7 +197,7 @@ public partial class MainWindow
         if (matches.Count > 0)
             SelectFindMatch(matches[FindInText.IndexFrom(matches, _findAnchor)]);
         UpdateFindStatus();
-        CodeEditor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
+        CurrentEditor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
     }
 
     // Andar pelos resultados
@@ -208,7 +221,7 @@ public partial class MainWindow
         var matches = FindMatches;
         if (matches.Count > 0)
         {
-            var area = CodeEditor.TextArea;
+            var area = CurrentEditor.TextArea;
             var index = step > 0
                 ? FindInText.IndexFrom(matches, area.Selection.IsEmpty ? area.Caret.Offset : area.Selection.SurroundingSegment.EndOffset)
                 : FindInText.IndexBefore(matches, SelectionStartOrCaret());
@@ -216,25 +229,25 @@ public partial class MainWindow
             _findAnchor = matches[index].Offset;
         }
         UpdateFindStatus();
-        CodeEditor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
+        CurrentEditor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
     }
 
     private void SelectFindMatch(FindMatch match)
     {
-        CodeEditor.Select(match.Offset, match.Length);
-        CodeEditor.TextArea.Caret.Offset = match.End;
-        var location = CodeEditor.Document.GetLocation(match.Offset);
-        CodeEditor.ScrollTo(location.Line, location.Column);
+        CurrentEditor.Select(match.Offset, match.Length);
+        CurrentEditor.TextArea.Caret.Offset = match.End;
+        var location = CurrentEditor.Document.GetLocation(match.Offset);
+        CurrentEditor.ScrollTo(location.Line, location.Column);
         // A barra flutua sobre as primeiras linhas: o resultado não pode ficar escondido atrás dela.
         Dispatcher.UIThread.Post(() =>
         {
             if (!IsFindOpen)
                 return;
-            var view = CodeEditor.TextArea.TextView;
-            var top = view.GetVisualTopByDocumentLine(location.Line) - CodeEditor.VerticalOffset;
+            var view = CurrentEditor.TextArea.TextView;
+            var top = view.GetVisualTopByDocumentLine(location.Line) - CurrentEditor.VerticalOffset;
             var covered = FindBar.Bounds.Bottom + 4;
-            if (top < covered && CodeEditor.VerticalOffset > 0)
-                CodeEditor.ScrollToVerticalOffset(Math.Max(0, CodeEditor.VerticalOffset - (covered - top)));
+            if (top < covered && CurrentEditor.VerticalOffset > 0)
+                CurrentEditor.ScrollToVerticalOffset(Math.Max(0, CurrentEditor.VerticalOffset - (covered - top)));
         }, DispatcherPriority.Loaded);
     }
 
@@ -243,7 +256,7 @@ public partial class MainWindow
     {
         get
         {
-            var area = CodeEditor.TextArea;
+            var area = CurrentEditor.TextArea;
             if (area.Selection.IsEmpty)
                 return -1;
             var segment = area.Selection.SurroundingSegment;
@@ -273,7 +286,7 @@ public partial class MainWindow
     // Como no VS Code: se a seleção é um resultado, troca e vai ao próximo; se não, só vai ao próximo.
     public void ReplaceOne()
     {
-        if (!IsFindOpen || ActiveDocument is not { IsImage: false } || CodeEditor.Document is not { } document)
+        if (!IsFindOpen || ActiveDocument is not { IsImage: false } || CurrentEditor.Document is not { } document)
             return;
         var matches = FindMatches;
         if (matches.Count == 0)
@@ -301,17 +314,17 @@ public partial class MainWindow
         }
         else
         {
-            CodeEditor.TextArea.ClearSelection();
-            CodeEditor.TextArea.Caret.Offset = after;
+            CurrentEditor.TextArea.ClearSelection();
+            CurrentEditor.TextArea.Caret.Offset = after;
         }
         UpdateFindStatus();
-        CodeEditor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
+        CurrentEditor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
     }
 
     // Tudo num passo só do Ctrl Z. Vale também além do limite de resultados marcados.
     public int ReplaceAll()
     {
-        if (!IsFindOpen || ActiveDocument is not { IsImage: false } || CodeEditor.Document is not { } document)
+        if (!IsFindOpen || ActiveDocument is not { IsImage: false } || CurrentEditor.Document is not { } document)
             return 0;
         var result = EnsureFind();
         if (result.Invalid || result.Matches.Count == 0)
@@ -384,7 +397,7 @@ public partial class MainWindow
         }
 
         // Esc no código também fecha a barra, quando não há lista nem trecho com campos para fechar antes.
-        if (e.Key == Key.Escape && mods == KeyModifiers.None && IsFindOpen && CodeEditor.TextArea.IsKeyboardFocusWithin
+        if (e.Key == Key.Escape && mods == KeyModifiers.None && IsFindOpen && CurrentEditor.TextArea.IsKeyboardFocusWithin
             && _completion is null && !IsInSnippet)
         {
             CloseFind();

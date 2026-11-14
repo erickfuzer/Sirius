@@ -14,19 +14,26 @@ public partial class MainWindow
 {
     private static readonly TimeSpan FormatTimeout = TimeSpan.FromSeconds(20);
 
-    public bool IsWordWrapOn => CodeEditor.WordWrap;
+    public bool IsWordWrapOn => CurrentEditor.WordWrap;
 
     private void InitializeEditing()
     {
-        CodeEditor.WordWrap = _settings.WordWrap;
         ApplyIndentation();
-        CodeEditor.TextArea.AddHandler(PointerPressedEvent, OnEditorRightPressed, RoutingStrategies.Tunnel);
-        CodeEditor.TextArea.Caret.PositionChanged += (_, _) => OnCaretMovedForSnippet();
-        CodeEditor.ContextMenu = BuildEditorMenu();
+        foreach (var pane in _panes)
+        {
+            pane.Editor.WordWrap = _settings.WordWrap;
+            pane.Editor.TextArea.AddHandler(PointerPressedEvent, OnEditorRightPressed, RoutingStrategies.Tunnel);
+            pane.Editor.TextArea.Caret.PositionChanged += (_, _) =>
+            {
+                if (pane == _pane)
+                    OnCaretMovedForSnippet();
+            };
+            pane.Editor.ContextMenu = BuildEditorMenu();
+        }
         CaretPosition.PointerPressed += OnCaretPositionPressed;
     }
 
-    private bool CanEditText => ActiveDocument is { IsImage: false } && !CodeEditor.IsReadOnly;
+    private bool CanEditText => ActiveDocument is { IsImage: false } && !CurrentEditor.IsReadOnly;
 
     // Comentários
 
@@ -69,7 +76,7 @@ public partial class MainWindow
 
     private (int First, int Last) SelectedLines()
     {
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         if (area.Selection.IsEmpty)
             return (area.Caret.Line, area.Caret.Line);
         var segment = area.Selection.SurroundingSegment;
@@ -78,7 +85,7 @@ public partial class MainWindow
 
     private (TextLocation Caret, TextLocation? Start, TextLocation? End) SelectionPlace()
     {
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         return area.Selection.IsEmpty
             ? (area.Caret.Location, null, null)
             : (area.Caret.Location, area.Selection.StartPosition.Location, area.Selection.EndPosition.Location);
@@ -87,7 +94,7 @@ public partial class MainWindow
     // Leva o cursor e a seleção junto com as linhas, na mesma coluna.
     private void RestorePlace((TextLocation Caret, TextLocation? Start, TextLocation? End) place, int lines)
     {
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         TextLocation Shift(TextLocation location) => new(location.Line + lines, location.Column);
         if (place.Start is { } start && place.End is { } end)
             area.Selection = Selection.Create(area, area.Document.GetOffset(Shift(start)), area.Document.GetOffset(Shift(end)));
@@ -126,10 +133,10 @@ public partial class MainWindow
             return;
         var document = active.Document;
         var number = Math.Clamp(line, 1, document.LineCount);
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         area.ClearSelection();
         area.Caret.Offset = LineEditing.FirstVisibleOffset(document, number);
-        Dispatcher.UIThread.Post(() => CodeEditor.ScrollToLine(number), DispatcherPriority.Loaded);
+        Dispatcher.UIThread.Post(() => CurrentEditor.ScrollToLine(number), DispatcherPriority.Loaded);
         FocusActiveDocument();
     }
 
@@ -149,7 +156,7 @@ public partial class MainWindow
     {
         _settings.WordWrap = on;
         _settings.Save(_settingsPath);
-        CodeEditor.WordWrap = _settings.WordWrap;
+        ForEachEditor(editor => editor.WordWrap = _settings.WordWrap);
         ShowStatus(_settings.WordWrap ? "Quebra de linha ligada." : "Quebra de linha desligada.");
     }
 
@@ -169,7 +176,7 @@ public partial class MainWindow
         using var cancel = new CancellationTokenSource(FormatTimeout);
         try
         {
-            var options = CodeEditor.Options;
+            var options = CurrentEditor.Options;
             var edits = await client.FormatAsync(document.FullPath, options.IndentationSize, options.ConvertTabsToSpaces, cancel.Token);
             // A pessoa pode ter digitado ou trocado de aba enquanto o servidor pensava.
             if (ActiveDocument != document || document.Document.Text != before)
@@ -197,9 +204,9 @@ public partial class MainWindow
             return item;
         }
 
-        var cut = Item("Recortar", () => CodeEditor.Cut(), "Ctrl+X");
-        var copy = Item("Copiar", () => CodeEditor.Copy(), "Ctrl+C");
-        var paste = Item("Colar", () => CodeEditor.Paste(), "Ctrl+V");
+        var cut = Item("Recortar", () => CurrentEditor.Cut(), "Ctrl+X");
+        var copy = Item("Copiar", () => CurrentEditor.Copy(), "Ctrl+C");
+        var paste = Item("Colar", () => CurrentEditor.Paste(), "Ctrl+V");
         var editing = new List<MenuItem>
         {
             Item("Comentar linhas", ToggleComment),
@@ -216,7 +223,7 @@ public partial class MainWindow
         // Só em PHP, onde há depuração. Também pelo botão direito no ponto vermelho.
         var condition = Item("Parar aqui só quando…", () => _ = EditBreakpointConditionAsync());
         // Durante a depuração: o texto selecionado, como $preco * $qtd, entra na lista das vigiadas.
-        var watch = Item("Vigiar seleção", () => _ = AddWatchAsync(CodeEditor.TextArea.Selection.GetText()));
+        var watch = Item("Vigiar seleção", () => _ = AddWatchAsync(CurrentEditor.TextArea.Selection.GetText()));
         // Só em HTML e PHP. O mesmo do Tab, para quem não alcança a tecla.
         var emmet = Item("Expandir Emmet", ExpandEmmet, "Tab");
         // Só num trecho que mudou desde o último commit. O mesmo da faixa colorida na margem.
@@ -254,7 +261,7 @@ public partial class MainWindow
                 e.Cancel = true;
                 return;
             }
-            var hasSelection = !CodeEditor.TextArea.Selection.IsEmpty;
+            var hasSelection = !CurrentEditor.TextArea.Selection.IsEmpty;
             cut.IsEnabled = hasSelection && CanEditText;
             copy.IsEnabled = hasSelection;
             paste.IsEnabled = CanEditText;
@@ -278,9 +285,9 @@ public partial class MainWindow
     // O botão direito fora da seleção põe o cursor onde clicou, para o menu agir ali.
     private void OnEditorRightPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!e.GetCurrentPoint(CodeEditor.TextArea).Properties.IsRightButtonPressed || OffsetAt(e) is not { } offset)
+        if (!e.GetCurrentPoint(CurrentEditor.TextArea).Properties.IsRightButtonPressed || OffsetAt(e) is not { } offset)
             return;
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         if (!area.Selection.IsEmpty && area.Selection.SurroundingSegment is { } segment
             && offset >= segment.Offset && offset <= segment.EndOffset)
             return;
@@ -301,7 +308,7 @@ public partial class MainWindow
             ToggleWordWrap();
             return true;
         }
-        if (!CodeEditor.TextArea.IsKeyboardFocusWithin)
+        if (!CurrentEditor.TextArea.IsKeyboardFocusWithin)
             return false;
 
         switch (e.Key)

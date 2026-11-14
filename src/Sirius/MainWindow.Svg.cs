@@ -32,13 +32,14 @@ public partial class MainWindow
             _svgDelay!.Stop();
             RenderSvg();
         });
-        CodeEditor.TextChanged += (_, _) =>
+        // A prévia é do SVG do lado com o foco. Editar o mesmo arquivo do outro lado também a refaz.
+        ForEachEditor(editor => editor.TextChanged += (_, _) =>
         {
             if (!SvgPane.IsVisible)
                 return;
             _svgDelay.Stop();
             _svgDelay.Start();
-        };
+        });
     }
 
     private bool ShowsSvg => ActiveDocument is { IsImage: false } document && SvgRender.Supports(document.FullPath) && !IsDiffOpen;

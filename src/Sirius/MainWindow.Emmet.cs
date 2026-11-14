@@ -11,12 +11,12 @@ namespace Sirius;
 public partial class MainWindow
 {
     public int EmmetStopsLeft => SnippetStopsLeft;
-    public void SelectAllForTests() => CodeEditor.SelectAll();
+    public void SelectAllForTests() => CurrentEditor.SelectAll();
 
     // A seleção com o cursor numa das pontas, como ao arrastar de baixo para cima.
     public void SelectForTests(int anchor, int caret)
     {
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         area.Caret.Offset = caret;
         area.Selection = AvaloniaEdit.Editing.Selection.Create(area, anchor, caret);
     }
@@ -28,19 +28,19 @@ public partial class MainWindow
     // O que as abreviações no cursor virariam, sem mexer no texto: a digitada primeiro, depois as da tabela.
     private List<(string Label, EmmetExpansion Expansion)> HtmlEmmetAtCaret(OpenDocument document, bool withTable)
     {
-        if (document.IsImage || CodeEditor.IsReadOnly)
+        if (document.IsImage || CurrentEditor.IsReadOnly)
             return [];
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         var text = document.Document;
         var content = text.Text;
         // Na aba sem nome ainda não há extensão. O "!" sozinho já diz que é uma página nova.
         var path = document.IsUntitled && Emmet.IsPageRequest(content, area.Caret.Offset) ? "pagina.html" : document.FullPath;
         var newline = TextUtilities.GetNewLineFromDocument(text, area.Caret.Line);
-        return Emmet.SuggestionsAt(content, area.Caret.Offset, path, CodeEditor.Options.IndentationString, newline, withTable);
+        return Emmet.SuggestionsAt(content, area.Caret.Offset, path, CurrentEditor.Options.IndentationString, newline, withTable);
     }
 
     private CssExpansion? CssEmmetAtCaret(OpenDocument document) =>
-        document.IsImage || CodeEditor.IsReadOnly ? null : CssEmmet.TryExpandAt(document.Document.Text, CodeEditor.TextArea.Caret.Offset, document.FullPath);
+        document.IsImage || CurrentEditor.IsReadOnly ? null : CssEmmet.TryExpandAt(document.Document.Text, CurrentEditor.TextArea.Caret.Offset, document.FullPath);
 
     // As linhas da lista. Quem vem do VS Code aperta Enter depois do "!", e foi assim que o dono achou
     // que o Emmet não funcionava.
@@ -65,11 +65,11 @@ public partial class MainWindow
     // Pelo mouse: o botão direito e a barra de comando, para não depender de tecla nenhuma.
     public void ExpandEmmet()
     {
-        if (ActiveDocument is not { IsImage: false } document || CodeEditor.IsReadOnly)
+        if (ActiveDocument is not { IsImage: false } document || CurrentEditor.IsReadOnly)
             return;
         if (ExpandHtmlEmmet(label: null) || ExpandCssEmmet())
             return;
-        if (Emmet.IsPageRequest(document.Document.Text, CodeEditor.TextArea.Caret.Offset))
+        if (Emmet.IsPageRequest(document.Document.Text, CurrentEditor.TextArea.Caret.Offset))
             ShowStatus(Emmet.Supports(document.FullPath)
                 ? "O ! só vira página fora de <?php, <style> e <script>."
                 : "O ! só vira página em arquivos .html e .php.");

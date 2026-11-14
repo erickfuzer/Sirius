@@ -22,6 +22,7 @@ IDE **nativa** para Windows, simples e direta, sem WebView nem Electron. Editor,
 
 ## Funcionalidades
 
+- **Dois arquivos lado a lado:** o botão ao lado das abas, ou <kbd>Ctrl</kbd> <kbd>\</kbd>, divide o editor, como no VS Code, e "Abrir ao lado" na lista de arquivos põe um arquivo à direita. Os dois lados são completos: sugestões, Emmet, erros, cores e busca valem para o lado em que você clicou, e a aba clicada abre nele
 - **Editor:** abas, sintaxe colorida para dezenas de linguagens, zoom, temas claro e grafite, modo foco e quebra de linha. Aspas, parênteses, chaves e tags de HTML se fecham enquanto você digita
 - **Procurar e substituir no arquivo:** como no VS Code, <kbd>Ctrl</kbd> <kbd>F</kbd> abre uma barra com a palavra sob o cursor, conta os resultados ("2 de 5") e marca todos no código, e <kbd>F3</kbd> e <kbd>Shift</kbd> <kbd>F3</kbd> andam por eles. Dá para diferenciar maiúsculas, procurar só a palavra inteira ou usar expressão regular. <kbd>Ctrl</kbd> <kbd>H</kbd> mostra o substituir, um por um ou tudo de uma vez, e um <kbd>Ctrl</kbd> <kbd>Z</kbd> desfaz a troca inteira
 - **Ir para uma função ou seletor:** como o <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>O</kbd> do VS Code, a lista das funções, classes e variáveis de um PHP, dos seletores de um CSS e das tags de um HTML, com o tipo e a linha. Digite um pedaço do nome para filtrar e <kbd>Enter</kbd> leva até ele. Também pelo botão direito ou com `@` na barra de comando
@@ -157,6 +158,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 | <kbd>Shift</kbd> <kbd>Alt</kbd> <kbd>↓</kbd> e <kbd>Shift</kbd> <kbd>Alt</kbd> <kbd>↑</kbd> | Duplicar as linhas, com o cursor na cópia de baixo ou na de cima |
 | <kbd>Shift</kbd> <kbd>Alt</kbd> <kbd>F</kbd> | Formatar o arquivo |
 | <kbd>Ctrl</kbd> <kbd>G</kbd> ou clique em "Ln" na cápsula | Ir para uma linha |
+| <kbd>Ctrl</kbd> <kbd>\</kbd> | Dividir o editor em dois lados, ou fechar o da direita |
 | <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>O</kbd> | Ir para uma função, classe, seletor ou tag do arquivo (ou `@` na barra de comando) |
 | <kbd>Alt</kbd> <kbd>Z</kbd> | Ligar ou desligar a quebra de linha |
 | <kbd>Tab</kbd> | Com a lista de sugestões aberta, aceitar a sugestão, como uma abreviação do Emmet. Depois, pular entre os campos, e <kbd>Shift</kbd> <kbd>Tab</kbd> volta. Sem a tecla, use "Expandir Emmet" no botão direito |
@@ -175,7 +177,7 @@ Para gerar o instalador, instale também o [Inno Setup 6](https://jrsoftware.org
 - O instalador ainda não tem assinatura digital. A atualização confere o arquivo com o registro do GitHub, mas isso confia na conta do GitHub do projeto, como o download manual.
 
 **Editor**
-- Não dá para ver dois arquivos lado a lado, e não há vários cursores ao mesmo tempo, como o <kbd>Alt</kbd> + clique do VS Code.
+- O editor se divide em dois lados, não mais, e as abas são uma fileira só: a aba clicada abre no lado com o foco. Uma imagem ocupa a área inteira. Não há vários cursores ao mesmo tempo, como o <kbd>Alt</kbd> + clique do VS Code.
 - Os atalhos de teclado não podem ser trocados, e não há extensões.
 
 **Inteligência de código**

@@ -33,7 +33,7 @@ public partial class MainWindow
     // O texto que a variável $TM_SELECTED_TEXT, o nome do arquivo e as outras dos trechos do VS Code representam.
     private string? SnippetVariable(string name)
     {
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         var path = ActiveDocument?.FullPath;
         return name switch
         {
@@ -55,10 +55,10 @@ public partial class MainWindow
     // em texto entre aspas nem em comentário, e no Markdown só pedindo, com Ctrl Espaço ou pela barra.
     private IEnumerable<Editing.SuggestionItem> LibrarySuggestions(Editing.OpenDocument document, bool explicitRequest)
     {
-        if (document.IsImage || CodeEditor.IsReadOnly)
+        if (document.IsImage || CurrentEditor.IsReadOnly)
             yield break;
         var text = document.Document.Text;
-        var caret = CodeEditor.TextArea.Caret.Offset;
+        var caret = CurrentEditor.TextArea.Caret.Offset;
         if (SnippetLibrary.LanguageAt(document.FullPath, text, caret) is not { } language)
             yield break;
         if (language == "markdown" && !explicitRequest)
@@ -77,8 +77,8 @@ public partial class MainWindow
     // $TM_SELECTED_TEXT é lido antes de a seleção sumir.
     private void InsertLibrarySnippet(string body)
     {
-        var area = CodeEditor.TextArea;
-        var text = CodeEditor.Document.Text;
+        var area = CurrentEditor.TextArea;
+        var text = CurrentEditor.Document.Text;
         var caret = area.Caret.Offset;
         var start = SnippetLibrary.WordBefore(text, caret)?.Start ?? caret;
         var end = caret;
@@ -96,19 +96,19 @@ public partial class MainWindow
     // Lê um corpo de trecho já no recuo e na quebra de linha do arquivo, a partir da linha do cursor.
     private SnippetText ParseSnippetHere(string body)
     {
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         var document = area.Document;
         var line = document.GetLineByNumber(area.Caret.Line);
         var leading = document.GetText(TextUtilities.GetLeadingWhitespace(document, line));
         var newline = TextUtilities.GetNewLineFromDocument(document, area.Caret.Line);
-        return Snippet.Parse(body, SnippetVariable, CodeEditor.Options.IndentationString, newline, leading);
+        return Snippet.Parse(body, SnippetVariable, CurrentEditor.Options.IndentationString, newline, leading);
     }
 
     // Troca o trecho [start, start + length) pelo texto, num passo só de desfazer, e começa pelos campos.
     public void InsertSnippet(int start, int length, SnippetText snippet)
     {
         EndSnippet();
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         var document = area.Document;
         document.Replace(start, length, snippet.Text);
 
@@ -147,7 +147,7 @@ public partial class MainWindow
             return;
         session.Position = position;
         var field = session.Fields.First(f => f.Index == session.CurrentIndex);
-        var area = CodeEditor.TextArea;
+        var area = CurrentEditor.TextArea;
         _movingInSnippet = true;
         try
         {
@@ -170,8 +170,8 @@ public partial class MainWindow
     {
         if (_snippet is not { } session)
             return false;
-        var caret = CodeEditor.TextArea.Caret.Offset;
-        if (session.Document != CodeEditor.Document || caret < session.Begin.Offset || caret > session.Finish.Offset)
+        var caret = CurrentEditor.TextArea.Caret.Offset;
+        if (session.Document != CurrentEditor.Document || caret < session.Begin.Offset || caret > session.Finish.Offset)
         {
             EndSnippet();
             return false;
@@ -202,8 +202,8 @@ public partial class MainWindow
     {
         if (_movingInSnippet || _snippet is not { } session)
             return;
-        var caret = CodeEditor.TextArea.Caret.Offset;
-        if (session.Document != CodeEditor.Document || caret < session.Begin.Offset || caret > session.Finish.Offset)
+        var caret = CurrentEditor.TextArea.Caret.Offset;
+        if (session.Document != CurrentEditor.Document || caret < session.Begin.Offset || caret > session.Finish.Offset)
             EndSnippet();
     }
 

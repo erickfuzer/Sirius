@@ -36,8 +36,6 @@ public partial class MainWindow : Window
     private readonly HashSet<string> _expanded = new(StringComparer.OrdinalIgnoreCase);
     private readonly AppSettings _settings;
     private readonly string _settingsPath;
-    private readonly TypographicColorizer _colorizer = new();
-    private readonly GutterMargin _gutter;
     private readonly DispatcherTimer _statusTimer;
     private readonly ObservableCollection<SearchRow> _searchRows = new();
     private readonly DispatcherTimer _searchDelay;
@@ -72,18 +70,7 @@ public partial class MainWindow : Window
         PaletteList.ItemsSource = _commandRows;
         SearchList.ItemsSource = _searchRows;
 
-        var area = CodeEditor.TextArea;
-        _gutter = new GutterMargin(area);
-        area.LeftMargins.Insert(0, _gutter);
-        area.TextView.LineTransformers.Add(_colorizer);
-        area.Caret.PositionChanged += (_, _) => UpdateCaretPosition();
-
-        var options = CodeEditor.Options;
-        options.AllowScrollBelowDocument = true;
-        options.ConvertTabsToSpaces = true;
-        options.EnableHyperlinks = false;
-        options.EnableEmailHyperlinks = false;
-        options.HighlightCurrentLine = false;
+        InitializePanes();
 
         PaletteInput.TextChanged += (_, _) => { _paletteIndex = 0; RefreshPalette(); };
         PaletteInput.AddHandler(KeyDownEvent, OnPaletteKeyDown, RoutingStrategies.Tunnel);
@@ -97,7 +84,8 @@ public partial class MainWindow : Window
         _redrawDelay = new DispatcherTimer(TimeSpan.FromMilliseconds(30), DispatcherPriority.Render, (_, _) =>
         {
             _redrawDelay!.Stop();
-            CodeEditor.TextArea.TextView.Redraw();
+            foreach (var pane in _panes)
+                pane.Editor.TextArea.TextView.Redraw();
         });
 
         _statusTimer =new DispatcherTimer(TimeSpan.FromSeconds(4), DispatcherPriority.Normal, (_, _) => ClearStatus());
@@ -115,7 +103,8 @@ public partial class MainWindow : Window
         InitializeSvg();
         InitializeFind();
 
-        CodeEditor.AddHandler(PointerWheelChangedEvent, OnEditorWheel, RoutingStrategies.Tunnel);
+        foreach (var pane in _panes)
+            pane.Editor.AddHandler(PointerWheelChangedEvent, OnEditorWheel, RoutingStrategies.Tunnel);
         ApplyEditorFontSize(_settings.EditorFontSize);
         DialogInput.AddHandler(KeyDownEvent, OnDialogInputKeyDown, RoutingStrategies.Tunnel);
         Sidebar.Width = Math.Clamp(_settings.SidebarWidth, SidebarMinWidth, SidebarMaxWidth);
@@ -147,7 +136,7 @@ public partial class MainWindow : Window
     public string DialogMessageText => DialogBody.Text ?? "";
     public bool IsFocusMode => !Sidebar.IsVisible;
     public double CurrentSidebarWidth => Sidebar.Width;
-    public double EditorFontSize => CodeEditor.FontSize;
+    public double EditorFontSize => CurrentEditor.FontSize;
 
     // Os testes trocam a Lixeira real por uma falsa.
     public Action<string> MoveToTrash { get; set; } = FileOperations.MoveToTrash;
@@ -155,8 +144,8 @@ public partial class MainWindow : Window
     public bool IsSearchOpen => SearchView.IsVisible;
     public IReadOnlyList<SearchRow> SearchRows => _searchRows;
     public string SearchStatusText => SearchStatus.Text ?? "";
-    public int CaretLine => CodeEditor.TextArea.Caret.Line;
-    public string SelectedText => CodeEditor.SelectedText;
+    public int CaretLine => CurrentEditor.TextArea.Caret.Line;
+    public string SelectedText => CurrentEditor.SelectedText;
 
     // Projeto
 
@@ -316,6 +305,12 @@ public partial class MainWindow : Window
             _ = DeleteAsync(row.FullPath);
     }
 
+    private void OnTreeOpenToSide(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is TreeRow { IsFolder: false } row)
+            OpenFileToSide(row.FullPath);
+    }
+
     private void OnTreeRename(object? sender, RoutedEventArgs e)
     {
         if ((sender as Control)?.DataContext is TreeRow row)
@@ -375,11 +370,8 @@ public partial class MainWindow : Window
     {
         ClearSearchResults();
         if (ActiveDocument is { } active)
-        {
-            _colorizer.Highlighter = active.Highlighter;
             Breadcrumb.Text = BreadcrumbFor(active.FullPath);
-            CodeEditor.TextArea.TextView.Redraw();
-        }
+        RefreshPaneHighlighters();
         UpdateServerHint();
         ReindexProject();
         RefreshTabs();
@@ -486,9 +478,11 @@ public partial class MainWindow : Window
         KeepBreakpoints(document);
         var index = _documents.IndexOf(document);
         _documents.RemoveAt(index);
+        ForgetInOtherPanes(document, index);
         if (ActiveDocument == document)
         {
             ActiveDocument = null;
+            _pane.Document = null;
             Activate(_documents.Count == 0 ? null : _documents[Math.Min(index, _documents.Count - 1)]);
         }
         SaveSession();
@@ -599,24 +593,22 @@ public partial class MainWindow : Window
         CloseColorPicker();
         CloseChangePeek();
         DiffHost.IsVisible = false;
-        if (ActiveDocument is not null)
-        {
-            ActiveDocument.CaretOffset = CodeEditor.TextArea.Caret.Offset;
-            ActiveDocument.VerticalOffset = CodeEditor.VerticalOffset;
-        }
 
+        // Uma imagem não vai para o lado direito: ela cobre a área inteira, e o lado esquerdo a recebe.
+        if (document is { IsImage: true } && _pane == _panes[1])
+            CloseSplit();
+
+        LoadInPane(_pane, document);
         ActiveDocument = document;
         if (document is not null)
-        {
-            _colorizer.Highlighter = document.Highlighter;
-            CodeEditor.Document = document.Document;
-            CodeEditor.TextArea.Caret.Offset = Math.Min(document.CaretOffset, document.Document.TextLength);
-            CodeEditor.ScrollToVerticalOffset(document.VerticalOffset);
-            _gutter.SnapThread();
-            CodeEditor.TextArea.TextView.Redraw();
             Dispatcher.UIThread.Post(FocusActiveDocument);
-        }
+        AfterActiveChanged();
+    }
 
+    // O que muda na janela quando "o" documento troca: ao abrir uma aba ou ao clicar no outro lado.
+    private void AfterActiveChanged()
+    {
+        var document = ActiveDocument;
         UpdateGutterBreakpoints();
         ShowDocumentSurface();
         RefreshImage();
@@ -629,9 +621,11 @@ public partial class MainWindow : Window
         UpdateCaretPosition();
         UpdateServerHint();
         SaveSession();
-        _gutter.SetLineMarks(null);
+        Gutter.SetLineMarks(null);
         SetChangeBlocks(null);
         RefreshFindForDocument();
+        UpdatePaneHeaders();
+        PlaceFindBar();
         _ = UpdateGitMarksAsync();
     }
 
@@ -830,7 +824,7 @@ public partial class MainWindow : Window
 
         // Com a lista de sugestões aberta, o Tab e o Esc são dela. Fora isso, num trecho com campos,
         // o Tab vai ao próximo, o Shift Tab volta e o Esc sai, como no VS Code.
-        if (_completion is null && CodeEditor.TextArea.IsKeyboardFocusWithin)
+        if (_completion is null && CurrentEditor.TextArea.IsKeyboardFocusWithin)
         {
             if (e.Key == Key.Tab && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift
                 && MoveInSnippet(e.KeyModifiers == KeyModifiers.Shift ? -1 : 1))
@@ -892,7 +886,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Key == Key.F2 && CodeEditor.TextArea.IsKeyboardFocusWithin)
+        if (e.Key == Key.F2 && CurrentEditor.TextArea.IsKeyboardFocusWithin)
         {
             e.Handled = true;
             await RenameSymbolAsync();
@@ -928,7 +922,7 @@ public partial class MainWindow : Window
 
         switch (e.Key)
         {
-            case Key.Space when CodeEditor.TextArea.IsKeyboardFocusWithin:
+            case Key.Space when CurrentEditor.TextArea.IsKeyboardFocusWithin:
                 e.Handled = true;
                 await RequestCompletionAsync(explicitRequest: true);
                 break;
@@ -969,7 +963,7 @@ public partial class MainWindow : Window
                 OpenGoToLine();
                 break;
             // O / do teclado americano é o ; do ABNT2, que também tem uma tecla / só sua, e há o / do teclado numérico.
-            case Key.Oem2 or Key.AbntC1 or Key.Divide when CodeEditor.TextArea.IsKeyboardFocusWithin:
+            case Key.Oem2 or Key.AbntC1 or Key.Divide when CurrentEditor.TextArea.IsKeyboardFocusWithin:
                 e.Handled = true;
                 ToggleComment();
                 break;
@@ -992,6 +986,11 @@ public partial class MainWindow : Window
             case Key.S when ActiveDocument is not null:
                 e.Handled = true;
                 await SaveAsync(ActiveDocument);
+                break;
+            // A barra invertida do teclado americano (OemPipe) e a tecla ao lado do Z no ABNT2 (OemBackslash).
+            case Key.OemPipe or Key.OemBackslash when ActiveDocument is { IsImage: false } || IsSplit:
+                e.Handled = true;
+                ToggleSplit();
                 break;
             case Key.O when e.KeyModifiers.HasFlag(KeyModifiers.Shift):
                 e.Handled = true;
@@ -1165,6 +1164,9 @@ public partial class MainWindow : Window
             actions.Add(("Procurar no arquivo", "Ctrl F", () => OpenFind()));
             actions.Add(("Substituir no arquivo", "Ctrl H", () => OpenFind(replace: true)));
             actions.Add(("Ir para função, classe ou seletor", "Ctrl Shift O, ou @ aqui", OpenSymbols));
+            actions.Add((IsSplit ? "Fechar o lado direito" : "Dividir o editor: dois arquivos lado a lado", "Ctrl \\", ToggleSplit));
+            if (IsSplit)
+                actions.Add(("Ir para o outro lado", "", FocusOtherSide));
             actions.Add(("Próximo resultado", "F3", () => FindStep(1)));
             actions.Add(("Resultado anterior", "Shift F3", () => FindStep(-1)));
             actions.Add(("Fechar aba", "Ctrl W", () => _ = CloseDocumentAsync(active)));
@@ -1225,7 +1227,7 @@ public partial class MainWindow : Window
 
     public void OpenSearch()
     {
-        var seed = CodeEditor.IsVisible ? CodeEditor.SelectedText : "";
+        var seed = CurrentEditor.IsVisible ? CurrentEditor.SelectedText : "";
         SetSidebarVisible(true);
         if (!IsWidePanelOpen)
         {
@@ -1395,9 +1397,9 @@ public partial class MainWindow : Window
                 var line = document.GetLineByNumber(row.Line);
                 var start = Math.Min(line.Offset + row.Column, line.EndOffset);
                 var length = Math.Min(row.Length, line.EndOffset - start);
-                CodeEditor.Select(start, length);
-                CodeEditor.TextArea.Caret.Offset = start + length;
-                Dispatcher.UIThread.Post(() => CodeEditor.ScrollToLine(row.Line), DispatcherPriority.Loaded);
+                CurrentEditor.Select(start, length);
+                CurrentEditor.TextArea.Caret.Offset = start + length;
+                Dispatcher.UIThread.Post(() => CurrentEditor.ScrollToLine(row.Line), DispatcherPriority.Loaded);
             }
         }
 
@@ -1453,8 +1455,11 @@ public partial class MainWindow : Window
     private void ApplyEditorFontSize(double size)
     {
         var clamped = Math.Clamp(size, EditorMinFontSize, EditorMaxFontSize);
-        CodeEditor.FontSize = clamped;
-        _gutter.SetScale(clamped / EditorDefaultFontSize);
+        foreach (var pane in _panes)
+        {
+            pane.Editor.FontSize = clamped;
+            pane.Gutter.SetScale(clamped / EditorDefaultFontSize);
+        }
     }
 
     // Tema, foco e status
@@ -1479,9 +1484,15 @@ public partial class MainWindow : Window
         ColorCard.BoxShadow = palette.PopShadow;
         FindBar.BoxShadow = palette.PopShadow;
         UpdateFindStatus();
-        CodeEditor.TextArea.SelectionBrush = palette.Selection;
-        CodeEditor.TextArea.SelectionBorder = null;
-        CodeEditor.TextArea.Caret.CaretBrush = palette.Accent;
+        foreach (var pane in _panes)
+        {
+            pane.Editor.TextArea.SelectionBrush = palette.Selection;
+            pane.Editor.TextArea.SelectionBorder = null;
+            pane.Editor.TextArea.Caret.CaretBrush = palette.Accent;
+            pane.Editor.TextArea.TextView.Redraw();
+            pane.Gutter.InvalidateVisual();
+        }
+        UpdatePaneHeaders();
         TerminalHost.ApplyScheme(TerminalScheme.For(palette));
         RefreshProblems();
         RefreshGitRows();
@@ -1492,8 +1503,6 @@ public partial class MainWindow : Window
         RefreshTree();
         if (_searchIndex >= 0 && _searchIndex < _searchRows.Count)
             _searchRows[_searchIndex] = _searchRows[_searchIndex] with { Background = palette.Tint };
-        CodeEditor.TextArea.TextView.Redraw();
-        _gutter.InvalidateVisual();
         ImageView.InvalidateVisual();
         SvgView.InvalidateVisual();
     }
@@ -1507,7 +1516,7 @@ public partial class MainWindow : Window
 
     private void UpdateCaretPosition()
     {
-        var caret = CodeEditor.TextArea.Caret;
+        var caret = CurrentEditor.TextArea.Caret;
         CaretPosition.IsVisible = ActiveDocument is not null;
         CaretPosition.Text = ActiveDocument is { IsImage: true } ? ImageView.Description : $"Ln {caret.Line}, Col {caret.Column}";
         // Clicar na posição leva a outra linha, como no Ctrl G.

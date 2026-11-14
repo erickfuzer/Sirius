@@ -44,8 +44,8 @@ public partial class MainWindow
     public bool IsShowingVariables => _showingVariables;
     public bool AreDebugButtonsVisible => DebugButtons.IsVisible;
     public bool IsDebugOutVisible => DebugOutButton.IsVisible;
-    public bool IsEditorTipOpen => ToolTip.GetIsOpen(CodeEditor);
-    public string EditorTipText => (ToolTip.GetTip(CodeEditor) as TextBlock)?.Text ?? "";
+    public bool IsEditorTipOpen => ToolTip.GetIsOpen(CurrentEditor);
+    public string EditorTipText => (ToolTip.GetTip(CurrentEditor) as TextBlock)?.Text ?? "";
     public int? PausedLine => _pause?.Line;
     public IReadOnlyList<VariableRow> VariableRows => _variableRows;
     public string TerminalInfoText => TerminalInfo.Text ?? "";
@@ -72,25 +72,40 @@ public partial class MainWindow
         Opened += (_, _) => _ = ResumeServerDebugAsync();
         VariablesList.ItemsSource = _variableRows;
         FramesList.ItemsSource = _frameRows;
-        _gutter.BreakpointClicked += ToggleBreakpoint;
-        _gutter.BreakpointConditionRequested += line => _ = EditBreakpointConditionAsync(line);
-        CodeEditor.TextArea.TextView.BackgroundRenderers.Add(new PausedLineRenderer(() => ActivePausedLine));
+        foreach (var pane in _panes)
+        {
+            pane.Gutter.BreakpointClicked += ToggleBreakpoint;
+            pane.Gutter.BreakpointConditionRequested += line => _ = EditBreakpointConditionAsync(line);
+            pane.Editor.TextArea.TextView.BackgroundRenderers.Add(new PausedLineRenderer(() => PausedLineIn(pane.Document)));
+        }
     }
 
-    // A linha só é pintada na aba do arquivo em que a depuração parou.
-    private int? ActivePausedLine =>
-        _pause is { } pause && string.Equals(ActiveDocument?.FullPath, pause.Path, StringComparison.OrdinalIgnoreCase) ? pause.Line : null;
+    // A linha só é pintada no arquivo em que a depuração parou, em qualquer dos lados.
+    private int? ActivePausedLine => PausedLineIn(ActiveDocument);
+
+    private int? PausedLineIn(OpenDocument? document) =>
+        _pause is { } pause && string.Equals(document?.FullPath, pause.Path, StringComparison.OrdinalIgnoreCase) ? pause.Line : null;
 
     private static bool CanHaveBreakpoints(OpenDocument? document) =>
         document is { IsImage: false, IsUntitled: false }
         && Path.GetExtension(document.FullPath).ToLowerInvariant() is ".php" or ".phtml" or ".inc";
 
+    // Cada lado mostra os pontos do arquivo dele; o mesmo arquivo dos dois lados mostra os mesmos pontos.
     private void UpdateGutterBreakpoints()
     {
-        var document = ActiveDocument;
-        _gutter.Breakpoints = CanHaveBreakpoints(document) ? () => document!.BreakpointLines : null;
-        _gutter.Conditions = CanHaveBreakpoints(document) ? () => document!.BreakpointConditions : null;
-        _gutter.RedrawBreakpoints();
+        foreach (var pane in _panes)
+        {
+            var document = pane.Document;
+            pane.Gutter.Breakpoints = CanHaveBreakpoints(document) ? () => document!.BreakpointLines : null;
+            pane.Gutter.Conditions = CanHaveBreakpoints(document) ? () => document!.BreakpointConditions : null;
+            pane.Gutter.RedrawBreakpoints();
+        }
+    }
+
+    private void RedrawPaneBreakpoints()
+    {
+        foreach (var pane in _panes)
+            pane.Gutter.RedrawBreakpoints();
     }
 
     public bool CanSetBreakpointHere => CanHaveBreakpoints(ActiveDocument);
@@ -147,7 +162,7 @@ public partial class MainWindow
             return;
         }
         var document = ActiveDocument!;
-        var target = line ?? CodeEditor.TextArea.Caret.Line;
+        var target = line ?? CurrentEditor.TextArea.Caret.Line;
         var current = document.BreakpointConditions.GetValueOrDefault(target, "");
         var condition = await AskTextAsync($"Parar na linha {target} só quando…",
             "Escreva uma condição em PHP, como $i == 5 ou $nome === 'Ana'. Deixe vazio para parar sempre.", "Salvar",
@@ -156,7 +171,7 @@ public partial class MainWindow
             return;
 
         document.SetBreakpointCondition(target, condition);
-        _gutter.RedrawBreakpoints();
+        RedrawPaneBreakpoints();
         BreakpointsChanged();
         ShowStatus(string.IsNullOrWhiteSpace(condition)
             ? $"A linha {target} para sempre."
@@ -170,7 +185,7 @@ public partial class MainWindow
         if (!CanHaveBreakpoints(ActiveDocument))
             return;
         var marked = ActiveDocument!.ToggleBreakpoint(line);
-        _gutter.RedrawBreakpoints();
+        RedrawPaneBreakpoints();
         BreakpointsChanged();
         if (marked && IsHtmlOnlyLine(ActiveDocument, line))
             ShowStatus($"A linha {line} é só HTML, sem PHP para parar. Na depuração, o ponto vai para a próxima linha com PHP.");
@@ -198,7 +213,7 @@ public partial class MainWindow
             document.ToggleBreakpoint(from);
             if (!document.BreakpointLines.Contains(to))
                 document.SetBreakpointCondition(to, condition);
-            _gutter.RedrawBreakpoints();
+            RedrawPaneBreakpoints();
         }
         else if (_closedBreakpoints.TryGetValue(path, out var lines) && lines.Remove(from))
         {
@@ -419,7 +434,7 @@ public partial class MainWindow
         _pageWasPaused = true;
         if (File.Exists(pause.Path))
             GoToLocation(pause.Path, pause.Line, 1);
-        CodeEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Background);
+        ForEachEditor(editor => editor.TextArea.TextView.InvalidateLayer(KnownLayer.Background));
         ShowVariables();
         ShowPausedInfo();
         UpdateDebugButtons();
@@ -497,7 +512,7 @@ public partial class MainWindow
             return;
         RememberValues();
         _pause = null;
-        CodeEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Background);
+        ForEachEditor(editor => editor.TextArea.TextView.InvalidateLayer(KnownLayer.Background));
         TerminalInfo.Text = "Executando...";
         UpdateDebugButtons();
     }
@@ -538,7 +553,7 @@ public partial class MainWindow
             return;
         _pause = null;
         _previousValues.Clear();
-        CodeEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Background);
+        ForEachEditor(editor => editor.TextArea.TextView.InvalidateLayer(KnownLayer.Background));
         // Páginas sem ponto marcado passam o tempo todo, como o CSS de um site: não muda o aviso.
         if (_pageWasPaused)
             TerminalInfo.Text = "A página terminou. Recarregue no navegador para parar de novo";
@@ -564,7 +579,7 @@ public partial class MainWindow
         _pageOutputStarted = false;
         VariablesTabButton.IsVisible = false;
         UpdateDebugButtons();
-        CodeEditor.TextArea.TextView.InvalidateLayer(KnownLayer.Background);
+        ForEachEditor(editor => editor.TextArea.TextView.InvalidateLayer(KnownLayer.Background));
         if (_showingVariables)
         {
             HideVariables();
