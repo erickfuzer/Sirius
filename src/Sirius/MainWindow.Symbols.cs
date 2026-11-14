@@ -60,10 +60,12 @@ public partial class MainWindow
         if (client is null && _language.MissingServerFor(document.FullPath) is null && LanguageServerCatalog.ForPath(document.FullPath) is not null)
         {
             // O servidor ainda está abrindo: espera um pouco e pede de novo, sem guardar a resposta vazia.
+            // Nada de redesenhar a barra aqui: este método roda de dentro do desenho dela, e redesenhar pediria
+            // a lista de novo, que redesenharia de novo, até estourar a pilha (código 0xc00000fd numa suíte).
+            // A barra já mostra a mensagem ao voltar daqui; só o temporizador pede de novo.
             _symbolsMessage = "Esperando o servidor da linguagem abrir…";
             _symbolsVersion = null;
             Avalonia.Threading.DispatcherTimer.RunOnce(RefreshSymbolsInPalette, TimeSpan.FromMilliseconds(400));
-            RefreshSymbolsInPalette();
             return;
         }
         if (client is not { SupportsDocumentSymbols: true })
@@ -71,7 +73,6 @@ public partial class MainWindow
             _symbolsMessage = _language.MissingServerFor(document.FullPath) is { } missing
                 ? $"Instale o suporte a {missing.DisplayName} pela cápsula para ver a lista"
                 : "Este tipo de arquivo não tem lista de funções";
-            RefreshSymbolsInPalette();
             return;
         }
 

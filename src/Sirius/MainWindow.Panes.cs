@@ -207,6 +207,15 @@ public partial class MainWindow
         OpenFile(path);
     }
 
+    private void RevealInOtherSide(string path)
+    {
+        if (!IsSplit || string.Equals(ActiveDocument?.FullPath, path, StringComparison.OrdinalIgnoreCase))
+            return;
+        var other = _pane == _panes[0] ? _panes[1] : _panes[0];
+        if (string.Equals(other.Document?.FullPath, path, StringComparison.OrdinalIgnoreCase))
+            FocusPane(other);
+    }
+
     public void FocusOtherSide()
     {
         if (IsSplit)

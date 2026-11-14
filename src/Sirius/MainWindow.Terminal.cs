@@ -366,6 +366,9 @@ public partial class MainWindow
     // Abre o arquivo de um erro do terminal na linha indicada.
     public void GoToLocation(string path, int line, int column)
     {
+        // Com o editor dividido, um arquivo que já está à vista no outro lado é mostrado lá, como no VS Code:
+        // a parada da depuração, a definição ou um erro não abrem uma segunda cópia no lado com o foco.
+        RevealInOtherSide(path);
         OpenFile(path);
         if (!string.Equals(ActiveDocument?.FullPath, path, StringComparison.OrdinalIgnoreCase))
             return;

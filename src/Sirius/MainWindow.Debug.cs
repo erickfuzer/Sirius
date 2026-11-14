@@ -624,10 +624,12 @@ public partial class MainWindow
     }
 
     // Dica ao parar o mouse: só no arquivo da parada, onde os nomes valem. Null para deixar as outras dicas.
-    public string? DebugTipAt(int offset)
+    public string? DebugTipAt(int offset) => DebugTipAt(offset, ActiveDocument);
+
+    private string? DebugTipAt(int offset, OpenDocument? shown)
     {
         // Vale o nível da pilha que está à vista: em quem chamou, os nomes são os de lá.
-        if (SelectedFrame is not { } frame || ActiveDocument is not { } document
+        if (SelectedFrame is not { } frame || shown is not { } document
             || !string.Equals(document.FullPath, frame.Path, StringComparison.OrdinalIgnoreCase))
             return null;
         var line = document.Document.GetLineByOffset(offset);

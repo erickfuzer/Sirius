@@ -240,6 +240,28 @@ public class SplitTests
     }
 
     [AvaloniaFact]
+    public void Ir_para_um_arquivo_a_vista_no_outro_lado_vai_para_la()
+    {
+        using var temp = new TempFolder();
+        var (window, html, css) = Open(temp);
+        window.ToggleSplit();
+        window.OpenFile(css);
+        window.FocusOtherSide();
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(window.IsRightSideFocused);
+
+        // Como uma parada da depuração ou um erro clicado no terminal, no arquivo da direita.
+        window.GoToLocation(css, 2, 3);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(window.IsRightSideFocused);
+        Assert.Equal(html, window.LeftDocument!.FullPath);
+        Assert.Equal(css, window.RightDocument!.FullPath);
+        Assert.Equal(2, window.CaretLine);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public void A_fonte_e_a_quebra_de_linha_valem_para_os_dois_lados()
     {
         using var temp = new TempFolder();

@@ -55,11 +55,7 @@ public partial class MainWindow
             // Cada lado sublinha os erros do arquivo dele.
             area.TextView.BackgroundRenderers.Add(new DiagnosticRenderer(area.TextView,
                 () => pane.Document is { } document ? _language.DiagnosticsFor(document.FullPath) : []));
-            area.TextView.PointerHover += (sender, e) =>
-            {
-                if (pane == _pane)
-                    OnEditorHover(sender, e);
-            };
+            area.TextView.PointerHover += (_, e) => OnEditorHover(pane, e);
             area.TextView.PointerHoverStopped += OnEditorHoverStopped;
             area.AddHandler(PointerPressedEvent, OnEditorPointerPressed, RoutingStrategies.Tunnel);
         }
@@ -405,19 +401,23 @@ public partial class MainWindow
 
     // Dica ao parar o mouse
 
-    private async void OnEditorHover(object? sender, PointerEventArgs e)
+    // Cada lado mostra a dica do arquivo dele, mesmo sem ter o foco, como no VS Code.
+    private async void OnEditorHover(EditorPane pane, PointerEventArgs e)
     {
-        if (ActiveDocument is not { } document || OffsetAt(e) is not { } offset)
+        var view = pane.Editor.TextArea.TextView;
+        if (pane.Document is not { } document
+            || view.GetPositionFloor(e.GetPosition(view) + view.ScrollOffset) is not { } position)
             return;
+        var offset = document.Document.GetOffset(position.Location);
 
         _hoverCancel?.Cancel();
         var cancel = new CancellationTokenSource(RequestTimeout);
         _hoverCancel = cancel;
 
         // Durante uma parada, o valor é o que a pessoa quer ver, e ele já está aqui, sem perguntar a ninguém.
-        if (DebugTipAt(offset) is { } debugTip)
+        if (DebugTipAt(offset, document) is { } debugTip)
         {
-            ShowEditorTip(debugTip);
+            ShowEditorTip(pane.Editor, debugTip);
             return;
         }
 
@@ -446,24 +446,24 @@ public partial class MainWindow
 
         if (cancel.IsCancellationRequested || parts.Count == 0)
             return;
-        ShowEditorTip(string.Join("\n\n", parts));
+        ShowEditorTip(pane.Editor, string.Join("\n\n", parts));
     }
 
-    private void ShowEditorTip(string tip)
+    private static void ShowEditorTip(AvaloniaEdit.TextEditor editor, string tip)
     {
-        ToolTip.SetTip(CurrentEditor, new TextBlock
+        ToolTip.SetTip(editor, new TextBlock
         {
             Text = tip.Length > MaxHoverChars ? tip[..MaxHoverChars] + "…" : tip,
             TextWrapping = TextWrapping.Wrap,
             MaxWidth = 560,
         });
-        ToolTip.SetIsOpen(CurrentEditor, true);
+        ToolTip.SetIsOpen(editor, true);
     }
 
     private void OnEditorHoverStopped(object? sender, PointerEventArgs e)
     {
         _hoverCancel?.Cancel();
-        ToolTip.SetIsOpen(CurrentEditor, false);
+        ForEachEditor(editor => ToolTip.SetIsOpen(editor, false));
     }
 
     // Renomear símbolo

@@ -201,6 +201,29 @@ public class SymbolsTests
         window.Close();
     }
 
+    // Antes, abrir a lista com o servidor ainda abrindo redesenhava a barra de dentro do próprio desenho,
+    // sem parar, e o processo caía com estouro de pilha (0xc00000fd) uma vez em seis rodadas da suíte.
+    [AvaloniaFact]
+    public void Servidor_que_ainda_esta_abrindo_mostra_que_espera_sem_cair()
+    {
+        using var temp = new TempFolder();
+        var path = temp.File("a.php", Php);
+        var window = new MainWindow(new AppSettings(), Path.Combine(temp.Path, "settings.json"), temp.Path);
+        window.Language.IsInstalled = _ => true;
+        window.Language.Launcher = (_, _) => null;
+        window.Show();
+        window.OpenFile(path);
+        Dispatcher.UIThread.RunJobs();
+
+        window.OpenSymbols();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(window.IsPaletteOpen);
+        Assert.Equal(["Esperando o servidor da linguagem abrir…"], window.PaletteCommandNames("@"));
+        window.ClosePalette();
+        window.Close();
+    }
+
     [AvaloniaFact]
     public void Texto_puro_diz_que_nao_tem_lista()
     {
