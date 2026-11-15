@@ -6,8 +6,8 @@
 # dotenv files
 .env
 
-# Instruções locais do Claude Code
-CLAUDE.md
+# Instruções pessoais de quem trabalha no projeto (o guia comum é o AGENTS.md)
+*.local.md
 
 # User-specific files
 *.rsuser
